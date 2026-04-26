@@ -1,0 +1,383 @@
+---
+title: Docker with S3 Storage
+description: Store package archives in S3-compatible object storage instead of the local filesystem, with examples for AWS S3, MinIO, DigitalOcean Spaces, and Backblaze B2.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+By default, club stores package tarballs on the local filesystem inside the `/data/blobs/` directory. You can switch to S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2, or GCS via the S3 interop endpoint), or use the native [GCS backend](/configuration/storage/#blob-store-filesystem-vs-s3-vs-gcs) by setting a few environment variables.
+
+## When to Use S3
+
+**Stick with filesystem storage when:**
+- You run a single club instance
+- Your packages fit comfortably on the server's disk
+- You want the simplest possible setup
+
+**Switch to S3 when:**
+- You want package storage decoupled from the server
+- You need more storage than the server's disk provides
+- You run multiple club instances that need shared access to packages
+- You want to use your cloud provider's durability and redundancy guarantees
+- You want to offload backups to the storage provider
+
+## Configuration
+
+Set these environment variables in your `.env` file:
+
+```bash
+BLOB_BACKEND=s3
+S3_BUCKET=club-packages
+S3_REGION=us-east-1
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
+```
+
+For non-AWS S3-compatible services, also set the endpoint:
+
+```bash
+S3_ENDPOINT=https://your-s3-endpoint.example.com
+```
+
+<Aside type="caution">
+  The S3 bucket must exist before starting club. The server does not create it automatically.
+</Aside>
+
+## AWS S3
+
+<Tabs>
+  <TabItem label=".env">
+    ```bash
+    BLOB_BACKEND=s3
+    S3_BUCKET=club-packages
+    S3_REGION=us-east-1
+    S3_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+    S3_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    ```
+  </TabItem>
+  <TabItem label="Bucket setup">
+    Create the bucket with the AWS CLI:
+
+    ```bash
+    aws s3 mb s3://club-packages --region us-east-1
+    ```
+
+    The bucket does not need to be public. club accesses it server-side using the provided credentials. Block all public access:
+
+    ```bash
+    aws s3api put-public-access-block \
+      --bucket club-packages \
+      --public-access-block-configuration \
+      BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+    ```
+  </TabItem>
+  <TabItem label="IAM policy">
+    Create an IAM user or role with this minimal policy:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::club-packages",
+            "arn:aws:s3:::club-packages/*"
+          ]
+        }
+      ]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## MinIO (Self-Hosted S3)
+
+MinIO is an open-source S3-compatible object storage server. Use it when you want S3-style storage without a cloud provider.
+
+### docker-compose with MinIO
+
+Add MinIO to your `docker-compose.yml`:
+
+```yaml
+version: "3.9"
+
+services:
+  club:
+    image: ghcr.io/birjuvachhani/club:latest
+    container_name: club
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file: .env
+    volumes:
+      - club_data:/data
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  minio:
+    image: minio/minio:latest
+    container_name: club_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:9001:9001"   # MinIO console (optional)
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Create the bucket on first startup
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY};
+      mc mb --ignore-existing myminio/club-packages;
+      exit 0;
+      "
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+
+volumes:
+  club_data:
+  minio_data:
+```
+
+### .env for MinIO
+
+```bash
+# club
+SERVER_URL=https://packages.example.com
+JWT_SECRET=<your-jwt-secret>
+TRUST_PROXY=true
+
+# S3 (MinIO)
+BLOB_BACKEND=s3
+S3_ENDPOINT=http://minio:9000
+S3_BUCKET=club-packages
+S3_REGION=us-east-1
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+
+# MinIO credentials (must match S3 keys above)
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+```
+
+<Aside type="note">
+  The first admin account is created through the `/setup` web wizard using a one-time code printed to the logs — there are no `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars. See [First-boot admin setup](/self-hosting/docker/#first-boot-admin-setup).
+</Aside>
+
+<Aside type="caution">
+  Change the default MinIO credentials (`minioadmin`/`minioadmin`) to strong random values in production. The `S3_ACCESS_KEY` and `MINIO_ACCESS_KEY` must match, as must the secret keys.
+</Aside>
+
+The `minio-init` service creates the `club-packages` bucket on first startup and then exits. It runs only when the bucket does not already exist.
+
+The MinIO console is available at `http://localhost:9001` for browsing stored objects.
+
+## Cloudflare R2
+
+[Cloudflare R2](https://developers.cloudflare.com/r2/) is S3-compatible object storage with zero egress fees, which makes it a strong fit for a package registry.
+
+```bash
+BLOB_BACKEND=s3
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+S3_BUCKET=club-packages
+S3_REGION=auto
+S3_ACCESS_KEY=<your-r2-access-key-id>
+S3_SECRET_KEY=<your-r2-secret-access-key>
+```
+
+Setup steps:
+
+1. In the Cloudflare dashboard, go to **R2** and create a bucket named `club-packages`.
+2. Find your account ID on the R2 overview page — it forms the endpoint hostname.
+3. Under **Manage R2 API Tokens**, create a token with **Object Read & Write** permission scoped to the bucket. Save the access key ID and secret.
+4. Set `S3_REGION=auto`. R2 ignores region but the SigV4 signer requires the value.
+
+<Aside type="tip">
+  R2 charges nothing for egress, so package downloads from the CLI cost only what the client pays. The server uses presigned URLs for downloads, so download traffic bypasses the server entirely.
+</Aside>
+
+## Firebase Storage / GCS via S3 Interop
+
+Firebase Storage buckets are plain Google Cloud Storage buckets, and GCS
+exposes an S3-compatible XML API. This is the fastest way to point club at a
+Firebase bucket — no extra code path, just HMAC keys against the S3 backend.
+
+```bash
+BLOB_BACKEND=s3
+S3_ENDPOINT=https://storage.googleapis.com
+S3_BUCKET=<project-id>.appspot.com
+S3_REGION=auto
+S3_ACCESS_KEY=<HMAC access key ID>
+S3_SECRET_KEY=<HMAC secret>
+```
+
+Setup steps:
+
+1. In the GCP Console, open **Cloud Storage → Settings → Interoperability**.
+2. Under **Service account HMAC keys**, click **Create a key for a service account** and pick a service account (or create one) with the **Storage Object Admin** role on the target bucket.
+3. Copy the access key ID and secret — they're shown once.
+4. Set `S3_BUCKET` to your Firebase default bucket (`<project-id>.appspot.com`) or any other GCS bucket the service account can access.
+5. `S3_REGION=auto` works; the S3 interop endpoint ignores region for routing but SigV4 requires some value.
+
+<Aside type="tip">
+  If you can't create HMAC keys (policy restrictions, or you'd rather use
+  service-account JSON + Application Default Credentials), use the native
+  `gcs` backend instead — see the next section.
+</Aside>
+
+## Firebase Storage / GCS (native)
+
+Use this when you want idiomatic GCP auth (service-account JSON or
+Application Default Credentials) and don't want to manage HMAC keys. It's
+the recommended path for deployments running on GCE, GKE, Cloud Run, or any
+GCP-hosted environment.
+
+```bash
+BLOB_BACKEND=gcs
+GCS_BUCKET=<project-id>.appspot.com
+# Pick one of the three auth modes below:
+GCS_CREDENTIALS_FILE=/secrets/sa.json         # path to service-account JSON
+# GCS_CREDENTIALS_JSON='{"type":"service_account",...}'  # inline JSON
+# (unset both to use Application Default Credentials)
+```
+
+Auth resolution priority: **file → inline → ADC**.
+
+Setup steps:
+
+1. Create a service account in the GCP Console with the **Storage Object Admin** role on the bucket.
+2. Generate a JSON key for that service account and download it.
+3. Mount it into the container (e.g. as a Docker secret) and point `GCS_CREDENTIALS_FILE` at its path, **or** paste its contents into `GCS_CREDENTIALS_JSON`.
+4. For GCE/GKE/Cloud Run deployments with an attached service account, leave both env vars unset — the SDK auto-discovers credentials from the metadata server.
+
+<Aside type="caution">
+  Under **Application Default Credentials** there is no private key in the
+  server process, so club cannot generate V4 signed download URLs. The
+  server will fall back to proxying package bytes instead of redirecting
+  clients to `storage.googleapis.com`. Downloads still work, but they
+  consume server bandwidth. If that matters, supply the JSON directly via
+  `GCS_CREDENTIALS_FILE`.
+</Aside>
+
+## DigitalOcean Spaces
+
+[DigitalOcean Spaces](https://www.digitalocean.com/products/spaces) is S3-compatible object storage.
+
+```bash
+BLOB_BACKEND=s3
+S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
+S3_BUCKET=club-packages
+S3_REGION=nyc3
+S3_ACCESS_KEY=<your-spaces-access-key>
+S3_SECRET_KEY=<your-spaces-secret-key>
+```
+
+Create the Space via the DigitalOcean control panel or CLI:
+
+```bash
+doctl serverless functions create  # not needed, just create via UI
+```
+
+<Aside type="tip">
+  In DigitalOcean, create an API key under **API > Spaces Keys** in the control panel. This is separate from your regular API token.
+</Aside>
+
+## Backblaze B2
+
+[Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) offers S3-compatible storage at lower cost.
+
+```bash
+BLOB_BACKEND=s3
+S3_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+S3_BUCKET=club-packages
+S3_REGION=us-west-004
+S3_ACCESS_KEY=<your-b2-application-key-id>
+S3_SECRET_KEY=<your-b2-application-key>
+```
+
+Create the bucket and application key in the Backblaze B2 console:
+
+1. Create a bucket named `club-packages` (private)
+2. Create an application key with read/write access to that bucket
+3. The endpoint URL is `https://s3.<region>.backblazeb2.com` (shown in your bucket details)
+
+## Migrating from Filesystem to S3
+
+If you have existing packages stored on the filesystem and want to move to S3:
+
+1. **Create the S3 bucket** using the instructions for your provider above.
+
+2. **Upload existing packages to S3:**
+
+   ```bash
+   # For AWS S3
+   docker cp club:/data/blobs /tmp/club-blobs
+   aws s3 sync /tmp/club-blobs s3://club-packages/
+
+   # For MinIO (using mc)
+   docker cp club:/data/blobs /tmp/club-blobs
+   mc alias set myminio http://localhost:9000 minioadmin minioadmin
+   mc mirror /tmp/club-blobs myminio/club-packages/
+   ```
+
+   The filesystem layout under `/data/blobs/<pkg>/<version>/artifacts/package.tar.gz` + `/data/blobs/<pkg>/<version>/screenshots/…` translates 1:1 into S3 keys.
+
+3. **Update the `.env` file** with the S3 configuration variables shown above.
+
+4. **Restart club:**
+
+   ```bash
+   docker compose restart club
+   ```
+
+5. **Verify** by fetching a known package:
+
+   ```bash
+   curl -sf -H "Authorization: Bearer $TOKEN" \
+     https://packages.example.com/api/packages/my_package | jq .latest.version
+   ```
+
+<Aside>
+  After verifying that S3 storage works correctly, you can remove the local package files from the `/data/blobs/` directory. Keep a backup until you are confident the migration is complete.
+</Aside>
+
+## Serving dartdoc when blobs are on S3
+
+`BLOB_BACKEND=s3` only moves package tarballs and screenshots to S3 — rendered dartdoc HTML stays on local disk by default (`DARTDOC_BACKEND=filesystem`). That's fine for a single container, but it breaks when you run more than one replica: each replica has its own local dartdoc cache, so only the one that generated the docs can serve them.
+
+Flip `DARTDOC_BACKEND=blob` to store dartdoc in the same S3 bucket as tarballs:
+
+```bash
+DARTDOC_BACKEND=blob
+# DARTDOC_CACHE_MAX_MEMORY_MB=64   # optional: per-replica LRU cap
+```
+
+Each replica fetches `index.json` once on first access per package (cached thereafter) and issues one range-GET per served file. See the [Dartdoc Serving Specifications](/reference/dartdoc-serving/) for the full behavioural contract.

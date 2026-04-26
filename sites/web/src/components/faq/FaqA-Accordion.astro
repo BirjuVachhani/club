@@ -1,0 +1,113 @@
+---
+// FAQ — Variant A · Classic accordion
+// Native <details>/<summary> — no JS. Centered single column,
+// generous spacing, light paper background. The default "play".
+import { FAQS } from "../../lib/landing-copy";
+---
+
+<section id="faq" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Frequently asked</div>
+      <h2 class="h2">A short list of the things people ask first.</h2>
+      <p class="lede">
+        Still curious? The <a href="#" class="ink">docs</a> answer the long version
+        — the rest of the team is on <a href="#" class="ink">GitHub Discussions</a>.
+      </p>
+    </header>
+
+    <ul class="faqs">
+      {FAQS.map((f, i) => (
+        <li>
+          <details>
+            <summary>
+              <span class="num">{String(i + 1).padStart(2, "0")}</span>
+              <span class="q">{f.q}</span>
+              <span class="chev" aria-hidden="true">+</span>
+            </summary>
+            <div class="a">{f.a}</div>
+          </details>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 56rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 4.5rem 0; } }
+
+  .head { text-align: center; margin-bottom: 3rem; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 1rem auto 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 1rem; line-height: 1.6; color: var(--color-mute);
+    margin: 1.25rem auto 0; max-width: 36rem;
+  }
+  .ink { color: var(--color-stamp); border-bottom: 1px solid var(--color-stamp-soft); }
+  .ink:hover { border-color: var(--color-stamp); }
+
+  .faqs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+  .faqs li {
+    border-top: 1px solid var(--color-border);
+  }
+  .faqs li:last-child { border-bottom: 1px solid var(--color-border); }
+
+  details { width: 100%; }
+  summary {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    transition: color 150ms;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { color: var(--color-stamp); }
+  summary:hover .num { color: var(--color-stamp); }
+  summary:hover .chev { color: var(--color-stamp); transform: rotate(45deg); }
+
+  .num {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    letter-spacing: 0.16em; color: var(--color-mute);
+    min-width: 2.5rem; transition: color 150ms;
+  }
+  .q {
+    font-family: var(--font-sans); font-weight: 600;
+    font-size: 1.08rem; letter-spacing: -0.012em;
+    color: var(--color-ink);
+  }
+  .chev {
+    font-family: var(--font-mono); font-size: 1.25rem; color: var(--color-mute);
+    width: 1.5rem; height: 1.5rem; display: grid; place-items: center;
+    transition: transform 200ms ease, color 150ms;
+  }
+  details[open] summary .chev { transform: rotate(45deg); color: var(--color-stamp); }
+  details[open] summary .q { color: var(--color-stamp); }
+
+  .a {
+    padding: 0 0.5rem 1.75rem 4rem;
+    color: var(--color-mute); font-size: 0.98rem; line-height: 1.65;
+    max-width: 56ch;
+  }
+  @media (max-width: 600px) {
+    summary { gap: 0.85rem; padding: 1.25rem 0.25rem; }
+    .num { min-width: 2rem; font-size: 0.66rem; }
+    .a { padding-left: 2.85rem; padding-right: 0.25rem; }
+  }
+</style>

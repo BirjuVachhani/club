@@ -1,0 +1,195 @@
+---
+title: Package Administration
+description: Manage packages on your club server — discontinuing, unlisting, retracting, managing uploaders and publishers, and admin-only operations.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Package administration covers the operations available to package uploaders, publisher admins, and server admins after a package is published.
+
+## Who Can Do What
+
+Every package is owned in one of two ways:
+
+- **Uploader list** — one or more users with publish rights on this package.
+- **Publisher** — a single organization whose admins and members all share rights.
+
+A package can have both: if a publisher is set, publisher admins **and** named uploaders both have write access.
+
+| Action | Any uploader / publisher admin | Server admin only |
+|--------|:------------------------------:|:-----------------:|
+| Add / remove uploaders | yes | yes |
+| Set or clear publisher | yes | yes |
+| Discontinue, set `replacedBy`, toggle unlisted | yes | yes |
+| Retract / un-retract a version | yes | yes |
+| Delete own package | yes | — |
+| View activity log | yes | yes |
+| Delete any package or version | — | **yes** |
+| Re-score a version | — | **yes** |
+| Regenerate dartdoc | — | **yes** |
+
+## Package Options
+
+Discontinue, unlist, and `replacedBy` are all set through the same endpoint:
+
+```http
+PUT /api/packages/<pkg>/options
+Content-Type: application/json
+
+{
+  "isDiscontinued": true,
+  "replacedBy": "new_package",
+  "isUnlisted": false
+}
+```
+
+Omit a field to leave it unchanged.
+
+### Discontinue
+
+Marks the package as no longer maintained. It remains downloadable but shows a clear banner in the web UI and surfaces a hint in `dart pub`.
+
+```http
+PUT /api/packages/old_package/options
+{ "isDiscontinued": true, "replacedBy": "new_package" }
+```
+
+See [Discontinuing a Package](/guides/discontinuing-packages/) for the full walkthrough, `replacedBy` semantics, and reversal.
+
+### Unlist
+
+Unlisting hides the package from search and browse listings while keeping it fully downloadable for anyone who knows the name.
+
+```http
+PUT /api/packages/internal_tool/options
+{ "isUnlisted": true }
+```
+
+See [Unlisting a Package](/guides/unlisting-packages/) for when to prefer unlist vs discontinue vs retract.
+
+## Version Retraction
+
+Retraction is the soft alternative to deletion. A retracted version:
+
+- Remains downloadable (existing `pubspec.lock` files keep resolving).
+- Is excluded from resolution for new consumers (Dart SDK ≥ 2.15).
+- Shows a retracted badge in the UI.
+
+```http
+PUT /api/packages/<pkg>/versions/<v>/options
+Content-Type: application/json
+
+{ "isRetracted": true }
+```
+
+Un-retract with `{ "isRetracted": false }`.
+
+<Aside type="caution" title="7-day windows are enforced by default">
+club follows the pub.dev policy: a version can only be retracted within 7 days of publishing, and restored within 7 days of retraction. Requests outside the window return **409 Conflict**. Set `ENFORCE_RETRACTION_WINDOW=false` on the server to relax this on a private registry.
+</Aside>
+
+See [Retracting a Version](/guides/retracting-versions/) for the full flow, solver behaviour, and migration guidance for consumers of a retracted dependency.
+
+## Managing Uploaders
+
+For user-owned packages (and alongside a publisher), uploaders control who can push new versions.
+
+### Add an uploader
+
+```http
+POST /api/packages/<pkg>/uploaders
+{ "email": "bob@example.com" }
+```
+
+### Remove an uploader
+
+```http
+DELETE /api/packages/<pkg>/uploaders/<email>
+```
+
+The last uploader cannot be removed — every package must have at least one uploader (or a publisher set).
+
+### List uploaders
+
+```http
+GET /api/packages/<pkg>/uploaders
+```
+
+## Setting or Clearing a Publisher
+
+Package ownership can be handed to a publisher (see [Publishers](/guides/publishers/)):
+
+```http
+PUT /api/packages/<pkg>/publisher
+{ "publisherId": "mycompany" }
+```
+
+Clear it back to uploader-only ownership with:
+
+```http
+PUT /api/packages/<pkg>/publisher
+{ "publisherId": null }
+```
+
+Setting a publisher does **not** remove existing uploaders — they continue to have write access alongside publisher admins/members. Clearing it requires there to still be at least one uploader.
+
+## Deleting Your Own Package
+
+Any uploader (or publisher admin) can delete the whole package and all its versions:
+
+```http
+DELETE /api/packages/<pkg>
+```
+
+<Aside type="danger">
+Deletion is **irreversible**. All versions, metadata, scoring data, and archives are removed. Prefer discontinuing or unlisting unless you are sure.
+</Aside>
+
+## Activity Log
+
+Every package keeps an append-only activity log accessible to its uploaders, publisher admins, and server admins:
+
+```http
+GET /api/packages/<pkg>/activity-log
+```
+
+It records events such as:
+
+- Version published
+- Version retracted / un-retracted
+- Package discontinued / un-discontinued
+- Package unlisted / re-listed
+- Uploader added / removed
+- Publisher set / cleared
+- Package or version deleted
+
+Each entry carries a timestamp, actor, event kind, summary, and full JSON payload.
+
+## Admin-Only Operations
+
+The following endpoints require the server `admin` role (or `owner`).
+
+### Delete any package or version
+
+```http
+DELETE /api/admin/packages/<pkg>
+DELETE /api/admin/packages/<pkg>/versions/<v>
+```
+
+### Re-score a version
+
+Re-queues a specific version for pana analysis — useful after upgrading the SDK or fixing scoring configuration.
+
+```http
+POST /api/admin/packages/<pkg>/versions/<v>/rescore
+```
+
+See [Package Scoring](/guides/package-scoring/) for the full flow.
+
+### Regenerate dartdoc
+
+```http
+POST /api/admin/packages/<pkg>/regenerate-docs
+```
+
+The API server serves the regenerated docs once the job completes.

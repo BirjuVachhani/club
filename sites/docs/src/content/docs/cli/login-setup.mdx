@@ -1,0 +1,225 @@
+---
+title: Login & Setup
+description: Authenticate with a club server, configure dart pub integration, manage credentials, and switch between servers.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+## club login
+
+Authenticate with a club server. By default, `club login` opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE, requesting scopes `read,write`. On success the CLI receives a scoped personal access token, stores it in `~/.config/club/credentials.json`, and registers it with `dart pub token add`.
+
+```bash
+club login <server-url> [--email <email>] [--no-browser] [--key <club_pat_...>]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `<server-url>` | The club server URL (required) |
+| `--key` | Skip interactive login and store the provided personal access token directly. |
+| `--email` | Pre-fill the email (used by the `--no-browser` fallback; also a hint for the browser consent screen). |
+| `--no-browser` | Disable the browser flow and prompt for email + password in the terminal. |
+
+There is no `--password` flag. If you need to paste an existing token, use `--key club_pat_...`.
+
+### What It Does (browser flow)
+
+<Steps>
+
+1. Starts a short-lived local callback listener.
+2. Opens the browser at the server's `/oauth/authorize` endpoint (scope `read,write`, PKCE).
+3. The server authenticates you (if you are not already signed in) and asks you to approve the token.
+4. After approval, the server redirects to the local listener with an authorization code, which the CLI exchanges for a personal access token.
+5. Stores the token in `~/.config/club/credentials.json`, sets this server as the default, and runs `dart pub token add <server-url>` automatically.
+
+</Steps>
+
+### Example
+
+```bash
+$ club login https://club.example.com
+Opening browser for https://club.example.com/oauth/authorize...
+Waiting for authorization...
+Logged in as jane@example.com
+Token stored for https://club.example.com
+Registered token with dart pub.
+```
+
+### Non-browser fallback
+
+```bash
+club login https://club.example.com --no-browser --email jane@example.com
+```
+
+This prompts for your password in the terminal and exchanges it for a personal access token via the server's login API.
+
+### Using an existing token
+
+```bash
+club login https://club.example.com --key club_pat_abc123...
+```
+
+Use this when you already generated a personal access token through the web UI (for example, for CI).
+
+<Aside type="tip">
+For CI, prefer setting the `CLUB_TOKEN` environment variable -- the CLI honours it as a bearer token override without touching the credentials file at all.
+</Aside>
+
+## club setup
+
+Configure `dart pub` to work with your club server. This is the key integration command that bridges `club` credentials with `dart pub`.
+
+```bash
+club setup [--server <url>] [--env-var <VAR_NAME>]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--server` | Server URL (default: current default server) |
+| `--env-var` | Use an environment variable for the token instead of storing it directly |
+
+### What It Does
+
+<Steps>
+
+1. Retrieves the stored token for the server from `~/.config/club/credentials.json`
+2. Runs `dart pub token add <server-url>` to register the token in dart pub's credential store
+3. Prints instructions for adding packages to `pubspec.yaml`
+
+</Steps>
+
+### Example
+
+```bash
+$ club setup
+Configuring dart pub for https://club.example.com...
+Token registered with dart pub.
+
+To use packages from club, add to your pubspec.yaml:
+
+  dependencies:
+    my_package:
+      hosted: https://club.example.com
+      version: ^1.0.0
+
+Or set PUB_HOSTED_URL to use club as the default:
+
+  export PUB_HOSTED_URL=https://club.example.com
+```
+
+### CI/CD Setup with Environment Variable
+
+For CI/CD environments, use the `--env-var` flag to avoid storing tokens on disk:
+
+```bash
+$ club setup --env-var CLUB_TOKEN
+Configuring dart pub for https://club.example.com...
+Running: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+
+To use in CI/CD, set the CLUB_TOKEN environment variable to your API token.
+```
+
+<Aside type="tip">
+The `--env-var` approach is recommended for CI/CD. See the [CI/CD Integration](/guides/ci-cd/) guide for complete pipeline examples.
+</Aside>
+
+## club logout
+
+Remove stored credentials for a server.
+
+```bash
+club logout [--server <url>] [--all]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--server` | Server URL to logout from (default: current default server) |
+| `--all` | Remove credentials for all servers |
+
+### Example
+
+```bash
+$ club logout
+Logged out from https://club.example.com
+```
+
+```bash
+$ club logout --all
+Logged out from all servers.
+```
+
+<Aside>
+`club logout` removes the token from `~/.config/club/credentials.json` but does **not** remove it from dart pub's credential store. To remove it from dart pub as well, run `dart pub token remove https://club.example.com`.
+</Aside>
+
+## club config
+
+Show or update CLI configuration. There are exactly two subcommands:
+
+```bash
+club config                     # Show current config (same as `config show`)
+club config show                # Show current config
+club config set-server <url>    # Set default server
+```
+
+### Example
+
+```bash
+$ club config
+Default server: https://club.example.com
+Logged in as:   jane@example.com
+Credentials:    ~/.config/club/credentials.json
+
+Configured servers:
+  https://club.example.com (default)
+  https://staging.club.example.com
+```
+
+### Switching Default Server
+
+If you work with multiple club servers (for example, production and staging), use `set-server` to switch:
+
+```bash
+club config set-server https://staging.club.example.com
+```
+
+All subsequent commands will target the new default server. Use `club publish --server <url>` to override it on a per-invocation basis.
+
+## Credential Storage
+
+### File Location
+
+| Platform | Path |
+|----------|------|
+| Linux / macOS | `~/.config/club/credentials.json` |
+| Windows | `%APPDATA%\club\credentials.json` |
+
+### File Format
+
+<Code code={`{
+  "defaultServer": "https://club.example.com",
+  "servers": {
+    "https://club.example.com": {
+      "token": "club_pat_a1b2c3d4e5f6...",
+      "email": "jane@example.com",
+      "createdAt": "2026-04-09T10:00:00.000Z"
+    },
+    "https://staging.club.example.com": {
+      "token": "club_pat_x9y8z7w6...",
+      "email": "jane@example.com",
+      "createdAt": "2026-04-09T11:00:00.000Z"
+    }
+  }
+}`} lang="json" title="~/.config/club/credentials.json" />
+
+### Security
+
+- File permissions are set to `chmod 600` on Unix (owner read/write only)
+- Tokens are stored in plaintext (same approach as `~/.pub-cache/credentials.json`)
+- For CI/CD, always use `--env-var` with `club setup` to avoid storing tokens on disk

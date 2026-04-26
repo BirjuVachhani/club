@@ -1,0 +1,125 @@
+---
+// Footer variant A — "Minimal Dark"
+// 4-column nav + a copyright rail. No oversized wordmark, no closing
+// graphic. Quiet, gets out of the way after the CTA.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Documentation", href: DOCS_URL },
+      { label: "Changelog", href: docsUrl("/changelog/") },
+      { label: "GitHub", href: GITHUB_URL },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Beginner's guide", href: docsUrl("/getting-started/tutorial/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "Client SDK", href: docsUrl("/sdk/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms & trademark", href: "/terms" },
+      { label: "License", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <Mark height={28} />
+        <p class="tag">A self-hosted, open-source package repository for Dart and Flutter teams.</p>
+      </div>
+
+      <nav class="cols">
+        {cols.map((col) => (
+          <div>
+            <div class="col-k mono">{col.title}</div>
+            <ul>
+              {col.links.map((l) => (
+                <li><a href={l.href}>{l.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+
+    <div class="rail">
+      <span class="mono">© {year} CLUB contributors · Apache License 2.0</span>
+      <span class="rail-r mono">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <span>No cookies. No telemetry.</span>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr { background: var(--color-ink-dark); color: #EDEDED; }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 3.5rem 2rem 1.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 2.5rem 1.25rem 1.25rem; } }
+
+  .mono { font-family: var(--font-mono); }
+
+  .top {
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 0.35fr) minmax(0, 0.65fr);
+  }
+  @media (max-width: 900px) { .top { grid-template-columns: 1fr; gap: 2rem; } }
+
+  .brand { display: flex; flex-direction: column; gap: 0.85rem; }
+  .tag {
+    margin: 0; max-width: 28ch;
+    font-size: 0.88rem; line-height: 1.55; color: var(--color-mute-dark);
+  }
+
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 600px) { .cols { grid-template-columns: repeat(2, 1fr); } }
+
+  .col-k {
+    font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 700; color: var(--color-mute-dark);
+  }
+  .cols ul { list-style: none; padding: 0; margin: 0.85rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+
+  .rail {
+    margin-top: 3rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border-dark);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 1.5rem;
+    font-size: 0.72rem; letter-spacing: 0.1em;
+    color: var(--color-mute-dark);
+  }
+  .rail-r { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+  .rail-r a { color: var(--color-mute-dark); }
+  .rail-r a:hover { color: var(--color-stamp); }
+</style>

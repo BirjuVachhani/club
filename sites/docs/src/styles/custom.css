@@ -1,0 +1,961 @@
+/* ==========================================================================
+   club docs — matches club_web design system
+   Orange (#FF4F18) accent, Inter + Fira Code, near-black dark mode
+   ========================================================================== */
+
+/* Fonts loaded via @fontsource-variable/inter and @fontsource-variable/fira-code
+   in astro.config.mjs customCss */
+
+/* --------------------------------------------------------------------------
+   Light mode
+   Match Starlight's selector specificity — their defaults use
+   :root[data-theme='light'], which would otherwise override a plain :root.
+   -------------------------------------------------------------------------- */
+:root,
+:root[data-theme='light'] {
+  /* Accent — vibrant orange, used for links, active states, focus rings */
+  --sl-color-accent-low: #FFF0EB;
+  --sl-color-accent: #FF4F18;
+  --sl-color-accent-high: #CC3600;
+
+  --sl-font: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  --sl-font-system: var(--sl-font);
+  --sl-font-system-mono: 'Fira Code Variable', 'Fira Code', 'Roboto Mono',
+    Menlo, Consolas, monospace;
+
+  /* Surfaces */
+  --sl-color-bg: #FFFFFF;
+  --sl-color-bg-nav: #FFFFFF;
+  --sl-color-bg-sidebar: #FFFFFF;
+  --sl-color-bg-inline-code: #F2F4F7;
+
+  /* Hairlines */
+  --sl-color-hairline-light: #E0E2E7;
+  --sl-color-hairline-shade: #D5D7DC;
+  --sl-color-hairline: #E0E2E7;
+
+  /* Text */
+  --sl-color-text: #141517;
+  --sl-color-text-accent: #FF4F18;
+  --sl-color-text-invert: #FFFFFF;
+
+  /* Layout */
+  --sl-content-width: 52rem;
+  --sl-sidebar-width: 17rem;
+  --sl-sidebar-pad-x: 1rem;
+
+  /* Brand extras */
+  --club-primary: #FF4F18;
+  --club-primary-hover: #CC3600;
+  --club-ring: rgba(255, 79, 24, 0.28);
+  --club-header-bg: #050505;
+  --club-header-fg: #F2F4F7;
+}
+
+/* --------------------------------------------------------------------------
+   Dark mode
+   -------------------------------------------------------------------------- */
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #1C1410;
+  --sl-color-accent: #FF4F18;
+  --sl-color-accent-high: #FF8855;
+
+  /* Layout — must match light mode explicitly. Starlight's props.css
+     defaults --sl-content-width at :root (45rem); our light override
+     wins via :root[data-theme='light'] specificity, so dark must set
+     it at the same specificity or the two themes render at different
+     widths. */
+  --sl-content-width: 52rem;
+  --sl-sidebar-width: 17rem;
+  --sl-sidebar-pad-x: 1rem;
+
+  /* Surfaces — match web UI: near-black background, slightly lighter cards */
+  --sl-color-bg: #050505;
+  --sl-color-bg-nav: #050505;
+  --sl-color-bg-sidebar: #050505;
+  --sl-color-bg-inline-code: #1C1410;
+  --sl-color-black: #050505;
+
+  /* Hairlines */
+  --sl-color-hairline-light: #252525;
+  --sl-color-hairline-shade: #333333;
+  --sl-color-hairline: #252525;
+
+  /* Gray scale — remapped for web UI parity */
+  --sl-color-gray-1: #EDEDED;
+  --sl-color-gray-2: #E4E4E7;
+  --sl-color-gray-3: #9A9AA1;
+  --sl-color-gray-4: #64646B;
+  --sl-color-gray-5: #1A1A1A;
+  --sl-color-gray-6: #111111;
+
+  --sl-color-text: #EDEDED;
+  --sl-color-text-accent: #FF6633;
+  --sl-color-white: #FFFFFF;
+
+  --club-primary: #FF4F18;
+  --club-primary-hover: #FF8855;
+  --club-ring: rgba(255, 79, 24, 0.24);
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.006em;
+  font-size: 15px;
+}
+
+/* Focus rings — match web UI (orange with alpha) */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--club-ring);
+  border-radius: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Headings
+   -------------------------------------------------------------------------- */
+.sl-markdown-content h1 {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--sl-color-text);
+}
+
+.sl-markdown-content h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-top: 2.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  color: var(--sl-color-text);
+}
+
+.sl-markdown-content h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 2rem;
+  color: var(--sl-color-text);
+}
+
+.sl-markdown-content h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--sl-color-text);
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar — airy, well-spaced, minimal
+   -------------------------------------------------------------------------- */
+
+starlight-menu-button+nav,
+nav[aria-label='Main'],
+.sidebar-content,
+.sidebar {
+  font-size: 0.8125rem;
+}
+
+/* Group headings (GETTING STARTED, GUIDES, etc.) */
+.sidebar-content .top-level>li>details>summary,
+.sidebar-content .top-level>li>a,
+starlight-menu-button+nav ul>li>details>summary>div,
+[data-pagefind-ignore] .top-level>li>details>summary {
+  font-size: 0.6875rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: var(--sl-color-gray-3) !important;
+  padding: 0.5rem 0.5rem 0.25rem !important;
+  margin-top: 0.75rem !important;
+}
+
+.sidebar-content .top-level>li:first-child>details>summary,
+.sidebar-content .top-level>li:first-child>a {
+  margin-top: 0 !important;
+}
+
+/* Sidebar links */
+.sidebar-content a,
+nav[aria-label='Main'] a {
+  display: block;
+  padding: 0.375rem 0.625rem !important;
+  margin: 1px 0;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--sl-color-gray-2);
+  transition: color 0.12s ease, background-color 0.12s ease;
+  line-height: 1.5;
+}
+
+.sidebar-content a:hover,
+nav[aria-label='Main'] a:hover {
+  color: var(--sl-color-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme='dark'] .sidebar-content a:hover,
+:root[data-theme='dark'] nav[aria-label='Main'] a:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Active page — orange accent matching web UI */
+.sidebar-content a[aria-current='page'],
+nav[aria-label='Main'] a[aria-current='page'] {
+  font-weight: 600 !important;
+  color: var(--club-primary) !important;
+  background: var(--sl-color-accent-low) !important;
+}
+
+/* Collapse arrow */
+.sidebar-content details>summary svg,
+nav[aria-label='Main'] details>summary svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.4;
+}
+
+.sidebar-content ul {
+  padding-left: 0 !important;
+  margin: 0;
+}
+
+.sidebar-content li {
+  margin: 0;
+  padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar — thin, themed, both modes
+   -------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+:root[data-theme='dark'] * {
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Header — match web UI (dark header, glassmorphism)
+   -------------------------------------------------------------------------- */
+header.header {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-bottom: 1px solid var(--sl-color-hairline-light) !important;
+}
+
+:root[data-theme='dark'] header.header {
+  background: rgba(5, 5, 5, 0.85) !important;
+  border-bottom-color: var(--sl-color-hairline-light) !important;
+}
+
+.site-title {
+  font-weight: 500 !important;
+  letter-spacing: 0.02em;
+  font-size: 1rem !important;
+  text-transform: uppercase;
+  color: var(--sl-color-text) !important;
+}
+
+/* Brand logo — keep in the same visual scale as the web app header (~20px). */
+.site-title img {
+  height: 2rem !important;
+  width: auto !important;
+  max-height: 2rem !important;
+}
+
+/* --------------------------------------------------------------------------
+   Code blocks — expressive-code overrides
+   -------------------------------------------------------------------------- */
+
+/* Kill the terminal window chrome (dots, title bar) */
+.expressive-code .frame.is-terminal .header,
+.expressive-code .frame.is-terminal .header::before,
+.expressive-code .frame .header {
+  display: none !important;
+}
+
+.expressive-code .frame {
+  box-shadow: none !important;
+}
+
+.expressive-code figure {
+  margin: 1rem 0 !important;
+}
+
+/* Code block frame — matches web UI's rounded code blocks (app.css pre) */
+.expressive-code .frame pre {
+  border: 1px solid #d8dce3 !important;
+  border-radius: 14px !important;
+  background: #F2F4F7 !important;
+  padding: 1rem 1.1rem !important;
+  font-size: 0.9rem !important;
+  line-height: 1.65 !important;
+}
+
+:root[data-theme='dark'] .expressive-code .frame pre {
+  border-color: #30363d !important;
+  background: #0d1117 !important;
+}
+
+/* Make sure the outer figure has no duplicate border/bg */
+.expressive-code figure.frame {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Expressive Code copy button — Lucide "copy" icon, compact, show on hover
+   -------------------------------------------------------------------------- */
+.expressive-code .copy {
+  top: 0.5rem !important;
+  inset-inline-end: 0.5rem !important;
+}
+
+/* Button frame */
+.expressive-code .copy button {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  background: var(--sl-color-bg) !important;
+  border-radius: 7px !important;
+  opacity: 0 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  transition: opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease !important;
+}
+
+.expressive-code figure:hover .copy button,
+.expressive-code .copy button:focus-visible {
+  opacity: 1 !important;
+}
+
+/* Inner bg layer (EC div) — inherit button bg, kill default tint */
+.expressive-code .copy button div {
+  background: transparent !important;
+  opacity: 0 !important;
+}
+
+.expressive-code .copy button:hover div {
+  opacity: 1 !important;
+}
+
+/* Border layer (::before) */
+.expressive-code .copy button::before {
+  border: 1px solid var(--sl-color-hairline-light) !important;
+  opacity: 1 !important;
+}
+
+.expressive-code .copy button:hover::before {
+  border-color: var(--club-primary) !important;
+}
+
+/* Icon — Lucide "copy" glyph, colored via mask + currentColor */
+.expressive-code .copy button::after {
+  inset: 0 !important;
+  margin: 0 !important;
+  background-color: var(--sl-color-gray-3) !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='14' height='14' x='8' y='8' rx='2' ry='2'/%3E%3Cpath d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='14' height='14' x='8' y='8' rx='2' ry='2'/%3E%3Cpath d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'/%3E%3C/svg%3E") !important;
+  -webkit-mask-size: 14px 14px !important;
+  mask-size: 14px 14px !important;
+  -webkit-mask-position: center !important;
+  mask-position: center !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+}
+
+.expressive-code .copy button:hover::after {
+  background-color: var(--club-primary) !important;
+}
+
+/* Dark-mode tints */
+:root[data-theme='dark'] .expressive-code .copy button {
+  background: #111111 !important;
+}
+
+:root[data-theme='dark'] .expressive-code .copy button::before {
+  border-color: #30363d !important;
+}
+
+:root[data-theme='dark'] .expressive-code .copy button:hover {
+  background: #1C1410 !important;
+}
+
+:root[data-theme='dark'] .expressive-code .copy button:hover::before {
+  border-color: var(--club-primary) !important;
+}
+
+/* Inline code — matches web UI pill style */
+code:not(pre code) {
+  background: var(--sl-color-bg-inline-code);
+  border: 1px solid var(--sl-color-hairline-light);
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.45rem;
+  font-size: 0.85em;
+  font-weight: 450;
+  color: var(--club-primary-hover);
+}
+
+:root[data-theme='dark'] code:not(pre code) {
+  background: #1C1410;
+  border-color: #30363d;
+  color: #FF8855;
+}
+
+/* --------------------------------------------------------------------------
+   Links — orange accent with hover shift
+   -------------------------------------------------------------------------- */
+.sl-markdown-content a {
+  color: var(--sl-color-text-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.12s ease;
+}
+
+.sl-markdown-content a:hover {
+  color: var(--club-primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Tables
+   Starlight's default applies `display: block; overflow: auto` so tables
+   scroll horizontally when content exceeds container width. We preserve
+   that and only tweak visual treatment.
+   -------------------------------------------------------------------------- */
+.sl-markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.8125rem;
+  /* Smooth touch scrolling on iOS when table overflows */
+  -webkit-overflow-scrolling: touch;
+}
+
+.sl-markdown-content th {
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-3);
+  border-bottom: 2px solid var(--sl-color-hairline-shade);
+  white-space: nowrap;
+}
+
+.sl-markdown-content td,
+.sl-markdown-content th {
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+}
+
+/* --------------------------------------------------------------------------
+   Callouts — orange-aware borders
+   -------------------------------------------------------------------------- */
+.starlight-aside {
+  border-radius: 10px;
+  border-left-width: 3px;
+  font-size: 0.875rem;
+}
+
+.starlight-aside--tip {
+  border-color: var(--club-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Search — match web UI input style.
+   Desktop/tablet only: wide input-style pill with border + hover accent.
+   Mobile (<50rem) gets an icon-button treatment lower in this file so it
+   sits alongside the theme toggle and menu button cleanly.
+   -------------------------------------------------------------------------- */
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    border-radius: 10px !important;
+    font-size: 0.8125rem !important;
+    border: 1px solid var(--sl-color-hairline-light) !important;
+  }
+
+  site-search button[data-open-modal]:hover {
+    border-color: var(--club-primary) !important;
+  }
+
+  :root[data-theme='dark'] site-search button[data-open-modal] {
+    background: #111111 !important;
+    border-color: var(--sl-color-hairline-light) !important;
+  }
+}
+
+/* Pagefind search dialog — orange accents */
+dialog[aria-label='Search'] {
+  --pagefind-ui-primary: var(--club-primary);
+  --pagefind-ui-text: var(--sl-color-text);
+  --pagefind-ui-background: var(--sl-color-bg);
+  --pagefind-ui-border: var(--sl-color-hairline-light);
+  --pagefind-ui-border-radius: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Pagination — quiet "Next / Prev" label, right-sized title, one accent
+   on hover. The Starlight default renders the title at display-heading
+   weight/size which fights the page heading; bring it back in line with
+   body copy so it reads as navigation, not as a section of its own.
+   -------------------------------------------------------------------------- */
+.pagination-links a {
+  border-radius: 10px !important;
+  border: 1px solid var(--sl-color-hairline-light) !important;
+  padding: 0.875rem 1rem !important;
+  transition: border-color 0.12s ease, color 0.12s ease;
+  color: var(--sl-color-text) !important;
+  gap: 0.625rem !important;
+}
+
+.pagination-links a > span {
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--sl-color-gray-3) !important;
+}
+
+.pagination-links a .link-title {
+  display: block !important;
+  margin-top: 0.25rem !important;
+  font-size: 0.9375rem !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.005em !important;
+  text-transform: none !important;
+  color: var(--sl-color-text) !important;
+}
+
+.pagination-links a:hover {
+  border-color: var(--club-primary) !important;
+}
+
+.pagination-links a:hover .link-title {
+  color: var(--club-primary) !important;
+}
+
+/* --------------------------------------------------------------------------
+   TOC (right sidebar)
+   -------------------------------------------------------------------------- */
+starlight-toc a {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  transition: color 0.12s ease;
+}
+
+starlight-toc a[aria-current='true'] {
+  color: var(--club-primary) !important;
+}
+
+starlight-toc {
+  font-size: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   Content body — better paragraph spacing
+   -------------------------------------------------------------------------- */
+.sl-markdown-content p {
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.sl-markdown-content li {
+  line-height: 1.65;
+  margin-bottom: 0.25rem;
+}
+
+.sl-markdown-content ul,
+.sl-markdown-content ol {
+  margin-bottom: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Selection — orange highlight
+   -------------------------------------------------------------------------- */
+::selection {
+  background: var(--club-primary);
+  color: #FFFFFF;
+}
+
+/* --------------------------------------------------------------------------
+   Tabs — match web UI's package view pill-style tab bar
+   (see _PackageView.svelte .tab-bar / .tab / .tab.active)
+   -------------------------------------------------------------------------- */
+starlight-tabs [role='tablist'] {
+  display: inline-flex !important;
+  gap: 4px !important;
+  background: var(--sl-color-bg-inline-code) !important;
+  border: 1px solid var(--sl-color-hairline-light) !important;
+  padding: 4px !important;
+  border-radius: 10px !important;
+  margin-bottom: 1.25rem !important;
+}
+
+starlight-tabs .tab {
+  margin-bottom: 0 !important;
+}
+
+starlight-tabs .tab>[role='tab'] {
+  padding: 0.5rem 1rem !important;
+  border: none !important;
+  border-radius: 7px !important;
+  color: var(--sl-color-gray-3) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  line-height: 1.3 !important;
+  background: transparent !important;
+  transition: background 0.15s ease, color 0.15s ease !important;
+}
+
+starlight-tabs .tab>[role='tab'],
+starlight-tabs .tab>[role='tab']:hover,
+starlight-tabs .tab>[role='tab']:focus {
+  text-decoration: none !important;
+}
+
+starlight-tabs .tab>[role='tab']:hover {
+  color: var(--sl-color-text) !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+:root[data-theme='dark'] starlight-tabs .tab>[role='tab']:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+starlight-tabs .tab>[role='tab'][aria-selected='true'] {
+  background: var(--sl-color-text) !important;
+  color: var(--sl-color-bg) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Touch devices — hover-revealed affordances must always be visible
+   Applies regardless of viewport: some laptops are touch-first.
+   -------------------------------------------------------------------------- */
+@media (hover: none) and (pointer: coarse) {
+  /* Copy button — no hover state to surface it, so show it always */
+  .expressive-code .copy button {
+    opacity: 1 !important;
+  }
+
+  .expressive-code .copy button div {
+    opacity: 1 !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Tablet — sidebar visible, no right-hand TOC (Starlight breakpoint range)
+   Between 50rem and 72rem Starlight shows sidebar but not TOC, so the
+   content area is the sidebar-free portion of the viewport. Keep content
+   width flexible rather than forcing 52rem, and trim non-essential padding.
+   -------------------------------------------------------------------------- */
+@media (min-width: 50rem) and (max-width: 72rem) {
+  :root,
+  :root[data-theme='light'],
+  :root[data-theme='dark'] {
+    /* Let content use the available width at tablet sizes instead of
+       maxing out at 52rem and leaving awkward empty space. */
+    --sl-content-width: 100%;
+    --sl-sidebar-width: 15rem;
+  }
+
+  .sl-markdown-content h2 {
+    font-size: 1.25rem;
+    margin-top: 2.25rem;
+  }
+
+  .sl-markdown-content h3 {
+    font-size: 1.05rem;
+    margin-top: 1.75rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Mobile — < 50rem (800px): hamburger menu, single column
+   Starlight collapses the sidebar into a hamburger menu below 50rem. Our
+   job is to make the content column itself feel right on phones.
+   -------------------------------------------------------------------------- */
+@media (max-width: 50rem) {
+  /* Slightly larger body text for readability on phones (15px default
+     becomes a bit tight on narrow viewports). */
+  body {
+    font-size: 15.5px;
+  }
+
+  /* Headings — tighter vertical rhythm, smaller scale */
+  .sl-markdown-content h1 {
+    font-size: 1.5rem;
+    line-height: 1.25;
+  }
+
+  .sl-markdown-content h2 {
+    font-size: 1.15rem;
+    margin-top: 2rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .sl-markdown-content h3 {
+    font-size: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .sl-markdown-content h4 {
+    font-size: 0.9rem;
+  }
+
+  /* Paragraphs — tighten spacing but keep readable line-height */
+  .sl-markdown-content p {
+    line-height: 1.65;
+    margin-bottom: 0.875rem;
+  }
+
+  /* Code blocks — reduce padding and font size to fit narrow viewports
+     without wrapping long lines awkwardly. Tighter horizontal inset so
+     long lines of code get more room before they have to scroll. */
+  .expressive-code .frame pre {
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.825rem !important;
+    line-height: 1.6 !important;
+    border-radius: 10px !important;
+  }
+
+  .expressive-code figure {
+    margin: 0.875rem 0 !important;
+  }
+
+  /* Copy button — always visible on mobile (most mobile users are touch),
+     the touch media query above handles this but we reinforce here. */
+  .expressive-code .copy button {
+    opacity: 1 !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* Inline code — slightly smaller to avoid line-wrap cascade */
+  code:not(pre code) {
+    font-size: 0.82em;
+    word-break: break-word;
+  }
+
+  /* Tables — Starlight sets display: block + overflow: auto. Add a soft
+     edge fade hint so users see there's more to scroll to. */
+  .sl-markdown-content table {
+    font-size: 0.8125rem;
+  }
+
+  .sl-markdown-content td,
+  .sl-markdown-content th {
+    padding: 0.625rem 0.75rem;
+  }
+
+  /* Callouts — trim padding, tighter font */
+  .starlight-aside {
+    padding: 0.875rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* Cards from Starlight's CardGrid already collapse to single column
+     below 50rem via Starlight's internal CSS. No override needed. */
+
+  /* Pagination — stack vertically on narrow screens instead of forcing
+     two awkward boxes side by side. */
+  .pagination-links {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .pagination-links a {
+    padding: 0.75rem 0.875rem !important;
+  }
+
+  .pagination-links a .link-title {
+    font-size: 0.875rem !important;
+  }
+
+  /* Pill tab bar — allow horizontal scroll when tabs don't fit one row */
+  starlight-tabs [role='tablist'] {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+  }
+
+  starlight-tabs [role='tablist']::-webkit-scrollbar {
+    display: none;
+  }
+
+  starlight-tabs .tab > [role='tab'] {
+    white-space: nowrap;
+    padding: 0.45rem 0.85rem !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* Site title / logo — scale down for small headers */
+  .site-title img {
+    height: 1.625rem !important;
+    max-height: 1.625rem !important;
+  }
+
+  .site-title {
+    font-size: 0.875rem !important;
+  }
+
+  /* ------------------------------------------------------------------
+     Header icon buttons (search, hamburger menu, theme toggle) — unify
+     them into one flat design-system treatment: 2.25rem square with a
+     hairline border, neutral surface, orange hover. Replaces Starlight's
+     default filled-circle hamburger and the generic search-pill border.
+
+     The hamburger keeps `position: fixed` from Starlight (it lives in
+     <nav.sidebar> in the DOM but projects into the top-right via fixed
+     positioning). We bump --sl-menu-button-size so the header reserves
+     the correct amount of right-padding via Starlight's own rule:
+     `.header { padding-inline-end: calc(... + --sl-menu-button-size) }`.
+     ------------------------------------------------------------------ */
+  :root,
+  :root[data-theme='light'],
+  :root[data-theme='dark'] {
+    --sl-menu-button-size: 2.25rem;
+  }
+
+  site-search button[data-open-modal],
+  starlight-menu-button button,
+  .theme-toggle {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--sl-color-hairline-light) !important;
+    background: var(--sl-color-bg) !important;
+    color: var(--sl-color-text) !important;
+    box-shadow: none !important;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease !important;
+  }
+
+  site-search button[data-open-modal]:hover,
+  starlight-menu-button button:hover {
+    border-color: var(--club-primary) !important;
+    color: var(--club-primary) !important;
+  }
+
+  /* Hide the "Search" text and ⌘K hint on mobile — icon only fits the
+     2.25rem square treatment. Keeps the icon visible. */
+  site-search button[data-open-modal] > :not(svg) {
+    display: none !important;
+  }
+
+  /* Menu open state — subtle accent fill instead of the default gray-2 */
+  starlight-menu-button[aria-expanded='true'] button {
+    background: var(--sl-color-accent-low) !important;
+    border-color: var(--club-primary) !important;
+    color: var(--club-primary) !important;
+  }
+
+  /* Dark mode surface tint — match theme toggle's #111111 bg */
+  :root[data-theme='dark'] site-search button[data-open-modal],
+  :root[data-theme='dark'] starlight-menu-button button {
+    background: #111111 !important;
+  }
+
+  /* Sidebar links — a touch more vertical padding so tap targets clear
+     44px (Apple HIG minimum). */
+  .sidebar-content a,
+  nav[aria-label='Main'] a {
+    padding: 0.5rem 0.625rem !important;
+    font-size: 0.875rem;
+  }
+
+  /* Mobile TOC (collapsed bar at top of page on mobile) — tighten */
+  mobile-starlight-toc nav {
+    font-size: 0.8125rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Small mobile — < 30rem (480px): tightest layout
+   Extra trimming for iPhone SE / small Android widths.
+   -------------------------------------------------------------------------- */
+@media (max-width: 30rem) {
+  .sl-markdown-content h1 {
+    font-size: 1.35rem;
+  }
+
+  .sl-markdown-content h2 {
+    font-size: 1.075rem;
+  }
+
+  /* Site title — very small screens hide inline text if logo replaces it */
+  .site-title img {
+    height: 1.5rem !important;
+    max-height: 1.5rem !important;
+  }
+
+  /* Callouts — minimum workable padding */
+  .starlight-aside {
+    padding: 0.75rem 0.875rem;
+  }
+
+  /* Code block frame padding — one last trim */
+  .expressive-code .frame pre {
+    padding: 0.5rem 0.625rem !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Landscape phones — short viewports, keep content above the fold
+   -------------------------------------------------------------------------- */
+@media (max-height: 30rem) and (orientation: landscape) {
+  .sl-markdown-content h1 {
+    margin-top: 0.5rem;
+  }
+
+  .sl-markdown-content h2 {
+    margin-top: 1.5rem;
+  }
+}

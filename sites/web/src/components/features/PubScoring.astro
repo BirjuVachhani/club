@@ -1,0 +1,150 @@
+---
+// Feature — Pub scoring on par with pub.dev
+// Light band. Copy on the left; three animated-feeling score cards on
+// the right (ring charts + numbers) rendered as SVG.
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <div class="grid">
+      <div class="copy">
+        <div class="eyebrow orange">§ Quality</div>
+        <h2 class="h2">
+          Pub scoring,
+          <br class="md-only" />
+          <span class="accent">on your server</span>.
+        </h2>
+        <p class="lede">
+          CLUB runs the same quality, maintenance, and popularity
+          signals that pub.dev does — calculated against your packages,
+          never leaving your infrastructure.
+        </p>
+        <ul class="bullets">
+          <li><strong>Pub Points</strong> — quality checks: conventions, null-safety, platform tags, documentation coverage.</li>
+          <li><strong>Popularity</strong> — weighted by downloads across your org, recalculated nightly.</li>
+          <li><strong>Likes</strong> — a gentle social layer, no leaderboards, no shaming.</li>
+        </ul>
+      </div>
+
+      <div class="cards">
+        <!-- Pub Points -->
+        <div class="card">
+          <div class="card-ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--color-border)" stroke-width="10"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--color-stamp)" stroke-width="10" stroke-dasharray="264 302" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="card-ring-center">
+              <strong>140</strong>
+              <em>/ 160</em>
+            </div>
+          </div>
+          <div class="card-meta">
+            <span class="card-key mono">Pub Points</span>
+            <span class="card-sub">quality · maintenance · docs</span>
+          </div>
+        </div>
+
+        <!-- Popularity -->
+        <div class="card">
+          <div class="card-ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--color-border)" stroke-width="10"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--color-stamp)" stroke-width="10" stroke-dasharray="278 302" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="card-ring-center">
+              <strong>92</strong>
+              <em>%</em>
+            </div>
+          </div>
+          <div class="card-meta">
+            <span class="card-key mono">Popularity</span>
+            <span class="card-sub">weighted downloads · nightly</span>
+          </div>
+        </div>
+
+        <!-- Likes -->
+        <div class="card likes">
+          <div class="likes-num">
+            <span class="heart">♥</span>
+            148
+          </div>
+          <div class="likes-bar">
+            <span class="lb-base"></span>
+            <span class="lb-fill" style="width: 74%"></span>
+          </div>
+          <div class="card-meta">
+            <span class="card-key mono">Likes</span>
+            <span class="card-sub">from users in your org</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+  .grid { display: grid; gap: 3rem; grid-template-columns: minmax(0, 0.5fr) minmax(0, 0.5fr); align-items: center; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 18ch; color: var(--color-ink); }
+  .accent { color: var(--color-stamp); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 36rem; }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+  .mono { font-family: var(--font-mono); }
+  .o { color: var(--color-stamp); font-weight: 700; }
+
+  .bullets { list-style: none; padding: 0; margin: 2rem 0 0; display: flex; flex-direction: column; gap: 0.85rem; }
+  .bullets li {
+    position: relative; padding-left: 1.25rem;
+    font-size: 0.94rem; line-height: 1.55; color: var(--color-mute);
+  }
+  .bullets li::before {
+    content: "·"; position: absolute; left: 0.35rem; top: 0;
+    color: var(--color-stamp); font-weight: 700;
+    font-family: var(--font-mono);
+  }
+  .bullets strong { color: var(--color-ink); font-weight: 640; margin-right: 0.2rem; }
+
+  .cards {
+    display: grid; gap: 0.85rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 16px; padding: 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 1rem;
+    box-shadow: 0 14px 32px -22px rgba(5,5,5,0.18);
+    min-height: 15rem;
+  }
+  .card:first-child { grid-column: span 2; flex-direction: row; justify-content: center; gap: 2rem; min-height: auto; padding: 2rem; }
+  @media (max-width: 600px) { .card:first-child { grid-column: span 1; flex-direction: column; } }
+
+  .card-ring { position: relative; width: 8rem; height: 8rem; }
+  .card-ring svg { width: 100%; height: 100%; }
+  .card-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--color-ink); }
+  .card-ring-center strong { font-family: var(--font-sans); font-weight: 700; font-size: 2.1rem; letter-spacing: -0.03em; line-height: 1; }
+  .card-ring-center em { font-family: var(--font-mono); font-style: normal; font-size: 0.72rem; letter-spacing: 0.12em; color: var(--color-mute); text-transform: uppercase; margin-top: 0.2rem; }
+
+  .card-meta { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.15rem; }
+  .card:first-child .card-meta { align-items: flex-start; text-align: left; }
+  .card-key { font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .card-sub { font-size: 0.78rem; color: var(--color-mute); }
+
+  .likes-num {
+    display: flex; align-items: baseline; gap: 0.4rem;
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: 2.75rem; letter-spacing: -0.03em; color: var(--color-ink);
+  }
+  .heart { color: var(--color-stamp); font-size: 1.25rem; }
+  .likes-bar { position: relative; width: 100%; height: 6px; margin-top: 0.25rem; }
+  .lb-base { position: absolute; inset: 0; background: var(--color-border); border-radius: 999px; }
+  .lb-fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--color-stamp); border-radius: 999px; }
+</style>

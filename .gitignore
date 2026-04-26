@@ -1,0 +1,59 @@
+.DS_Store
+*.log
+*.tmp
+
+# Dart
+.dart_tool/
+.packages
+build/
+
+# Research (pub.dev source, not committed)
+research/
+
+# Node.js (club_web)
+packages/club_web/node_modules/
+packages/club_web/.svelte-kit/
+packages/club_web/build/
+
+# Docker
+docker/.env
+
+# Data (local dev)
+/data/
+/tmp/club-*/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+
+docker-dev/
+
+.claude-plugin/
+
+.env.dev
+docker-compose.dev.yml
+
+# Env files (safety net — keep .env.example tracked)
+**/.env
+**/.env.local
+**/.env.*.local
+
+**/node_modules/
+
+**/dist/
+
+test_packages/
+
+dummy_data/
+
+**/*.lock
+# club is an application (server binary + CLI), not a library, so the
+# workspace root pubspec.lock IS committed to pin transitive deps for
+# reproducible Docker + CLI builds.
+!/pubspec.lock
+
+.claude/
+
+**/.astro/

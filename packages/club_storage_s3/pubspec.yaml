@@ -1,0 +1,22 @@
+name: club_storage_s3
+description: S3-compatible BlobStore implementation for club (AWS S3, Cloudflare R2, MinIO, DO Spaces, B2).
+version: 0.1.0
+homepage: https://club.birju.dev
+repository: https://github.com/BirjuVachhani/club
+issue_tracker: https://github.com/BirjuVachhani/club/issues
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  club_core:
+    path: ../club_core
+  crypto: ^3.0.7
+  minio: ^3.5.8
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.0

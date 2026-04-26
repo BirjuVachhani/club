@@ -1,0 +1,314 @@
+---
+title: Publishing Your First Package
+description: Create a Dart package, configure it for club, publish it, and use it as a dependency in another project.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide walks through the complete workflow of creating a Dart package, publishing it to your club server, and consuming it as a dependency in another project.
+
+## Prerequisites
+
+- A running club server (see [Installation](/getting-started/installation/))
+- The [Dart SDK](https://dart.dev/get-dart) installed
+- The club CLI installed and logged in (see steps below)
+
+## Set up authentication
+
+Before you can publish, you need to authenticate with your club server.
+
+<Steps>
+
+1. **Install the club CLI**
+
+   ```bash
+   curl -fsSL https://club.birju.dev/install.sh | bash
+   ```
+
+   See the [CLI installation guide](/cli/installation/) for Windows and alternative install methods.
+
+2. **Login to your server**
+
+   ```bash
+   club login https://packages.example.com
+   ```
+
+   By default, `club login` opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE. Approve the request in the browser and the CLI receives a scoped personal access token automatically. On a headless machine, use `--no-browser` to fall back to a terminal email/password prompt, or pass an existing personal access token with `--key club_pat_...`.
+
+3. **Configure dart pub (optional)**
+
+   ```bash
+   club setup
+   ```
+
+   `club login` already registers the token with `dart pub token add` automatically. Run `club setup` if you need to switch to an `--env-var` configuration (for example, on a CI machine where you would rather pull the token from a secret).
+
+4. **Verify the token is registered**
+
+   ```bash
+   dart pub token list
+   ```
+
+   You should see `https://packages.example.com` in the output.
+
+</Steps>
+
+## Create a package
+
+<Steps>
+
+1. **Scaffold a new package**
+
+   ```bash
+   mkdir -p ~/my_utils && cd ~/my_utils
+   ```
+
+2. **Create `pubspec.yaml`**
+
+   The key setting is `publish_to`, which tells `dart pub publish` where to send the package:
+
+   ```yaml
+   name: my_utils
+   version: 1.0.0
+   description: Shared utility functions for our team.
+   publish_to: https://packages.example.com
+
+   environment:
+     sdk: ^3.0.0
+   ```
+
+   <Aside type="caution">
+     The `publish_to` URL must exactly match your `SERVER_URL`. A trailing slash mismatch or http vs https difference will cause authentication failures.
+   </Aside>
+
+3. **Add library code**
+
+   Create `lib/my_utils.dart`:
+
+   ```dart
+   /// Formats a duration as a human-readable string.
+   String formatDuration(Duration duration) {
+     final hours = duration.inHours;
+     final minutes = duration.inMinutes.remainder(60);
+     final seconds = duration.inSeconds.remainder(60);
+
+     if (hours > 0) return '${hours}h ${minutes}m ${seconds}s';
+     if (minutes > 0) return '${minutes}m ${seconds}s';
+     return '${seconds}s';
+   }
+
+   /// Capitalizes the first letter of a string.
+   String capitalize(String input) {
+     if (input.isEmpty) return input;
+     return input[0].toUpperCase() + input.substring(1);
+   }
+   ```
+
+4. **Add a README**
+
+   Create `README.md`:
+
+   ```markdown
+   # my_utils
+
+   Shared utility functions for our team.
+
+   ## Usage
+
+   ```dart
+   import 'package:my_utils/my_utils.dart';
+
+   void main() {
+     print(formatDuration(Duration(hours: 1, minutes: 30)));
+     // Output: 1h 30m 0s
+
+     print(capitalize('hello'));
+     // Output: Hello
+   }
+   ```
+   ```
+
+5. **Add a CHANGELOG**
+
+   Create `CHANGELOG.md`:
+
+   ```markdown
+   ## 1.0.0
+
+   - Initial release
+   - Added `formatDuration` function
+   - Added `capitalize` function
+   ```
+
+</Steps>
+
+## Publish the package
+
+<Steps>
+
+1. **Dry run (optional)**
+
+   Preview what will be published without actually uploading:
+
+   ```bash
+   dart pub publish --dry-run
+   ```
+
+   This validates the package structure and shows any warnings.
+
+2. **Publish**
+
+   ```bash
+   dart pub publish
+   ```
+
+   You will be prompted to confirm. Type `y` to proceed. Alternatively, use `--force` to skip the prompt:
+
+   ```bash
+   dart pub publish --force
+   ```
+
+3. **Verify on the web UI**
+
+   Open `https://packages.example.com` in your browser and navigate to the packages page. You should see `my_utils` listed with version `1.0.0`. Click it to see the rendered README, changelog, version history, and installation instructions.
+
+</Steps>
+
+## Use the package in another project
+
+<Steps>
+
+1. **Create or open a Dart project**
+
+   ```bash
+   mkdir -p ~/my_app && cd ~/my_app
+   dart create -t console .
+   ```
+
+2. **Add the dependency**
+
+   Edit `pubspec.yaml` and add `my_utils` under `dependencies`:
+
+   ```yaml
+   dependencies:
+     my_utils:
+       hosted: https://packages.example.com
+       version: ^1.0.0
+   ```
+
+   <Aside type="tip">
+     The `hosted` field tells `dart pub` to fetch this package from your club server instead of pub.dev. All other packages (without a `hosted` field) continue to come from pub.dev as usual.
+   </Aside>
+
+3. **Fetch dependencies**
+
+   ```bash
+   dart pub get
+   ```
+
+4. **Use the package**
+
+   Edit `bin/my_app.dart`:
+
+   ```dart
+   import 'package:my_utils/my_utils.dart';
+
+   void main() {
+     final elapsed = Duration(minutes: 42, seconds: 7);
+     print('Build took ${formatDuration(elapsed)}');
+     print(capitalize('club works!'));
+   }
+   ```
+
+   Run it:
+
+   ```bash
+   dart run
+   ```
+
+   Expected output:
+
+   ```
+   Build took 42m 7s
+   Club works!
+   ```
+
+</Steps>
+
+## Publishing updates
+
+To publish a new version, update the `version` field in `pubspec.yaml` and run `dart pub publish` again:
+
+```yaml
+version: 1.1.0
+```
+
+```bash
+dart pub publish --force
+```
+
+Consumers upgrade by running:
+
+```bash
+dart pub upgrade my_utils
+```
+
+## CI/CD publishing
+
+For automated publishing from CI/CD pipelines, create a personal access token in the web dashboard at **Settings → API keys** with `read,write` scope. The raw token (format `club_pat_...`) is shown once at creation -- copy it immediately. Then in your CI configuration (for example, GitHub Actions):
+
+```yaml
+- name: Configure club
+  run: dart pub token add https://packages.example.com --env-var CLUB_TOKEN
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+
+- name: Publish
+  run: dart pub publish --force
+```
+
+Alternatively, use `club publish --force` directly and provide the token via the `CLUB_TOKEN` environment variable, which the CLI honours as a bearer token override.
+
+## Troubleshooting
+
+### `dart pub publish` returns 401 Unauthorized
+
+Your token is missing or invalid. Re-register it:
+
+```bash
+dart pub token remove https://packages.example.com
+club setup
+```
+
+Then verify with `dart pub token list`.
+
+### `dart pub publish` returns 403 Forbidden
+
+You do not have permission to publish this package. This happens when:
+
+- The package is owned by a publisher and you are not a member
+- Another user published the first version and you are not an uploader
+- Your API token does not have the `write` scope
+
+Contact your club admin to be added as an uploader or publisher member.
+
+### "publish_to URL does not match"
+
+The `publish_to` value in your `pubspec.yaml` must exactly match the server URL, including the scheme (`https://` vs `http://`) and the absence of a trailing slash. Compare your `publish_to` with your server's `SERVER_URL`.
+
+### `dart pub get` fails with "Could not resolve"
+
+Make sure:
+
+1. Your token is registered: `dart pub token list`
+2. The `hosted` URL in your `pubspec.yaml` matches exactly
+3. The package name and version exist on the server
+4. The server is reachable: `curl https://packages.example.com/api/v1/health`
+
+### Package published but not showing in search
+
+The search index updates immediately on publish. If the package does not appear:
+
+1. Verify it exists via the API: `curl -H "Authorization: Bearer $TOKEN" https://packages.example.com/api/packages/my_utils`
+2. Try a direct URL: `https://packages.example.com/packages/my_utils`
+3. Check the server logs for errors: `docker compose logs club`

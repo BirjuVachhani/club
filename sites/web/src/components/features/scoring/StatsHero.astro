@@ -1,0 +1,150 @@
+---
+// Scoring variant G — "Stats hero"
+// Minimal and high-impact. Four big numbers carry the section, each
+// answering a question a buyer asks. Almost no paragraphs. Designed
+// to feel like the opening of a SaaS product page.
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <!-- Top: stacked headline -->
+    <header class="head">
+      <div class="eyebrow orange">§ Quality</div>
+      <h1 class="display">
+        Pub scoring, <br />
+        <span class="accent">identical to pub.dev</span>.
+      </h1>
+    </header>
+
+    <!-- Four big stats -->
+    <div class="stats">
+      <div class="stat">
+        <strong>1</strong>
+        <span class="stat-k mono">Scoring engine</span>
+        <span class="stat-sub">pub.dev's <span class="mono">pana</span>, unchanged — so the rubric matches byte-for-byte.</span>
+      </div>
+      <div class="stat">
+        <strong>5</strong>
+        <span class="stat-k mono">Weighted criteria</span>
+        <span class="stat-sub">Conventions · Documentation · Platforms · Analysis · Dependencies.</span>
+      </div>
+      <div class="stat feat">
+        <strong>160</strong>
+        <span class="stat-k mono">Pub points</span>
+        <span class="stat-sub">Possible per release · recalculated on every publish · stored forever.</span>
+      </div>
+      <div class="stat">
+        <strong>0</strong>
+        <span class="stat-k mono">Data leakage</span>
+        <span class="stat-sub">Nothing leaves your walls — packages, scores, downloads, all yours.</span>
+      </div>
+    </div>
+
+    <!-- Rubric tag strip -->
+    <div class="tags">
+      <span class="t">Conventions <em>30</em></span>
+      <span class="sep">+</span>
+      <span class="t">Documentation <em>20</em></span>
+      <span class="sep">+</span>
+      <span class="t">Platforms <em>20</em></span>
+      <span class="sep">+</span>
+      <span class="t">Analysis <em>50</em></span>
+      <span class="sep">+</span>
+      <span class="t">Dependencies <em>40</em></span>
+      <span class="sep equals">=</span>
+      <span class="t total">160</span>
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag-in">Also</span>
+      Users can <strong>like</strong> a package. It's available for discovery, but not part of the score.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0; position: relative; overflow: hidden;
+    background: var(--color-ink-dark); color: #EDEDED;
+  }
+  .sec::before {
+    content: ""; position: absolute; inset: -6rem auto auto -6rem;
+    width: 32rem; height: 32rem; border-radius: 999px; pointer-events: none;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.09; filter: blur(56px);
+  }
+  .wrap { position: relative; max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+
+  .tag-in { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: color-mix(in oklab, var(--color-stamp) 20%, transparent); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .head { max-width: 48rem; margin: 0 0 3.5rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; color: var(--color-mute-dark); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .display {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.5rem, 5vw, 4.25rem);
+    letter-spacing: -0.03em; line-height: 1.02; margin: 1.25rem 0 0;
+    color: #EDEDED; max-width: 16ch;
+  }
+
+  .stats {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 1000px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px)  { .stats { grid-template-columns: 1fr; } }
+
+  .stat {
+    padding: 1.75rem 1.5rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px solid var(--color-border-dark);
+    border-radius: 18px;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    position: relative;
+  }
+  .stat.feat {
+    background: #0E0E10;
+    border: 1px solid var(--color-stamp);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-stamp) 14%, transparent);
+  }
+  .stat strong {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(4rem, 6.5vw, 6rem);
+    letter-spacing: -0.055em; line-height: 0.88;
+    color: var(--color-stamp);
+  }
+  .stat-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: #EDEDED; font-weight: 700; }
+  .stat-sub { font-size: 0.88rem; line-height: 1.5; color: var(--color-mute-dark); }
+  .stat-sub .mono { color: var(--color-stamp); background: color-mix(in oklab, var(--color-stamp) 14%, transparent); padding: 0 0.25em; border-radius: 4px; font-size: 0.88em; }
+
+  /* Equation strip */
+  .tags {
+    margin-top: 2rem; padding: 1.25rem 1.5rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px dashed var(--color-border-dark); border-radius: 14px;
+    display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center;
+  }
+  .t {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.4rem 0.7rem; border-radius: 999px;
+    background: color-mix(in oklab, #EDEDED 6%, transparent);
+    border: 1px solid var(--color-border-dark);
+    color: #EDEDED; font-family: var(--font-sans); font-size: 0.88rem; font-weight: 560;
+  }
+  .t em { font-style: normal; font-family: var(--font-mono); font-weight: 700; color: var(--color-stamp); font-size: 0.9em; }
+  .t.total { background: var(--color-stamp); border-color: var(--color-stamp); color: #fff; font-weight: 700; font-family: var(--font-mono); font-size: 1rem; letter-spacing: -0.01em; padding: 0.5rem 1rem; }
+  .sep { font-family: var(--font-mono); color: var(--color-mute-dark); font-weight: 700; font-size: 0.9rem; }
+  .sep.equals { color: var(--color-stamp); font-size: 1.1rem; }
+
+  .footnote {
+    margin-top: 1.5rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border-dark); border-radius: 8px;
+    background: color-mix(in oklab, #EDEDED 3%, transparent);
+    font-size: 0.88rem; color: var(--color-mute-dark); line-height: 1.5;
+  }
+  .footnote strong { color: #EDEDED; font-weight: 640; }
+</style>

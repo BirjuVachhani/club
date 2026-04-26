@@ -1,0 +1,167 @@
+---
+title: Retracting a Version
+description: Retract and restore published package versions on a club server. Covers the 7-day windows, version solver behaviour, and how consumers migrate off a retracted version.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+Retraction is the soft alternative to deletion. A retracted version stays downloadable — existing `pubspec.lock` files keep resolving — but it is excluded when the pub version solver picks versions for new consumers. club follows the [Dart pub retraction spec](https://dart.dev/tools/pub/publishing#retract) so `dart pub get`, `dart pub upgrade`, and `dart pub downgrade` behave identically against club and pub.dev.
+
+## When to Retract
+
+Retract when a newly-published version is actively harmful and can't be fixed by publishing a newer version:
+
+- Missing or too-lax dependency constraints the solver will keep picking.
+- A breaking change that slipped out on a patch bump.
+- A critical security regression.
+
+Prefer publishing a new version with the fix if you can — retraction is more disruptive to downstream users.
+
+<Aside type="caution" title="Retraction is not deletion">
+Archives remain downloadable forever. If you need to remove an archive entirely (license issues, secrets leaked in the tarball), use `DELETE /api/admin/packages/<pkg>/versions/<v>` instead — that action is irreversible and requires server-admin rights.
+</Aside>
+
+## The 7-Day Windows
+
+By default club enforces the two pub.dev policy windows:
+
+- **Retract within 7 days of publishing.** After that, the version is considered adopted — retracting it would break lockfiles that have had time to form.
+- **Restore within 7 days of retracting.** After that, any downstream migration is assumed complete.
+
+Both checks compare against the server clock (UTC). Requests outside the applicable window return **409 Conflict** with a message explaining the boundary.
+
+### Relaxing the windows on a private registry
+
+A private self-hosted registry may need to retract older releases — typically to pull a version with a newly-disclosed security issue. Set the server flag to opt out:
+
+```bash
+ENFORCE_RETRACTION_WINDOW=false
+```
+
+With enforcement off, uploaders and publisher admins can retract or restore any version at any time. The `retracted` flag in API responses and the UI badge are unaffected.
+
+<Aside type="tip">
+The default is `true` so public-facing deployments match pub.dev out of the box. Only flip it for private registries where you control all downstream consumers and need a looser lifecycle policy.
+</Aside>
+
+## Who Can Retract
+
+Anyone with write access to the package:
+
+- Any named **uploader** on the package.
+- Any **admin of the publisher** that owns the package.
+- A server **admin** or **owner** (regardless of the enforcement flag — the 7-day check still applies to them when enforcement is on).
+
+## Retracting a Version
+
+<Tabs>
+  <TabItem label="Web UI">
+  <Steps>
+
+  1. Open the package page.
+  2. Switch to the **Admin** tab.
+  3. In the **Versions** panel, click **Retract** next to the target version.
+  4. Confirm the dialog. The row now shows a **retracted** badge and reduced opacity.
+
+  </Steps>
+
+  If the version is outside the 7-day window and the server enforces it, you'll see the reason inline and the action will be rejected.
+  </TabItem>
+
+  <TabItem label="HTTP API">
+  ```http
+  PUT /api/packages/<pkg>/versions/<version>/options
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+  { "isRetracted": true }
+  ```
+
+  Response: `200 OK` with the new options, or `409 Conflict` when outside the window.
+  </TabItem>
+
+  <TabItem label="club CLI">
+  Retraction is available through the admin API endpoint above — see the [API Reference](/api/packages/) for the full route and payload. A dedicated CLI command is on the roadmap.
+  </TabItem>
+</Tabs>
+
+## Restoring a Retracted Version
+
+Within 7 days of retraction (or any time with `ENFORCE_RETRACTION_WINDOW=false`):
+
+```http
+PUT /api/packages/<pkg>/versions/<version>/options
+{ "isRetracted": false }
+```
+
+On success the `retractedAt` timestamp is cleared and the version reappears in version-solver results.
+
+## What the Pub Version Solver Does
+
+The API response for `/api/packages/<pkg>` marks each retracted entry with `"retracted": true`:
+
+```json
+{
+  "name": "my_package",
+  "latest": { "version": "1.2.1", ... },
+  "versions": [
+    { "version": "1.0.0", ... },
+    { "version": "1.2.0", "retracted": true, ... },
+    { "version": "1.2.1", ... }
+  ]
+}
+```
+
+From **Dart SDK 2.15** onward, the pub version solver reads this field and skips retracted versions when resolving `dart pub get`, `dart pub upgrade`, and `dart pub add`. Older SDKs ignore the flag, so retraction's protective effect only kicks in for 2.15+ clients.
+
+club also recomputes `latestVersion` / `latestPrerelease` whenever a version is retracted or restored, so the package page and `latest` API always point at a non-retracted release.
+
+## Migrating Off a Retracted Dependency
+
+When one of your dependencies retracts a version your lockfile has pinned, pub prints a warning and offers paths forward:
+
+### Upgrade to a newer version
+
+```bash
+dart pub upgrade <package>
+```
+
+Picks the newest compatible, non-retracted version that matches your `pubspec.yaml` constraint.
+
+### Downgrade to the newest non-retracted version
+
+If no newer version exists:
+
+```bash
+dart pub downgrade <package>
+```
+
+…or delete the package entry from `pubspec.lock` and re-run `dart pub get`.
+
+### Pin to the retracted version on purpose
+
+If you deliberately want to keep the retracted version (for example, to reproduce an old build), add it under `dependency_overrides`:
+
+```yaml
+dependency_overrides:
+  my_package: 1.2.0
+```
+
+The solver honors overrides even for retracted versions.
+
+## Audit Log
+
+Every retract and restore appends an entry to the package activity log with the actor, version, and timestamp. View it from the **Activity** tab on the package page or via:
+
+```http
+GET /api/packages/<pkg>/activity-log
+```
+
+Event kinds: `versionRetracted`, `versionUnretracted`.
+
+## See Also
+
+- [Package Administration overview](/guides/package-admin/)
+- [Discontinuing a Package](/guides/discontinuing-packages/)
+- [Unlisting a Package](/guides/unlisting-packages/)
+- [Dart pub spec: retraction](https://dart.dev/tools/pub/publishing#retract)

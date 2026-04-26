@@ -1,0 +1,144 @@
+---
+// Footer variant C — "Split Echo"
+// Continues the CTA's orange/ink split visually: a narrow orange band
+// carrying the mark and tagline sits on top of a dark ink-dark block
+// with the nav columns + legal. Designed to sit right under the E3 CTA.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Documentation", href: DOCS_URL },
+      { label: "Changelog", href: docsUrl("/changelog/") },
+      { label: "GitHub", href: GITHUB_URL },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+      { label: "Beginner's guide", href: docsUrl("/getting-started/tutorial/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "Client SDK", href: docsUrl("/sdk/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms & trademark", href: "/terms" },
+      { label: "License", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <!-- Orange band — echoes the CTA left half -->
+  <div class="band">
+    <div class="wrap row">
+      <Mark height={30} />
+      <p class="tag mono">
+        A private pub.dev, self-hosted.
+        <span class="sep">·</span>
+        <span>Apache 2.0 · no telemetry</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Ink body — echoes the CTA right half -->
+  <div class="body">
+    <div class="wrap">
+      <nav class="cols">
+        {cols.map((col) => (
+          <div>
+            <div class="col-k mono">{col.title}</div>
+            <ul>
+              {col.links.map((l) => (
+                <li><a href={l.href}>{l.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div class="rail">
+        <span class="mono">© {year} CLUB contributors · Apache License 2.0</span>
+        <span class="rail-r mono">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <span class="pulse"></span>
+          <span>v0.1</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr { display: flex; flex-direction: column; }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2rem; width: 100%; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .mono { font-family: var(--font-mono); }
+
+  /* Orange band */
+  .band {
+    background: var(--color-stamp); color: #fff;
+    border-top: 3px solid var(--color-ink);
+    border-bottom: 3px solid var(--color-ink);
+  }
+  .band .wrap { padding: 1.1rem 2rem; }
+  @media (max-width: 768px) { .band .wrap { padding: 1rem 1.25rem; } }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem 1.25rem; }
+  .tag {
+    margin: 0;
+    font-size: 0.75rem; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+    color: #fff; flex: 1; min-width: 0;
+  }
+  .tag .sep { opacity: 0.65; margin: 0 0.5em; }
+
+  /* Ink body */
+  .body { background: var(--color-ink-dark); color: #EDEDED; }
+  .body .wrap { padding: 3.5rem 2rem 1.5rem; }
+  @media (max-width: 768px) { .body .wrap { padding: 2.5rem 1.25rem 1.25rem; } }
+
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 700px) { .cols { grid-template-columns: repeat(2, 1fr); } }
+  .col-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; color: var(--color-mute-dark); }
+  .cols ul { list-style: none; padding: 0; margin: 0.85rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+
+  .rail {
+    margin-top: 2.75rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border-dark);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 1.5rem;
+    font-size: 0.72rem; letter-spacing: 0.1em;
+    color: var(--color-mute-dark);
+  }
+  .rail-r { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .rail-r a { color: var(--color-mute-dark); }
+  .rail-r a:hover { color: var(--color-stamp); }
+  .pulse {
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--color-stamp); box-shadow: 0 0 8px color-mix(in oklab, var(--color-stamp) 60%, transparent);
+  }
+</style>

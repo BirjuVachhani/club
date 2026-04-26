@@ -1,0 +1,295 @@
+---
+title: Verifying publishers
+description: Prove domain control via a DNS TXT record to create a verified publisher in CLUB, with step-by-step walkthroughs for Cloudflare, Route 53, Namecheap, and Google Domains.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A **verified publisher** is a publisher whose identifier is a domain
+name you've proven you control. Packages owned by a verified
+publisher display a verification badge throughout the UI — a useful
+trust signal for teams sharing a registry.
+
+Verification is self-service: anyone with the `member` role or above
+can claim any domain they can prove DNS control of. No admin
+involvement is required.
+
+## When to verify
+
+Create a verified publisher when:
+
+- Your team owns a domain (`your-team.dev`, `example.com`) and wants
+  packages to clearly come from that team.
+- You want the verified ✓ badge to appear on package pages.
+- You want to be able to transfer packages between publishers without
+  involving a server admin.
+
+If you don't have a public domain, your server admin can create an
+**internal publisher** instead — same capability, no DNS proof, no
+badge. See [publishers](/guides/publishers/).
+
+## The flow at a glance
+
+<Steps>
+
+1. Open **My publishers** → **Verify a domain**, or go directly to
+   `/publishers/verify`.
+
+2. Enter the domain and display name. CLUB generates a one-time
+   token and shows you the exact DNS record to add.
+
+3. Add the TXT record in your DNS provider's dashboard.
+
+4. Wait for propagation (usually 1-5 minutes).
+
+5. Click **Verify now**. CLUB checks the record via two DNS providers
+   and, if both see it, creates the publisher with you as its first
+   admin.
+
+6. Optionally remove the TXT record — verification is one-shot and
+   not re-probed.
+
+</Steps>
+
+The token is valid for 24 hours. If it expires before you complete,
+restart the flow — nothing is lost.
+
+## The DNS record
+
+CLUB always asks for the same shape:
+
+| Field | Value |
+|---|---|
+| **Host** | `_club-verify.<your-domain>` |
+| **Type** | `TXT` |
+| **Value** | `club-verify=<random-token>` |
+| **TTL** | 300 (or your provider's minimum) |
+
+The `_club-verify.<domain>` subdomain is used deliberately instead of
+the apex. Apex TXT records collide with SPF/DKIM/DMARC; using a
+dedicated underscore-prefixed name keeps the verification cleanly
+separate from your email/web setup.
+
+## Provider walkthroughs
+
+<Tabs>
+<TabItem label="Cloudflare">
+
+<Steps>
+
+1. Sign in at [dash.cloudflare.com](https://dash.cloudflare.com).
+
+2. Select your domain → **DNS** → **Records** → **Add record**.
+
+3. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | **Type** | `TXT` |
+   | **Name** | `_club-verify` — Cloudflare auto-appends your domain |
+   | **Content** | `club-verify=<token>` (paste the value CLUB gave you) |
+   | **TTL** | Auto |
+   | **Proxy status** | DNS only (TXT records can't be proxied anyway) |
+
+4. **Save**. Cloudflare propagation is near-instant.
+
+5. Return to `/publishers/verify` in CLUB and click **Verify now**.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Route 53 (AWS)">
+
+<Steps>
+
+1. Sign in to the AWS console → **Route 53** → **Hosted zones** →
+   select your domain.
+
+2. **Create record**. Choose **Simple routing** → **Define simple
+   record**.
+
+3. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | **Record name** | `_club-verify` — Route 53 appends your domain |
+   | **Record type** | `TXT` |
+   | **Value/Route traffic to** | `"club-verify=<token>"` — include the quotes |
+   | **TTL** | 300 |
+
+4. **Define simple record** → **Create records**.
+
+5. Return to CLUB and click **Verify now**. Route 53 propagation is
+   typically under 60 seconds.
+
+</Steps>
+
+<Aside type="caution">
+Route 53 requires TXT values to be wrapped in **double quotes** in
+the console. The value itself should still be exactly
+`club-verify=<token>` — the quotes are stripped before resolvers
+return the record.
+</Aside>
+
+</TabItem>
+<TabItem label="Namecheap">
+
+<Steps>
+
+1. Sign in at [namecheap.com](https://www.namecheap.com) → **Domain
+   List** → your domain → **Manage** → **Advanced DNS**.
+
+2. Scroll to **Host Records** → **Add New Record**.
+
+3. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | **Type** | `TXT Record` |
+   | **Host** | `_club-verify` |
+   | **Value** | `club-verify=<token>` |
+   | **TTL** | Automatic |
+
+4. Click the green **✓** to save.
+
+5. Return to CLUB and click **Verify now**. Namecheap propagation
+   typically takes 5-30 minutes — longer than most; if the first
+   check fails, wait and retry.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Google Domains / Squarespace">
+
+<Aside>
+Google Domains was transitioned to Squarespace in 2023. These steps
+work on both the legacy Google Domains UI and the Squarespace
+Domains UI.
+</Aside>
+
+<Steps>
+
+1. Sign in → select your domain → **DNS** → **Custom records**.
+
+2. **Create new record**:
+
+   | Field | Value |
+   |---|---|
+   | **Host name** | `_club-verify` |
+   | **Type** | `TXT` |
+   | **TTL** | 1 hour |
+   | **Data** | `club-verify=<token>` |
+
+3. **Save**.
+
+4. Return to CLUB and click **Verify now**.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Generic / other">
+
+For any DNS provider:
+
+<Steps>
+
+1. Find your DNS management panel. Usually called "DNS", "Zone
+   file", "Records", or "Advanced DNS".
+
+2. Add a new record with:
+   - **Type**: `TXT`
+   - **Name / Host**: `_club-verify` (some providers want the full
+     `_club-verify.your-domain.com`; most want just the prefix and
+     append the domain themselves)
+   - **Value / Content**: exactly `club-verify=<token>` — paste the
+     value CLUB gave you, no extra quotes unless your provider
+     specifically requires them
+
+3. Save and wait for propagation. Most providers propagate in
+   minutes; some take up to an hour.
+
+4. Return to `/publishers/verify` and click **Verify now**.
+
+</Steps>
+
+You can confirm the record is live from the command line before
+returning to CLUB:
+
+```bash
+dig +short TXT _club-verify.your-domain.com
+# Expected output:
+# "club-verify=<your-token>"
+```
+
+If `dig` doesn't show the record, give it another minute and retry.
+
+</TabItem>
+</Tabs>
+
+## Troubleshooting
+
+### "Verification failed — TXT record not found"
+
+The most common cause by far is DNS propagation delay.
+
+- Wait 2-5 minutes and retry. DNS updates aren't instant, even for
+  providers that claim to be.
+- Verify from the command line:
+
+  ```bash
+  dig +short TXT _club-verify.your-domain.com
+  ```
+
+  If `dig` doesn't see the record, CLUB can't either.
+- Double-check the host: it's `_club-verify`, not `club-verify` (the
+  leading underscore matters).
+- Double-check the value: it's `club-verify=<token>`, not just
+  `<token>`. The prefix is part of the match.
+
+### "DNS lookup failed — try again shortly"
+
+CLUB couldn't reach its upstream DNS providers (Cloudflare and
+Google). Usually transient — retry in a minute. If this persists,
+ask your network administrator whether HTTPS outbound to
+`cloudflare-dns.com` and `dns.google` is allowed.
+
+### The verification token expired
+
+Tokens are valid for 24 hours. If you see "verification expired",
+just restart — no data is lost and the form remembers your domain.
+
+### A publisher with this ID already exists
+
+Someone else (or an admin) already claimed `your-domain.com` as a
+publisher id. If it's a verified publisher you lost access to (e.g.
+you used to be its admin and were removed), a server admin has to
+delete it first before you can re-verify. If it's an internal
+publisher squatting the slug, same path — server admin deletes it.
+
+### The record is live but verification still fails
+
+CLUB checks against two DNS providers (Cloudflare and Google) and
+requires both to see the record. This defends against single-resolver
+poisoning, but occasionally one provider lags the other by a minute
+or two during propagation. Wait a minute and retry.
+
+## After verification
+
+You can safely remove the TXT record once verified. CLUB does not
+re-probe it — verification is a point-in-time proof.
+
+<Aside type="tip">
+Leaving the record in place doesn't hurt. If you ever accidentally
+delete the publisher and want to re-claim it, you can start a new
+verification and reuse the same record name with a fresh token.
+</Aside>
+
+Next steps:
+
+- **[Manage members](/guides/publishers/)** — add your team as
+  publisher admins so they can publish packages under your
+  publisher's name.
+- **[Transfer packages](/guides/publishers/#transferring-packages)**
+  — move an existing package into your newly verified publisher.
+- **[CI/CD](/guides/ci-cd/)** — create a scoped API key for your
+  publish pipeline.

@@ -1,0 +1,179 @@
+---
+title: Managing Users
+description: Create, invite, and manage user accounts in club — roles, invites, password resets, disabling, and ownership transfer.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Server admins manage users from the web UI at **`/admin/users`** or via the admin API at `/api/admin/users`. There is no email delivery — passwords and invite links are surfaced directly in the UI and returned in API responses for the admin to share out-of-band.
+
+## User Roles
+
+club has four hierarchical roles. Each is a superset of the one below it.
+
+| Role | What they can do |
+|------|------------------|
+| `owner` | Everything. Exactly one exists per server; transferred, not assigned. |
+| `admin` | Manage users, publishers, any package, scoring, and server settings. |
+| `member` | Publish and manage their own packages and publisher memberships. Previously named `editor`. |
+| `viewer` | Read-only: browse, download, search. |
+
+Self-signup (when `SIGNUP_ENABLED=true`) creates `member` accounts.
+
+## Creating Users
+
+The admin UI offers two creation modes, matching the two branches of `POST /api/admin/users`.
+
+### Mode 1 — Password (immediate access)
+
+The server generates a 16-character random password, saves the account (marked `mustChangePassword: true`), and returns the plaintext password in the response so the admin can copy and share it.
+
+<Tabs>
+  <TabItem label="Web UI">
+  Go to **Admin > Users > New user**, enter email and display name, pick a role, and choose **Generate password**. Copy the one-time password shown after submit.
+  </TabItem>
+  <TabItem label="API">
+  ```http
+  POST /api/admin/users
+  Content-Type: application/json
+
+  {
+    "mode": "password",
+    "email": "jane@example.com",
+    "displayName": "Jane Smith",
+    "role": "member"
+  }
+  ```
+
+  Response:
+  ```json
+  {
+    "user": { "id": "...", "email": "jane@example.com", "role": "member" },
+    "password": "7nQx2VpD9aLh6K3m"
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+The user is forced to change the password on their first login.
+
+### Mode 2 — Invite (user sets their own password)
+
+The server creates a signup invite with a configurable expiry (in hours) and returns a one-time URL. The admin shares the URL; the user opens it, sets their own password, and logs in.
+
+<Tabs>
+  <TabItem label="Web UI">
+  In **Admin > Users > New user**, choose **Send invite**, pick the expiry window, and submit. The invite URL is displayed for you to copy and send to the user via your preferred channel.
+  </TabItem>
+  <TabItem label="API">
+  ```http
+  POST /api/admin/users
+  Content-Type: application/json
+
+  {
+    "mode": "invite",
+    "email": "jane@example.com",
+    "displayName": "Jane Smith",
+    "role": "member",
+    "expiresInHours": 72
+  }
+  ```
+
+  Response:
+  ```json
+  {
+    "inviteUrl": "https://club.example.com/invite/abc123...",
+    "expiresAt": "2026-04-20T12:00:00Z"
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+The user accepts at `/invite/<token>`, picks their own password, and becomes active.
+
+<Aside>
+club does not send emails. Copy the generated password or invite URL and deliver it to the user through a secure channel (company chat, password manager share, etc.).
+</Aside>
+
+## Listing Users
+
+```http
+GET /api/admin/users
+```
+
+In the web UI, the same data lives at **`/admin/users`** with filters for role and status.
+
+## Changing Roles
+
+Update a user's role with `PUT /api/admin/users/<id>`:
+
+```http
+PUT /api/admin/users/<id>
+Content-Type: application/json
+
+{ "role": "admin" }
+```
+
+Valid values: `admin`, `member`, `viewer`. `owner` is special and is **never** set through this endpoint. (Legacy: `editor` is accepted and normalised to `member`.)
+
+<Aside type="caution">
+At least one `admin` (in addition to the `owner`) should exist so that day-to-day admin tasks aren't gated on a single account. The server still allows dropping all admins, but it is strongly discouraged.
+</Aside>
+
+### Transferring ownership
+
+There is exactly one `owner`. Transfer it with:
+
+```http
+POST /api/admin/transfer-ownership
+Content-Type: application/json
+
+{ "email": "new-owner@example.com" }
+```
+
+The previous owner is demoted to `admin`; the named user is promoted to `owner`. This is the only way the `owner` role changes hands.
+
+## Disabling Accounts
+
+Disabling is a soft action: the user cannot log in and their PATs stop working, but their packages and ownership relationships are preserved.
+
+```http
+PUT /api/admin/users/<id>
+Content-Type: application/json
+
+{ "isActive": false }
+```
+
+Re-enable by sending `{ "isActive": true }`.
+
+When a user is disabled:
+
+- Existing sessions end on the next request.
+- All their PATs return `401`.
+- They cannot log in to the web UI or use `dart pub`.
+- Their published packages remain downloadable by others.
+- Uploader/publisher memberships are kept — they take effect again on re-enable.
+
+## Resetting Passwords
+
+Admins can reset any user's password. The new password can be explicit or server-generated.
+
+```http
+POST /api/admin/users/<id>/reset-password
+Content-Type: application/json
+
+{}                              # server generates a random password, returns it
+{ "password": "NewP@ssw0rd!" }  # use this exact password
+```
+
+In both cases the account is marked `mustChangePassword: true`, so the user is forced to pick a new password on next login.
+
+<Aside type="tip">
+For programmatic access (CI, scripts, bots), issue a scoped **Personal Access Token** instead of a password. See [Authentication](/guides/authentication/).
+</Aside>
+
+## Password rules
+
+- Passwords are always stored hashed — never in plaintext or logs.
+- The hashing cost is tunable (see `BCRYPT_COST` in [env vars](/configuration/env-vars/)) if you need to trade off CPU cost against login latency.
+- Basic length and composition rules are enforced on signup, password change, and admin reset.

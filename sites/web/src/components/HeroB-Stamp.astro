@@ -1,0 +1,135 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+---
+
+<!--
+  HeroB — "Stamp / Postal"
+  Centered, typographic. Plays on the brand name "CLUB" (rubber-stamp
+  aesthetic). Light paper backdrop, orange ink stamp imprint around a
+  huge display headline, postal-style metadata rows above & below.
+-->
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-paper-mute); color: var(--color-ink);"
+>
+  <!-- perforated edges -->
+  <div
+    class="pointer-events-none absolute left-0 right-0 top-0 h-2"
+    style="
+      background-image: radial-gradient(circle at 6px 0, var(--color-bg) 3px, transparent 3.5px);
+      background-size: 12px 8px;
+    "
+  />
+  <div
+    class="pointer-events-none absolute left-0 right-0 bottom-0 h-2"
+    style="
+      background-image: radial-gradient(circle at 6px 8px, var(--color-bg) 3px, transparent 3.5px);
+      background-size: 12px 8px;
+    "
+  />
+
+  <!-- faint diagonal watermark lines -->
+  <div
+    class="pointer-events-none absolute inset-0 opacity-[0.04]"
+    style="
+      background-image: repeating-linear-gradient(-20deg, var(--color-ink) 0 1px, transparent 1px 14px);
+    "
+  />
+
+  <div class="relative mx-auto w-full max-w-[72rem] px-6 pb-24 pt-36 md:px-10 md:pb-32 md:pt-44">
+    <!-- top postal row -->
+    <div class="flex items-center justify-between font-mono text-[0.68rem] tracking-[0.2em] uppercase" style="color: var(--color-mute);">
+      <span>No. 001 — Dart &amp; Flutter</span>
+      <span class="hidden md:inline">Private · Self-hosted</span>
+      <span>Est. 2026</span>
+    </div>
+
+    <div class="mt-10 border-t border-dashed" style="border-color: var(--color-border);"></div>
+
+    <!-- stamp block -->
+    <div class="relative mt-12 flex flex-col items-center text-center">
+      <!-- orange stamp ring -->
+      <div
+        class="pointer-events-none absolute left-1/2 top-1/2 h-[22rem] w-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-90 md:h-[28rem] md:w-[28rem]"
+        style="
+          border: 2.5px solid var(--color-stamp);
+          box-shadow: inset 0 0 0 6px transparent, inset 0 0 0 7px color-mix(in oklab, var(--color-stamp) 25%, transparent);
+          mix-blend-mode: multiply;
+          transform: translate(-50%, -50%) rotate(-4deg);
+          mask-image: radial-gradient(circle, #000 70%, transparent 71%);
+          -webkit-mask-image: radial-gradient(circle, #000 70%, transparent 71%);
+        "
+      />
+      <!-- stamp curved text hint -->
+      <div
+        class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[0.7rem] tracking-[0.35em] uppercase opacity-60 md:text-[0.78rem]"
+        style="color: var(--color-stamp); transform: translate(-50%, calc(-50% - 9.5rem)) rotate(-4deg);"
+      >
+        · PUB · SPEC · v2 ·
+      </div>
+      <div
+        class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[0.7rem] tracking-[0.35em] uppercase opacity-60 md:text-[0.78rem]"
+        style="color: var(--color-stamp); transform: translate(-50%, calc(-50% + 9.5rem)) rotate(-4deg);"
+      >
+        · DART · FLUTTER · OSS ·
+      </div>
+
+      <span class="chip">
+        <span class="chip-dot"></span>
+        Private Dart package repository
+      </span>
+
+      <h1
+        class="mt-8"
+        style="
+          font-family: var(--font-sans);
+          font-weight: 700;
+          letter-spacing: -0.035em;
+          line-height: 0.92;
+          font-size: clamp(3rem, 9vw, 8.5rem);
+        "
+      >
+        <span style="color: var(--color-ink);">Stamp it.</span><br/>
+        <span style="color: var(--color-stamp);">Ship it.</span><br/>
+        <span style="color: var(--color-ink); font-style: italic; font-weight: 640;">Host it yourself.</span>
+      </h1>
+
+      <p class="prose-body mt-8 max-w-xl" style="color: var(--color-mute);">
+        CLUB is an open-source, Pub Spec v2 compatible package
+        repository for Dart and Flutter teams. One container. Your
+        infrastructure. The stock dart pub CLI.
+      </p>
+
+      <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+        <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+          Get started
+          <span class="btn-arrow">→</span>
+        </a>
+        <a href={GITHUB_URL} class="btn btn-ghost">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View on GitHub
+        </a>
+      </div>
+    </div>
+
+    <div class="mt-16 border-t border-dashed" style="border-color: var(--color-border);"></div>
+
+    <!-- bottom postal row -->
+    <div class="mt-6 grid grid-cols-3 gap-4 font-mono text-[0.68rem] tracking-[0.18em] uppercase" style="color: var(--color-mute);">
+      <div>
+        <div style="color: var(--color-stamp);">Format</div>
+        <div class="mt-1" style="color: var(--color-ink);">Pub Spec v2</div>
+      </div>
+      <div class="text-center">
+        <div style="color: var(--color-stamp);">Runtime</div>
+        <div class="mt-1" style="color: var(--color-ink);">One Docker image</div>
+      </div>
+      <div class="text-right">
+        <div style="color: var(--color-stamp);">License</div>
+        <div class="mt-1" style="color: var(--color-ink);">MIT · Open source</div>
+      </div>
+    </div>
+  </div>
+</section>

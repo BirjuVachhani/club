@@ -1,0 +1,347 @@
+---
+title: YAML Config File
+description: YAML configuration file format, location, environment variable substitution, and a fully annotated example.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The YAML config file provides a convenient way to set all club options in a single file instead of individual environment variables. Environment variables always take precedence over values in the config file.
+
+**Priority order:** Environment variable > YAML config file > Default value
+
+## File Location
+
+club looks for the config file in this order:
+
+1. The path specified by the `CONFIG` environment variable
+2. `/etc/club/config.yaml` (default location)
+
+```bash
+# Explicit path
+export CONFIG=/opt/club/config.yaml
+
+# Or use the default location
+# /etc/club/config.yaml
+```
+
+<Aside type="note">
+  The config file is entirely optional. You can configure club using only environment variables. The YAML file is convenient for deployments where you prefer a single file over many environment variables.
+</Aside>
+
+## Configuration Loading Order
+
+When the server starts, configuration is loaded in this sequence:
+
+1. If `CONFIG` is set, load the YAML file it points to
+2. Otherwise, check for `/etc/club/config.yaml` (skipped silently if absent)
+3. Apply environment variables as overrides
+4. Validate required fields and backend-specific requirements
+5. Fail fast with a clear error message if misconfigured
+
+## Environment Variable Substitution
+
+Use `{{ENV_VAR_NAME}}` syntax to reference environment variables inside YAML values. This keeps secrets out of the config file while still centralising your configuration.
+
+```yaml
+jwt_secret: "{{JWT_SECRET}}"
+db:
+  postgres_url: "{{POSTGRES_URL}}"
+blob:
+  s3:
+    access_key: "{{S3_ACCESS_KEY}}"
+    secret_key: "{{S3_SECRET_KEY}}"
+```
+
+<Aside type="tip">
+  Use variable substitution for all secrets (JWT secret, database passwords, S3 keys). This lets you commit the config file to version control while keeping secrets in your environment or a secrets manager.
+</Aside>
+
+If a referenced environment variable is not set, the substitution results in an empty string. The server's validation step will catch missing required values and report a clear error.
+
+## Key shape: flat or nested
+
+The loader accepts both **flat** snake_case keys at the top level and **nested** sections for `db`, `blob`, `search`. Both forms are equivalent; pick whichever reads better for your deployment.
+
+```yaml
+# Flat
+db_backend: postgres
+postgres_url: "{{POSTGRES_URL}}"
+
+# Nested (equivalent)
+db:
+  backend: postgres
+  postgres_url: "{{POSTGRES_URL}}"
+```
+
+## Full Annotated Example
+
+```yaml
+# =============================================================================
+# club configuration file
+# =============================================================================
+# Values can reference environment variables: {{ENV_VAR_NAME}}
+# Environment variables always override values in this file.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------------
+
+# Public URL of the club server (required).
+# Must include scheme (https://). No trailing slash.
+server_url: "https://packages.example.com"
+
+# IP address to bind the HTTP server to. Default: 0.0.0.0
+host: "0.0.0.0"
+
+# Port the server listens on inside the container. Default: 8080
+# (Named "port" here; the equivalent env var is LISTEN_PORT, intentionally
+#  distinct from docker-compose's host-side PORT convention.)
+port: 8080
+
+# Log verbosity: debug, info, warning, error. Default: info
+log_level: info
+
+# ---------------------------------------------------------------------------
+# Authentication & sessions
+# ---------------------------------------------------------------------------
+
+# JWT signing secret (required). Minimum 32 characters.
+# Generate with: openssl rand -hex 32
+jwt_secret: "{{JWT_SECRET}}"
+
+# Web session TTL (hours). Default: 1
+session_ttl_hours: 1
+
+# Default API token expiry (days). Default: 365
+token_expiry_days: 365
+
+# bcrypt cost factor (10-14). Default: 12
+bcrypt_cost: 12
+
+# Enable the /signup page and public signup endpoint. Default: false
+signup_enabled: false
+
+# Trust X-Forwarded-Proto / X-Forwarded-For. Enable only behind a proxy
+# that strips client-supplied copies. Default: false
+trust_proxy: false
+
+# Extra origins permitted on public, unauthenticated state-changing
+# endpoints (login, signup, setup). SERVER_URL is trusted implicitly.
+# allowed_origins: "https://www.packages.example.com,https://packages.internal.example.com"
+
+# ---------------------------------------------------------------------------
+# Database (Metadata Store)
+# ---------------------------------------------------------------------------
+db:
+  # sqlite | postgres. Default: sqlite
+  backend: sqlite
+
+  # SQLite file path. Default: /data/db/club.db
+  sqlite_path: /data/db/club.db
+
+  # Required when backend is postgres.
+  # postgres_url: "{{POSTGRES_URL}}"
+
+# ---------------------------------------------------------------------------
+# Blob Storage
+# ---------------------------------------------------------------------------
+blob:
+  # filesystem | s3 | gcs. Default: filesystem
+  backend: filesystem
+
+  # Filesystem root. Default: /data/blobs
+  # Stores package tarballs, per-version screenshots, and (when
+  # dartdoc_backend is `blob`) per-package dartdoc indexed blobs.
+  path: /data/blobs
+
+  # S3 configuration (uncomment when backend is s3).
+  # Works for AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2,
+  # and GCS via its S3 interop endpoint.
+  # s3:
+  #   # Optional for AWS (uses default endpoint). Required for everything else.
+  #   endpoint: "https://s3.amazonaws.com"
+  #   bucket: "club-packages"
+  #   region: "us-east-1"
+  #   access_key: "{{S3_ACCESS_KEY}}"
+  #   secret_key: "{{S3_SECRET_KEY}}"
+
+  # GCS (native) configuration (uncomment when backend is gcs).
+  # Auth priority: credentials_file > credentials_json > Application
+  # Default Credentials. Under ADC there's no private key in process,
+  # so downloads proxy through the server instead of redirecting.
+  # gcs:
+  #   bucket: "my-project.appspot.com"
+  #   credentials_file: "/secrets/sa.json"
+  #   # credentials_json: "{{GCS_CREDENTIALS_JSON}}"
+
+# ---------------------------------------------------------------------------
+# Search
+# ---------------------------------------------------------------------------
+search:
+  # sqlite (FTS5) | meilisearch. Default: sqlite
+  backend: sqlite
+
+  # Meilisearch configuration (uncomment when backend is meilisearch)
+  # meilisearch:
+  #   url: "http://meilisearch:7700"
+  #   key: "{{MEILISEARCH_KEY}}"
+
+# ---------------------------------------------------------------------------
+# Upload
+# ---------------------------------------------------------------------------
+
+# Temp dir for upload processing. Default: /data/tmp/uploads
+temp_dir: /data/tmp/uploads
+
+# Max tarball size in bytes. Default: 104857600 (100 MiB)
+max_upload_bytes: 104857600
+
+# ---------------------------------------------------------------------------
+# Dartdoc
+# ---------------------------------------------------------------------------
+
+# Serve backend for rendered dartdoc HTML.
+# - filesystem (default): local tree at dartdoc_path, served by shelf_static.
+#                         Requires a persistent volume at that path.
+# - blob:                 indexed blob persisted via the configured Blob
+#                         Store (works with filesystem/s3/gcs — orthogonal
+#                         to blob.backend). Required for multi-replica or
+#                         ephemeral container deployments.
+# See https://docs.club.birju.dev/reference/dartdoc-serving/ for the full spec.
+dartdoc_backend: filesystem
+
+# Local filesystem root used when dartdoc_backend is filesystem.
+# Ignored in blob mode. Default: /data/cache/dartdoc
+dartdoc_path: /data/cache/dartdoc
+
+# In-process LRU cap for the blob serve path, in MiB. Only used when
+# dartdoc_backend is blob. Default: 64
+dartdoc_cache_max_memory_mb: 64
+```
+
+<Aside type="note">
+  club does **not** read `admin_email` / `admin_password` from the YAML
+  file. The initial admin account is created through the `/setup` web
+  wizard using a one-time code printed to the server logs on first boot.
+</Aside>
+
+## YAML Key to Environment Variable Mapping
+
+The YAML keys map directly to their corresponding environment variables:
+
+| YAML Key | Environment Variable |
+|----------|---------------------|
+| `server_url` | `SERVER_URL` |
+| `host` | `HOST` |
+| `port` | `LISTEN_PORT` |
+| `log_level` | `LOG_LEVEL` |
+| `jwt_secret` | `JWT_SECRET` |
+| `session_ttl_hours` | `SESSION_TTL_HOURS` |
+| `token_expiry_days` | `TOKEN_EXPIRY_DAYS` |
+| `bcrypt_cost` | `BCRYPT_COST` |
+| `signup_enabled` | `SIGNUP_ENABLED` |
+| `trust_proxy` | `TRUST_PROXY` |
+| `allowed_origins` | `ALLOWED_ORIGINS` |
+| `db.backend` | `DB_BACKEND` |
+| `db.sqlite_path` | `SQLITE_PATH` |
+| `db.postgres_url` | `POSTGRES_URL` |
+| `blob.backend` | `BLOB_BACKEND` |
+| `blob.path` | `BLOB_PATH` |
+| `blob.s3.endpoint` | `S3_ENDPOINT` |
+| `blob.s3.bucket` | `S3_BUCKET` |
+| `blob.s3.region` | `S3_REGION` |
+| `blob.s3.access_key` | `S3_ACCESS_KEY` |
+| `blob.s3.secret_key` | `S3_SECRET_KEY` |
+| `blob.gcs.bucket` | `GCS_BUCKET` |
+| `blob.gcs.credentials_file` | `GCS_CREDENTIALS_FILE` |
+| `blob.gcs.credentials_json` | `GCS_CREDENTIALS_JSON` |
+| `search.backend` | `SEARCH_BACKEND` |
+| `search.meilisearch.url` | `MEILISEARCH_URL` |
+| `search.meilisearch.key` | `MEILISEARCH_KEY` |
+| `temp_dir` | `TEMP_DIR` |
+| `max_upload_bytes` | `MAX_UPLOAD_BYTES` |
+| `dartdoc_backend` | `DARTDOC_BACKEND` |
+| `dartdoc_path` | `DARTDOC_PATH` |
+| `dartdoc_cache_max_memory_mb` | `DARTDOC_CACHE_MAX_MEMORY_MB` |
+| `static_files_path` | `STATIC_FILES_PATH` |
+
+## Example: PostgreSQL + S3 Config
+
+A production config using PostgreSQL for metadata and S3 for blob storage:
+
+```yaml
+server_url: "https://packages.example.com"
+log_level: info
+trust_proxy: true
+
+jwt_secret: "{{JWT_SECRET}}"
+token_expiry_days: 90
+
+db:
+  backend: postgres
+  postgres_url: "{{POSTGRES_URL}}"
+
+blob:
+  backend: s3
+  s3:
+    bucket: "club-packages"
+    region: "us-east-1"
+    access_key: "{{S3_ACCESS_KEY}}"
+    secret_key: "{{S3_SECRET_KEY}}"
+
+search:
+  backend: sqlite
+```
+
+## Example: MinIO Config
+
+Using MinIO as an S3-compatible blob store:
+
+```yaml
+server_url: "https://packages.internal.example.com"
+trust_proxy: true
+
+jwt_secret: "{{JWT_SECRET}}"
+
+db:
+  backend: postgres
+  postgres_url: "{{POSTGRES_URL}}"
+
+blob:
+  backend: s3
+  s3:
+    endpoint: "http://minio:9000"
+    bucket: "club-packages"
+    region: "us-east-1"
+    access_key: "{{S3_ACCESS_KEY}}"
+    secret_key: "{{S3_SECRET_KEY}}"
+
+search:
+  backend: meilisearch
+  meilisearch:
+    url: "http://meilisearch:7700"
+    key: "{{MEILISEARCH_KEY}}"
+```
+
+## Example: GCS (native) on GKE
+
+Using the native GCS backend with Application Default Credentials from a workload-identity service account:
+
+```yaml
+server_url: "https://packages.example.com"
+trust_proxy: true
+
+jwt_secret: "{{JWT_SECRET}}"
+
+db:
+  backend: postgres
+  postgres_url: "{{POSTGRES_URL}}"
+
+blob:
+  backend: gcs
+  gcs:
+    bucket: "my-project.appspot.com"
+    # credentials_file / credentials_json both unset — use ADC.
+    # Downloads proxy through the server (no V4 signing without a private key).
+```

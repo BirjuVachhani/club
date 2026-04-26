@@ -1,0 +1,8 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    # The vendored library uses parameter shadowing (constructor `blobId`)
+    # that recommended lints flag but is intentional in the upstream source.
+    # Downgrade to info so we don't churn the vendored code.
+    prefer_final_locals: info

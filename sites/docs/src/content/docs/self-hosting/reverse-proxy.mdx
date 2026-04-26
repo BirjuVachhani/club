@@ -1,0 +1,355 @@
+---
+title: Reverse Proxy
+description: Complete Caddy and nginx reverse proxy configurations for club, including Docker sidecar setup and important settings for package uploads.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+club should always run behind a reverse proxy in production. The reverse proxy handles TLS termination, request size limits, and header forwarding while club listens on plain HTTP (port `LISTEN_PORT`, default `8080`) bound to localhost.
+
+<Aside>
+  Make sure `SERVER_URL` matches the **external** URL your clients see (scheme included). This is what ends up in `archive_url` API responses and what the browser Origin check compares against; it must be the public `https://...` URL, not the internal `http://club:8080` address.
+</Aside>
+
+<Aside type="caution">
+  Whenever club runs behind a proxy, set `TRUST_PROXY=true` on the club
+  process. Without it, `X-Forwarded-Proto` is ignored (so session
+  cookies never get `Secure` over HTTPS) and `X-Forwarded-For` is
+  ignored (so audit logs record the proxy's loopback IP instead of the
+  real client). See the
+  [Trusting your proxy](#trusting-your-proxy) section below.
+</Aside>
+
+## Caddy
+
+[Caddy](https://caddyserver.com/) is the recommended reverse proxy for club. It provisions and renews TLS certificates automatically via Let's Encrypt.
+
+### Caddyfile
+
+```caddyfile
+packages.example.com {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    request_body {
+        max_size 100MB
+    }
+
+    reverse_proxy localhost:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+
+    log {
+        output file /var/log/caddy/club.log
+        format json
+    }
+}
+```
+
+### Key settings explained
+
+| Directive | Purpose |
+|-----------|---------|
+| `tls { protocols tls1.2 tls1.3 }` | Restricts to modern TLS versions. |
+| `request_body { max_size 100MB }` | Matches club's default max upload size (`MAX_UPLOAD_BYTES`). Without this, Caddy uses a 200 KB default that will reject package uploads. |
+| `header_up X-Forwarded-Proto` | Tells club the original protocol was HTTPS so it generates correct URLs. |
+| `header_up X-Real-IP` | Passes the client's real IP for logging and rate limiting. |
+
+### Running Caddy
+
+<Tabs>
+  <TabItem label="System package">
+    ```bash
+    # Install (Debian/Ubuntu)
+    sudo apt install caddy
+
+    # Place Caddyfile
+    sudo cp Caddyfile /etc/caddy/Caddyfile
+
+    # Start
+    sudo systemctl enable caddy
+    sudo systemctl restart caddy
+
+    # Verify
+    curl -I https://packages.example.com/api/v1/health
+    ```
+  </TabItem>
+  <TabItem label="Docker sidecar">
+    See the [Docker with Caddy sidecar](#docker-with-caddy-sidecar) section below.
+  </TabItem>
+</Tabs>
+
+## nginx
+
+Use nginx if you already have it deployed or prefer manual TLS management.
+
+### Full configuration
+
+Create `/etc/nginx/sites-available/club`:
+
+```nginx
+upstream club_backend {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name packages.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name packages.example.com;
+
+    # TLS certificates (Let's Encrypt via certbot)
+    ssl_certificate     /etc/letsencrypt/live/packages.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/packages.example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # HSTS (optional, recommended)
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    # Max upload size for package tarballs
+    client_max_body_size 100m;
+
+    # Proxy headers
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location / {
+        proxy_pass         http://club_backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection "";
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    # Optional: cache static assets from the web UI
+    location ~* \.(js|css|png|jpg|ico|svg|woff2?)$ {
+        proxy_pass http://club_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+### Enable the site
+
+```bash
+sudo ln -s /etc/nginx/sites-available/club /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Key settings explained
+
+| Directive | Purpose |
+|-----------|---------|
+| `client_max_body_size 100m` | Must match `MAX_UPLOAD_BYTES`. Without this, nginx returns 413 for package uploads larger than the default 1 MB. |
+| `proxy_read_timeout 120s` | Gives large uploads time to complete. |
+| `proxy_send_timeout 120s` | Gives large downloads time to complete. |
+| `keepalive 32` | Maintains persistent connections to club, reducing connection overhead. |
+| `proxy_http_version 1.1` and `Connection ""` | Required for keepalive to work with the upstream. |
+| `X-Forwarded-Proto` | Tells club the client used HTTPS, so API responses contain `https://` URLs. |
+| `X-Real-IP` | Passes the client's real IP address through the proxy. |
+
+<Aside type="danger">
+  If you forget `client_max_body_size`, package uploads larger than 1 MB will fail with an nginx 413 error. This is the most common misconfiguration.
+</Aside>
+
+## Docker with Caddy Sidecar
+
+If you run club with Docker, you can add Caddy as a sidecar container for automatic TLS without installing anything on the host.
+
+### Caddyfile
+
+Create `Caddyfile` in the same directory as your `docker-compose.yml`:
+
+```caddyfile
+packages.example.com {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    request_body {
+        max_size 100MB
+    }
+
+    reverse_proxy club:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+}
+```
+
+<Aside>
+  Note that the `reverse_proxy` target is `club:8080` (the Docker service name), not `localhost:8080`. Inside the Docker network, containers reference each other by service name.
+</Aside>
+
+### docker-compose.yml
+
+```yaml
+version: "3.9"
+
+services:
+  club:
+    image: ghcr.io/birjuvachhani/club:latest
+    container_name: club
+    restart: unless-stopped
+    # No host port binding needed — Caddy proxies via Docker network
+    expose:
+      - "8080"
+    env_file: .env
+    volumes:
+      - club_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: club_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - club
+
+volumes:
+  club_data:
+  caddy_data:
+  caddy_config:
+```
+
+Key differences from the standalone setup:
+
+- club uses `expose` instead of `ports` -- it is only accessible via the Docker network, not from the host
+- Caddy binds to ports 80 and 443 on the host
+- The `caddy_data` volume stores TLS certificates persistently (so they survive container restarts)
+
+### Start the stack
+
+```bash
+docker compose up -d
+```
+
+Caddy will automatically obtain a TLS certificate for your domain. Verify:
+
+```bash
+curl -I https://packages.example.com/api/v1/health
+```
+
+## Important Settings Summary
+
+These settings must be configured in your reverse proxy for club to work correctly:
+
+| Setting | Caddy | nginx | Why |
+|---------|-------|-------|-----|
+| Max request body | `request_body { max_size 100MB }` | `client_max_body_size 100m;` | Package uploads can be up to 100 MB |
+| Read timeout | Caddy uses sensible defaults | `proxy_read_timeout 120s;` | Large uploads need time |
+| Forwarded protocol | `header_up X-Forwarded-Proto {scheme}` | `proxy_set_header X-Forwarded-Proto $scheme;` | club needs to know the client used HTTPS |
+| Real client IP | `header_up X-Real-IP {remote_host}` | `proxy_set_header X-Real-IP $remote_addr;` | Logging and rate limiting |
+| TLS version | `tls { protocols tls1.2 tls1.3 }` | `ssl_protocols TLSv1.2 TLSv1.3;` | Modern TLS only |
+
+<Aside type="tip">
+  If you change `MAX_UPLOAD_BYTES` to a value other than the default 100 MB, update your reverse proxy's max body size to match.
+</Aside>
+
+## Trusting your proxy
+
+Two environment variables govern how club interprets request metadata.
+These are security-sensitive: the wrong combination either weakens your
+session cookies, or lets clients fake their own IPs in the audit log.
+
+### `TRUST_PROXY`
+
+Tells club it may trust the `X-Forwarded-Proto` and `X-Forwarded-For`
+request headers. Off by default.
+
+| Value | Behavior |
+|-------|----------|
+| `TRUST_PROXY=true`  | Honor `X-Forwarded-Proto` when deciding whether to issue cookies with the `Secure` attribute, and `X-Forwarded-For` when recording the client IP in the audit log and session list. |
+| `TRUST_PROXY=false` *(default)* | Both headers are ignored. The scheme is taken from the request URL and the client IP from the direct TCP peer. |
+
+Turn it on **only** when club is behind a proxy that *always* strips
+any client-supplied copies of those headers before forwarding. Caddy
+and the nginx config shown above do this by default. If you set
+`TRUST_PROXY=true` while exposing club directly to the internet, a
+client can send `X-Forwarded-Proto: https` to trick club into emitting
+`Secure` cookies over plaintext HTTP (which the browser then refuses
+to send back), and `X-Forwarded-For: <anything>` to forge their IP in
+your logs.
+
+<Aside type="note">
+  **`TRUST_PROXY=true` keeps working on localhost.** The flag only *adds*
+  a header check; when no `X-Forwarded-Proto` / `X-Forwarded-For` are
+  present (as when you hit the server directly at `http://localhost:8080`,
+  bypassing the proxy), club falls back to the direct URL scheme and TCP
+  peer address. A laptop pointed at the backend port behaves exactly as
+  if `TRUST_PROXY` were off. One config value works in both dev and prod
+  — no separate `.env` needed.
+</Aside>
+
+### `ALLOWED_ORIGINS`
+
+Comma-separated list of extra browser origins allowed to POST to
+public, unauthenticated endpoints (`/api/auth/login`,
+`/api/auth/signup`, `/api/setup/*`). These endpoints have no session
+cookie yet, so the CSRF token check can't protect them — the origin
+check is what stops a third-party site from submitting the login form
+against your server from a victim's browser (login CSRF).
+
+The origin given by `SERVER_URL` is always trusted implicitly; you
+only need `ALLOWED_ORIGINS` when you front club from multiple
+hostnames (e.g. an apex + www, or a staging alias that shares the
+same backend).
+
+```env
+SERVER_URL=https://packages.example.com
+ALLOWED_ORIGINS=https://www.packages.example.com,https://packages.internal.example.com
+```
+
+Requests whose `Origin` (or `Referer`, when `Origin` is absent) does
+not match `SERVER_URL` or one of the entries here are rejected with
+`403 CrossSiteRequest` before anything else runs.
+
+### Full example
+
+A production `.env` for club behind Caddy on a single hostname:
+
+```env
+# Public URL — always trusted as an origin
+SERVER_URL=https://packages.example.com
+
+# Trust the proxy's forwarding headers
+TRUST_PROXY=true
+
+# No additional origins needed when there's only one hostname
+# ALLOWED_ORIGINS=
+
+# ... other config ...
+JWT_SECRET=...
+DB_BACKEND=postgres
+POSTGRES_URL=...
+```

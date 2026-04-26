@@ -1,0 +1,182 @@
+---
+// Feature — User roles (Admin · Editor · Viewer)
+// Dark band. Three role cards with permission chips and a small visual
+// scale — Admin is emphasized, Viewer is muted.
+const roles = [
+  {
+    k: "01",
+    name: "Admin",
+    tagline: "Runs the show.",
+    scope: "Everything",
+    perms: ["Server settings", "Users &amp; roles", "Publishers", "Publish", "Unlist · retract", "Force-overwrite", "Transfer", "Delete"],
+    tone: "strong",
+  },
+  {
+    k: "02",
+    name: "Editor",
+    tagline: "Publishes and curates.",
+    scope: "Packages they own",
+    perms: ["Publish new versions", "Unlist · retract", "Mark discontinued", "Manage uploaders", "Edit metadata"],
+    tone: "mid",
+  },
+  {
+    k: "03",
+    name: "Viewer",
+    tagline: "Browses and installs.",
+    scope: "Read-only",
+    perms: ["Browse packages", "Search", "Download", "Like &amp; favorite"],
+    tone: "soft",
+  },
+];
+---
+
+<section id="f-roles" class="sec">
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow orange">§ Access</div>
+      <h2 class="h2">Three roles. <br class="md-only" /><span class="accent">Clear boundaries.</span></h2>
+      <p class="lede">
+        No org charts to manage, no custom RBAC to design. Three roles
+        your team already understands — plus named CI tokens for machines.
+      </p>
+    </header>
+
+    <div class="roles-grid" data-reveal-children data-reveal-step="110">
+      {roles.map((r) => (
+        <article class={`role-card tone-${r.tone}`}>
+          <header class="rc-head">
+            <span class="rc-k mono">{r.k}</span>
+            <div class="rc-dot"></div>
+          </header>
+          <h3 class="rc-name">{r.name}</h3>
+          <p class="rc-tag">{r.tagline}</p>
+          <div class="rc-scope">
+            <span class="mono mute">Scope</span>
+            <span class="rc-scope-val">{r.scope}</span>
+          </div>
+          <ul class="rc-perms">
+            {r.perms.map((p) => (
+              <li set:html={`<span class="rc-check">✓</span>${p}`} />
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+
+    <aside class="tokens" data-reveal>
+      <div class="t-key">
+        <span class="mono t-eyebrow">+ Tokens</span>
+      </div>
+      <div class="t-body">
+        <strong>Named API tokens for machines.</strong>
+        <span>Create a token per CI pipeline, each with a name you pick. Rotate or revoke anytime without touching human accounts.</span>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0; background: var(--color-ink-dark); color: #EDEDED;
+    position: relative; overflow: hidden;
+  }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 52rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute-dark); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: #EDEDED; }
+  .accent { color: var(--color-stamp); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute-dark); margin: 1.5rem 0 0; max-width: 42rem; }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .roles-grid {
+    margin-top: 3rem; display: grid; gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .roles-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .roles-grid { margin-top: 2rem; }
+    .role-card { padding: 1.25rem 1.25rem 1.4rem; }
+    .rc-name { font-size: 1.4rem; }
+  }
+
+  .role-card {
+    padding: 1.5rem 1.5rem 1.6rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px solid var(--color-border-dark);
+    border-radius: 16px;
+    display: flex; flex-direction: column; gap: 0.9rem;
+    transition: transform 320ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)), border-color 200ms;
+  }
+  .role-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--color-stamp) 40%, var(--color-border-dark));
+  }
+  .role-card.tone-strong {
+    background: #0E0E10;
+    border: 1px solid var(--color-stamp);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-stamp) 14%, transparent), 0 24px 50px -30px rgba(255,79,24,0.35);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .role-card:hover { transform: none; }
+  }
+
+  .rc-head { display: flex; justify-content: space-between; align-items: center; }
+  .rc-k { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.18em; font-weight: 700; color: var(--color-stamp); }
+
+  .rc-dot {
+    width: 40px; height: 10px; border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      var(--color-stamp) 0%,
+      var(--color-stamp) var(--fill-anim, 0%),
+      color-mix(in oklab, #EDEDED 12%, transparent) var(--fill-anim, 0%)
+    );
+    transition: background 900ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+    transition-delay: calc(var(--reveal-index, 0) * 120ms + 350ms);
+  }
+  .roles-grid.is-visible .tone-strong .rc-dot { --fill-anim: 100%; }
+  .roles-grid.is-visible .tone-mid .rc-dot    { --fill-anim: 62%; }
+  .roles-grid.is-visible .tone-soft .rc-dot   { --fill-anim: 28%; }
+  @media (prefers-reduced-motion: reduce) {
+    .rc-dot { transition: none; }
+    .tone-strong .rc-dot { --fill-anim: 100%; }
+    .tone-mid .rc-dot    { --fill-anim: 62%; }
+    .tone-soft .rc-dot   { --fill-anim: 28%; }
+  }
+
+  .rc-name { font-family: var(--font-sans); font-weight: 700; font-size: 1.65rem; letter-spacing: -0.025em; margin: 0; color: #EDEDED; }
+  .rc-tag { margin: 0; font-size: 0.95rem; color: var(--color-mute-dark); }
+
+  .rc-scope { display: flex; justify-content: space-between; align-items: baseline; padding: 0.65rem 0.85rem; border: 1px dashed var(--color-border-dark); border-radius: 8px; }
+  .rc-scope .mono { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; }
+  .rc-scope-val { font-family: var(--font-sans); font-weight: 640; font-size: 0.88rem; color: #EDEDED; }
+  .tone-strong .rc-scope { border-color: color-mix(in oklab, var(--color-stamp) 35%, transparent); }
+
+  .rc-perms { list-style: none; padding: 0; margin: 0.25rem 0 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .rc-perms li { display: grid; grid-template-columns: 1.2rem 1fr; gap: 0.5rem; font-size: 0.88rem; color: var(--color-mute-dark); }
+  .rc-check { color: var(--color-stamp); font-weight: 700; }
+  .tone-strong .rc-perms li { color: #EDEDED; }
+
+  .tokens {
+    margin-top: 1rem;
+    display: grid; grid-template-columns: auto 1fr; gap: 1.5rem; align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: color-mix(in oklab, var(--color-stamp) 8%, transparent);
+    border: 1px dashed color-mix(in oklab, var(--color-stamp) 40%, transparent);
+    border-radius: 12px;
+  }
+  @media (max-width: 768px) {
+    .tokens { grid-template-columns: 1fr; gap: 0.5rem; padding: 1.1rem 1.25rem; }
+  }
+  .t-eyebrow { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .t-body { display: flex; flex-direction: column; gap: 0.15rem; }
+  .t-body strong { color: #EDEDED; font-weight: 640; font-size: 0.98rem; letter-spacing: -0.01em; }
+  .t-body span { color: var(--color-mute-dark); font-size: 0.9rem; line-height: 1.5; }
+
+  .mono { font-family: var(--font-mono); }
+  .mute { color: var(--color-mute-dark); }
+</style>

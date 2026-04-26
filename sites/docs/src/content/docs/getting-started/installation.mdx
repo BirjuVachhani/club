@@ -1,0 +1,256 @@
+---
+title: Installation
+description: Install club using Docker or from source, with detailed steps for each method and verification instructions.
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+## Prerequisites
+
+<Tabs>
+  <TabItem label="Docker (Recommended)">
+    - [Docker](https://docs.docker.com/get-docker/) >= 20.10
+    - [Docker Compose](https://docs.docker.com/compose/install/) >= 2.0 (included with Docker Desktop)
+    - A server or VM with at least 1 GB RAM and 10 GB disk
+    - A domain name (for production with HTTPS)
+  </TabItem>
+  <TabItem label="From Source">
+    - [Dart SDK](https://dart.dev/get-dart) >= 3.7
+    - [Node.js](https://nodejs.org/) >= 22
+    - SQLite 3 (usually pre-installed on Linux and macOS)
+    - A server or VM with at least 1 GB RAM and 10 GB disk
+    - A domain name (for production with HTTPS)
+  </TabItem>
+</Tabs>
+
+## Docker Installation
+
+This is the recommended method. The Docker image bundles everything into a single container with no external dependencies.
+
+<Steps>
+
+1. **Create a project directory**
+
+   ```bash
+   mkdir -p /opt/club && cd /opt/club
+   ```
+
+2. **Create `docker-compose.yml`**
+
+   ```yaml
+   version: "3.9"
+
+   services:
+     club:
+       image: ghcr.io/birjuvachhani/club:latest
+       container_name: club
+       restart: unless-stopped
+       ports:
+         - "127.0.0.1:8080:8080"
+       env_file: .env
+       volumes:
+         - club_data:/data
+       healthcheck:
+         test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+         interval: 30s
+         timeout: 5s
+         retries: 3
+         start_period: 10s
+
+   volumes:
+     club_data:
+       driver: local
+   ```
+
+   <Aside>
+     The port binding `127.0.0.1:8080:8080` restricts access to localhost only. This is intentional -- you should always use a reverse proxy with TLS in front of club. See the [reverse proxy guide](/self-hosting/reverse-proxy/).
+   </Aside>
+
+3. **Create the `.env` file**
+
+   ```bash
+   # Generate a strong JWT secret (must be at least 32 characters)
+   JWT_SECRET=$(openssl rand -hex 32)
+
+   cat > .env << EOF
+   SERVER_URL=https://packages.example.com
+   JWT_SECRET=$JWT_SECRET
+   EOF
+   ```
+
+   <Aside type="caution">
+     Set `SERVER_URL` to the public HTTPS URL where users will access club. This URL is embedded in API responses and must be reachable by all clients.
+   </Aside>
+
+   The only required values are `SERVER_URL` and `JWT_SECRET`. See the [configuration reference](/configuration/) for all supported environment variables (listen port, DB backend, blob backend, search backend, signup, proxy trust, and so on).
+
+4. **Start club**
+
+   ```bash
+   docker compose up -d
+   ```
+
+5. **Create the first (owner) account via the setup wizard**
+
+   club does not read `ADMIN_EMAIL` or `ADMIN_PASSWORD` -- the first user is created through a one-shot web wizard. On first startup the server prints a one-time **setup code** to the logs:
+
+   ```bash
+   docker compose logs club | grep -i "setup code"
+   ```
+
+   Then open `https://packages.example.com/setup`, enter your email + the setup code to verify, and submit a display name and password to finish. The first user is created with the `owner` role, and `/setup` is disabled afterwards (requests return 404).
+
+   <Aside>
+     Verification is IP-pinned and rate limited (5 requests per 15 minutes per IP). If you lose the code, restart the container before it has been claimed to generate a new one.
+   </Aside>
+
+</Steps>
+
+### Building from the repository
+
+If you prefer to build the Docker image yourself instead of pulling a pre-built image:
+
+```bash
+git clone https://github.com/BirjuVachhani/club.git
+cd club
+
+# Build the image
+docker build -f docker/Dockerfile -t club:latest .
+
+# Start using the local image
+cd docker
+docker compose up -d
+```
+
+The Dockerfile uses a three-stage build:
+
+1. **Stage 1 (Dart builder)** -- compiles the Dart server to a native AOT binary using `dart:3.7-sdk`
+2. **Stage 2 (Node builder)** -- builds the SvelteKit frontend to static HTML/JS/CSS using `node:22-alpine`
+3. **Stage 3 (Runtime)** -- copies the binary and static files into `debian:bookworm-slim` (~80 MB total)
+
+No Dart SDK or Node.js runtime is included in the final image.
+
+## From-Source Installation
+
+Use this method if you want to run club without Docker, or if you need to modify the source code.
+
+<Steps>
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/BirjuVachhani/club.git
+   cd club
+   ```
+
+2. **Install Dart dependencies**
+
+   ```bash
+   dart pub get
+   ```
+
+3. **Generate code**
+
+   The `club_core` package uses `build_runner` for code generation:
+
+   ```bash
+   cd packages/club_core
+   dart run build_runner build --delete-conflicting-outputs
+   cd ../..
+   ```
+
+4. **Build the frontend**
+
+   ```bash
+   cd packages/club_web
+   npm install
+   npm run build
+   cd ../..
+   ```
+
+   This produces a static export in `packages/club_web/build/`.
+
+5. **Create data directories**
+
+   ```bash
+   sudo mkdir -p /var/lib/club/packages
+   sudo chown $(whoami) /var/lib/club
+   ```
+
+6. **Start the server**
+
+   ```bash
+   export SERVER_URL=https://packages.example.com
+   export JWT_SECRET=$(openssl rand -hex 32)
+   export SQLITE_PATH=/var/lib/club/club.db
+   export BLOB_PATH=/var/lib/club/packages
+   export STATIC_FILES_PATH=packages/club_web/build
+
+   dart run packages/club_server/bin/server.dart
+   ```
+
+   Or build a native binary for better performance:
+
+   ```bash
+   dart build cli -t packages/club_server/bin/server.dart -o build/server
+   ./build/server/bundle/bin/server
+   ```
+
+   The binary always lands at `build/server/bundle/bin/server` with shared libraries alongside it in `build/server/bundle/lib/`.
+
+7. **Create the first (owner) account**
+
+   Watch the startup logs for a one-time **setup code**, then open `https://packages.example.com/setup` in a browser, verify with your email + the code, and submit a display name and password. This step creates the `owner` account and permanently disables `/setup`.
+
+</Steps>
+
+<Aside type="tip">
+  For production from-source deployments, build with `dart build cli` and run it as a systemd service. See the [from-source deployment guide](/self-hosting/from-source/) for systemd configuration and log management.
+</Aside>
+
+## Verifying the Installation
+
+### Health check
+
+The health endpoint does not require authentication:
+
+```bash
+curl http://localhost:8080/api/v1/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+### Web UI
+
+Open your server URL in a browser. You should see the club login page. Log in with the email and password you chose in the setup wizard.
+
+### CLI verification
+
+```bash
+# Install the club CLI
+curl -fsSL https://club.birju.dev/install.sh | bash
+
+# Login
+club login https://packages.example.com
+
+# Configure dart pub
+club setup
+
+# Verify the token is registered
+dart pub token list
+```
+
+See the [CLI installation guide](/cli/installation/) for Windows, manual downloads, and other options.
+
+You should see your server URL in the list of configured hosted repository tokens.
+
+## Next Steps
+
+- **[First Package](/getting-started/first-package/)** -- publish your first private Dart package
+- **[Docker deployment](/self-hosting/docker/)** -- production deployment with volumes, health checks, and logging
+- **[TLS / HTTPS](/self-hosting/tls/)** -- set up HTTPS (required for production)
+- **[Configuration reference](/configuration/)** -- all environment variables and config options

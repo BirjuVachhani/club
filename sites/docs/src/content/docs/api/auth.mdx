@@ -1,0 +1,343 @@
+---
+title: Auth Endpoints
+description: Login, signup, account management, avatars, invites, personal access tokens, sessions, and the OAuth flow used by the club CLI.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These endpoints handle user authentication, account management, personal access tokens (PATs), sessions, invites, and the OAuth flow for CLI/programmatic clients.
+
+## Sessions
+
+### Login
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+
+**No authentication required.** Rate-limited to 10 requests per 15 minutes per IP.
+
+Authenticates with email and password. On success, returns the user object and sets HttpOnly session cookies for use by the web UI.
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "secret123"
+}
+```
+
+**Response: `200 OK`** — returns the user profile. Session cookies are set via `Set-Cookie`.
+
+**Errors:** `401 InvalidCredentials`, `429 RateLimited`.
+
+---
+
+### Logout
+
+```http
+POST /api/auth/logout
+```
+
+Clears the session cookie. Does not revoke PATs.
+
+**Response: `200 OK`**
+
+---
+
+### Current User
+
+```http
+GET /api/auth/me
+```
+
+Returns the currently authenticated user (via cookie or Bearer token). Returns `401 MissingAuthentication` when unauthenticated.
+
+---
+
+### Signup
+
+```http
+POST /api/auth/signup
+Content-Type: application/json
+```
+
+**No authentication required.** Only works when the server has `SIGNUP_ENABLED=true`. Rate-limited to 10 / 15 min.
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "displayName": "Jane Doe",
+  "password": "secret123"
+}
+```
+
+**Response: `202 Accepted`** — the account is created (or an invite is issued, depending on server policy).
+
+---
+
+## Account Management
+
+### Change Password
+
+```http
+POST /api/auth/change-password
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "currentPassword": "old-secret",
+  "newPassword": "new-secret"
+}
+```
+
+On success, **all** existing sessions for the user are revoked.
+
+**Response: `200 OK`**
+
+---
+
+### Update Profile
+
+```http
+PATCH /api/auth/profile
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{ "displayName": "Jane D." }
+```
+
+**Response: `200 OK`** — returns the updated user.
+
+---
+
+### Upload Avatar
+
+```http
+POST /api/auth/avatar
+Authorization: Bearer club_pat_...
+Content-Type: multipart/form-data
+```
+
+Upload an avatar image as a multipart form. **Response: `200 OK`** with the updated user.
+
+### Delete Avatar
+
+```http
+DELETE /api/auth/avatar
+Authorization: Bearer club_pat_...
+```
+
+### Fetch a User's Avatar (public)
+
+```http
+GET /api/users/<userId>/avatar
+```
+
+Returns the image bytes, or `404 NotFound` if the user has no avatar.
+
+---
+
+## Invites
+
+When an admin creates a user with `mode: "invite"`, the user receives an invite URL containing a token.
+
+### Inspect an Invite
+
+```http
+GET /api/invites/<token>
+```
+
+**No authentication required.** Rate-limited to 10 / 15 min.
+
+Returns the invite's target email and expiry.
+
+### Accept an Invite
+
+```http
+POST /api/invites/<token>/accept
+Content-Type: application/json
+```
+
+**No authentication required.** Rate-limited to 10 / 15 min.
+
+```json
+{
+  "displayName": "Jane Doe",
+  "password": "new-secret"
+}
+```
+
+**Response: `200 OK`** — returns the newly-activated user and establishes a session.
+
+---
+
+## Personal Access Tokens (PATs)
+
+PATs have the prefix `club_pat_` and are passed via `Authorization: Bearer`. The secret is returned **once** at creation and cannot be retrieved again.
+
+### Create a PAT
+
+```http
+POST /api/auth/keys
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "CI/CD Deploy Token",
+  "scopes": ["read", "write"],
+  "expiresInDays": 365
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Human-readable label |
+| `scopes` | string[] | yes | Any subset of `read`, `write`, `admin`; clamped to the caller's role |
+| `expiresInDays` | integer | no | Defaults to the server's configured expiry |
+
+**Response: `201 Created`**
+
+```json
+{
+  "id": "key_a1b2c3d4",
+  "name": "CI/CD Deploy Token",
+  "secret": "club_pat_x9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4",
+  "prefix": "club_pat_x9",
+  "scopes": ["read", "write"],
+  "createdAt": "2026-04-09T10:00:00.000Z",
+  "expiresAt": "2027-04-09T10:00:00.000Z"
+}
+```
+
+<Aside type="caution">
+  The `secret` field is shown **once**. Copy it immediately.
+</Aside>
+
+### List PATs
+
+```http
+GET /api/auth/keys
+Authorization: Bearer club_pat_...
+```
+
+Returns all PATs for the caller (without secrets).
+
+### Revoke a PAT
+
+```http
+DELETE /api/auth/keys/<id>
+Authorization: Bearer club_pat_...
+```
+
+**Response: `200 OK`**.
+
+---
+
+## Sessions
+
+Session records are created on web login.
+
+### List Active Sessions
+
+```http
+GET /api/auth/sessions
+Authorization: Bearer club_pat_...
+```
+
+### Revoke a Session
+
+```http
+DELETE /api/auth/sessions/<id>
+Authorization: Bearer club_pat_...
+```
+
+### Revoke All Other Sessions
+
+```http
+POST /api/auth/sessions/revoke-others
+Authorization: Bearer club_pat_...
+```
+
+Revokes every session except the one making the call.
+
+---
+
+## OAuth Flow (CLI)
+
+The `club` CLI acquires a PAT via an OAuth 2.0 authorization-code flow with PKCE. The resulting `access_token` is a regular PAT and is used in subsequent API calls.
+
+### 1. Authorize
+
+```http
+GET /oauth/authorize
+  ?response_type=code
+  &client_id=cli
+  &redirect_uri=<callback>
+  &code_challenge=<S256 challenge>
+  &code_challenge_method=S256
+  &state=<random>
+  &scope=read,write
+```
+
+If unauthenticated, the server redirects the browser to the login page. Once authenticated, it redirects to `/oauth/consent?request_id=<id>`.
+
+### 2. Consent (web-only)
+
+```http
+GET /oauth/pending/<requestId>
+```
+
+Returns the pending authorization's details for the consent UI. Requires a session cookie.
+
+```http
+POST /oauth/approve
+Content-Type: application/json
+
+{ "request_id": "<id>" }
+```
+
+**Response: `200 OK`**
+
+```json
+{ "redirect_url": "<redirect_uri>?code=<code>&state=<state>" }
+```
+
+### 3. Token Exchange
+
+```http
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+```
+
+Accepts either form-encoded or JSON bodies:
+
+```
+grant_type=authorization_code
+code=<code>
+redirect_uri=<same as authorize>
+code_verifier=<PKCE verifier>
+```
+
+**Response: `200 OK`**
+
+```json
+{
+  "access_token": "club_pat_...",
+  "token_type": "Bearer",
+  "scope": "read,write",
+  "email": "user@example.com"
+}
+```
+
+The `access_token` is a PAT and can be used for any subsequent API call.

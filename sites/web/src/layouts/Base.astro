@@ -1,0 +1,182 @@
+---
+import "../styles/global.css";
+import { SITE_URL } from "../lib/config";
+
+interface Props {
+  title?: string;
+  description?: string;
+  path?: string;
+  ogImage?: string;
+  noindex?: boolean;
+}
+
+const {
+  title = "CLUB — Self-hosted Dart package repository",
+  description = "CLUB is an open-source, self-hosted package repository for Dart and Flutter teams. Full Pub Spec v2 compatibility — drop it in where pub.dev used to be.",
+  path = "/",
+  // Default brand OG — the landing design. Override per page via the
+  // `ogImage` prop (e.g. /privacy → /og/privacy.png). The PNGs are
+  // generated from public/og/*.svg via `npm run render:og`.
+  ogImage = "/og/brutalist-monogram-ink.png",
+  noindex = false,
+} = Astro.props;
+
+const canonical = new URL(path, SITE_URL).toString();
+const ogUrl = new URL(ogImage, SITE_URL).toString();
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "CLUB",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Any (Docker)",
+  description,
+  url: SITE_URL,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CLUB" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogUrl} />
+
+    <!-- Robots -->
+    {noindex ? (
+      <meta name="robots" content="noindex, nofollow" />
+    ) : (
+      <meta name="robots" content="index, follow, max-image-preview:large" />
+    )}
+
+    <!-- Schema.org -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify(structuredData)}
+    />
+
+    <slot name="head" />
+  </head>
+  <body>
+    <slot />
+
+    <script is:inline>
+      // Open off-site links in a new tab. Same-origin links (including
+      // in-page anchors) stay in the current tab.
+      document.addEventListener("DOMContentLoaded", () => {
+        const host = location.hostname;
+        document.querySelectorAll("a[href]").forEach((a) => {
+          const raw = a.getAttribute("href");
+          if (!raw) return;
+          try {
+            const url = new URL(raw, location.href);
+            if (!url.hostname || url.hostname === host) return;
+            a.target = "_blank";
+            const rel = (a.getAttribute("rel") || "")
+              .split(/\s+/)
+              .filter(Boolean);
+            if (!rel.includes("noopener")) rel.push("noopener");
+            if (!rel.includes("noreferrer")) rel.push("noreferrer");
+            a.setAttribute("rel", rel.join(" "));
+          } catch {}
+        });
+      });
+    </script>
+
+    <script is:inline>
+      // Scroll-reveal: toggles .is-visible on [data-reveal] and
+      // [data-reveal-children] as they scroll into view. Staggers children
+      // via a --reveal-index custom property. One-shot (unobserve on first
+      // intersection).
+      (function () {
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const run = () => {
+          const targets = document.querySelectorAll(
+            "[data-reveal], [data-reveal-children]"
+          );
+          if (!targets.length) return;
+
+          // Pre-set per-child indices for stagger.
+          document
+            .querySelectorAll("[data-reveal-children]")
+            .forEach((parent) => {
+              const step = Number(parent.dataset.revealStep || 70);
+              const base = Number(parent.dataset.revealBase || 0);
+              Array.from(parent.children).forEach((child, i) => {
+                child.style.setProperty(
+                  "transition-delay",
+                  base + i * step + "ms"
+                );
+                child.style.setProperty("--reveal-index", String(i));
+              });
+            });
+
+          // Propagate per-element delay.
+          document.querySelectorAll("[data-reveal][data-reveal-delay]").forEach(
+            (el) => {
+              el.style.setProperty(
+                "--reveal-delay",
+                el.dataset.revealDelay + "ms"
+              );
+            }
+          );
+
+          if (reduced) {
+            targets.forEach((el) => el.classList.add("is-visible"));
+            return;
+          }
+
+          const io = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add("is-visible");
+                io.unobserve(entry.target);
+              });
+            },
+            /* Trigger as soon as any pixel of the target enters the
+               viewport. The previous threshold (0.12) + negative bottom
+               rootMargin left sections partially visible below a short
+               hero stuck in their pre-reveal state. */
+            { threshold: 0, rootMargin: "0px 0px 80px 0px" }
+          );
+          targets.forEach((el) => io.observe(el));
+        };
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", run);
+        } else {
+          run();
+        }
+      })();
+    </script>
+  </body>
+</html>

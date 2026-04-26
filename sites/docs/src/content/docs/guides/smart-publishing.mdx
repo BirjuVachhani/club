@@ -1,0 +1,349 @@
+---
+title: Smart Publishing
+description: Publish packages to club without modifying pubspec.yaml. Native publish flow with auto server resolution, dart-pub-compatible flags, and ~25 client-side validators.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+`club publish` is a **fully native** drop-in replacement for `dart pub publish`.
+It runs the same style of client-side validators, accepts the same flags, and
+produces the same archive format — but it removes the single biggest friction
+point of publishing to a private server: you **no longer need `publish_to:` in
+your `pubspec.yaml`**.
+
+This is the feature that unlocks publishing packages whose pubspec cannot
+be modified (e.g. subpackages inside a larger application, or vendored
+code you do not own).
+
+<Aside type="tip" title="TL;DR">
+Run `club login` once per server, then `club publish` anywhere — the CLI
+figures out where to publish. No pubspec changes, no environment
+variables, no shell-outs.
+</Aside>
+
+## Why this exists
+
+`dart pub publish` has a hard requirement: it reads `publish_to:` from your
+pubspec.yaml and refuses to publish if it is missing or set to `none`.
+That is deliberate — it prevents accidental uploads to pub.dev. But it
+creates real friction for private-registry users:
+
+- **Monorepos.** A package inside a larger app repository often cannot
+  set `publish_to` because the same pubspec is also used in local
+  development.
+- **Vendored packages.** You may need to publish a fork of an upstream
+  package without patching its pubspec.
+- **Multiple registries.** Teams that run more than one club server
+  (e.g. staging + prod) want to choose per-publish.
+
+`club publish` solves all three by moving the "where to publish" decision
+out of the pubspec and into a resolver that consults your login state.
+
+## How server resolution works
+
+When you run `club publish`, the CLI resolves the target server in this
+exact priority order — **only the first match wins**:
+
+<Steps>
+
+1. **`--server <url>`** flag (highest priority)
+
+   Must be a server you have logged in to with `club login`. Overrides
+   `publish_to:` entirely. Example:
+
+   ```bash
+   club publish --server https://club.example.com
+   ```
+
+2. **`publish_to:` in pubspec.yaml**
+
+   Used when set to an http(s) URL (not `none`). Must also be a logged-in
+   server.
+
+   ```yaml title="pubspec.yaml"
+   publish_to: https://club.example.com
+   ```
+
+3. **Auto-pick from logged-in servers**
+
+   When `--server` is not given and `publish_to` is missing or `none`:
+
+   - **1 logged-in server** → used automatically (with confirmation
+     prompt, unless `--force`).
+   - **2+ logged-in servers** → arrow-key picker (`↑/↓/Enter`), or in a
+     non-interactive shell: exits with an error asking you to pass
+     `--server`.
+   - **0 logged-in servers** → exits with a hint to run `club login`.
+
+</Steps>
+
+<Aside type="note" title="`publish_to: none`">
+The official semantic for `publish_to: none` is "this package is private,
+refuse to publish anywhere". `club publish` **overrides** this — `none`
+is treated exactly like an absent `publish_to`, which triggers the
+auto-picker. This is safe because the picker only offers club servers
+you have explicitly logged in to.
+</Aside>
+
+### Examples by scenario
+
+<Tabs>
+  <TabItem label="Single server">
+  You run one club instance. `publish_to:` is absent from the pubspec.
+
+  ```bash
+  $ club publish
+  Publishing my_package 1.2.0 from /path/to/my_package
+  Target server: https://club.example.com  (auto-selected (only logged-in server))
+  ...
+  Publish my_package 1.2.0 to https://club.example.com? [Y/n]
+  ```
+  </TabItem>
+  <TabItem label="Multiple servers">
+  You log in to staging and prod. The picker lets you choose.
+
+  ```bash
+  $ club publish
+  Publishing my_package 1.2.0 from /path/to/my_package
+  Multiple club servers found. Pick one to publish to:
+  ❯ https://staging.club.example.com   dev@example.com
+    https://club.example.com           dev@example.com
+    Use ↑/↓ to move, Enter to select, q to cancel.
+  ```
+  </TabItem>
+  <TabItem label="Pinned in pubspec">
+  `publish_to:` is set. The picker is skipped.
+
+  ```yaml title="pubspec.yaml"
+  publish_to: https://club.example.com
+  ```
+  ```bash
+  $ club publish
+  Target server: https://club.example.com  (from publish_to in pubspec.yaml)
+  ```
+  </TabItem>
+  <TabItem label="Forced override">
+  `publish_to` points to prod but you want to test against staging.
+
+  ```bash
+  $ club publish --server https://staging.club.example.com
+  Target server: https://staging.club.example.com  (from --server flag)
+  ```
+  </TabItem>
+</Tabs>
+
+## Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--directory <path>` | `-C` | Run as if `<path>` is the package directory. |
+| `--dry-run` | `-n` | Validate without uploading. |
+| `--force` | `-f` | Skip confirmation. Required in CI without a TTY. |
+| `--skip-validation` | | Bypass all client-side validators. |
+| `--ignore-warnings` | | With `--dry-run`: do not exit non-zero on warnings. |
+| `--to-archive <path>` | | Write archive to file instead of uploading. |
+| `--from-archive <path>` | | Upload an existing archive. Implies `--skip-validation`. |
+| `--version <semver>` | | Override the version written into the tarball (useful in CI that derives versions from tags). **club-only.** |
+| `--server <url>` | `-s` | Target server override. **club-only.** |
+
+The `--server` and `--version` flags are club-specific; the rest mirror
+[`dart pub publish`](https://dart.dev/tools/pub/cmd/pub-publish).
+
+<Aside type="note" title="No automatic version bump">
+`club publish` will not rewrite `pubspec.yaml`. If you need a different
+version than the one committed to source, pass `--version <semver>`. The
+override only applies to the generated tarball — your working directory is
+left untouched.
+</Aside>
+
+## The validators
+
+`club publish` runs a family of ~25 client-side validators that mirror the
+named validator classes in
+[`dart-lang/pub`](https://github.com/dart-lang/pub/tree/master/lib/src/validator)
+— when the upstream SDK changes, we can diff the source to apply updates.
+
+<CardGrid>
+  <Card title="Errors (block publish)" icon="error">
+    Invalid pubspec format, bad version, bad package name, missing
+    description, missing or bad SDK constraints, missing license,
+    path/git dependencies, `lib/` imports from `dev_dependencies`,
+    duplicate version already on the server, pubspec size over limit.
+  </Card>
+  <Card title="Warnings (require confirmation)" icon="warning">
+    Missing README/CHANGELOG, missing homepage/repository, uncommitted
+    git changes, gitignored files in archive, deprecated pubspec fields,
+    deprecated dependencies, detected credential leaks, legacy Flutter
+    plugin format, asset path issues.
+  </Card>
+  <Card title="Hints (informational)" icon="information">
+    Non-standard top-level directories, dependency overrides,
+    short/long descriptions, version regressions.
+  </Card>
+</CardGrid>
+
+Bypass all validators with `--skip-validation`. The server still performs
+its own validation regardless.
+
+### Skip validation with `--from-archive`
+
+`--from-archive <path>` uploads a pre-built `.tar.gz` and implies
+`--skip-validation`. This is useful when another step has already produced
+and validated the archive (e.g. `club publish --to-archive`), and you want
+the publish step to be a pure upload.
+
+## CI usage
+
+The CLI is fully CI-friendly by design:
+
+<Steps>
+
+1. **No interactive prompts when stdin is not a TTY.** Instead of blocking
+   forever, `club publish` exits with a clear message pointing to the
+   flag you need (`--force`, `--server`, etc.).
+
+2. **Colors auto-disable** when stdout is not a TTY, or when `NO_COLOR`
+   is set (per [no-color.org](https://no-color.org/)), or when `TERM=dumb`.
+
+3. **Use `--force` to skip all confirmations:**
+
+   ```bash title="CI step"
+   club login --key "$CLUB_TOKEN" https://club.example.com
+   club publish --force
+   ```
+
+   Or skip `club login` entirely — the CLI also reads `CLUB_TOKEN` from the
+   environment as a bearer-token override.
+
+4. **Disambiguate with `--server` when the picker would fire:**
+
+   ```bash
+   club publish --force --server https://club.example.com
+   ```
+
+5. **Use `--dry-run` + `--ignore-warnings` as a pre-publish lint step:**
+
+   ```bash
+   club publish --dry-run --ignore-warnings
+   # exits 0 on warnings, non-zero on errors
+   ```
+
+</Steps>
+
+### Exit codes
+
+Match standard dart pub conventions (sysexits):
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `65` | Data error — validation failed or warnings in `--dry-run` |
+| `66` | No input — pubspec.yaml or archive not found |
+| `78` | Config — server resolution failed, user aborted, no TTY |
+
+## Architecture
+
+The publish flow is laid out as small focused modules under
+[`packages/club_cli/lib/src/publish/`](https://github.com/BirjuVachhani/club/tree/main/packages/club_cli/lib/src/publish)
+so future dart pub SDK updates can be mirrored cheaply.
+
+```txt
+publish/
+├── publish_runner.dart    // Orchestration (matches LishCommand.runProtected)
+├── pubspec_reader.dart    // Pubspec parsing (uses pubspec_parse package)
+├── server_resolver.dart   // The --server / publish_to / picker logic
+├── tarball_builder.dart   // tar + gzip (matches createTarGz)
+├── ignore_filter.dart     // .pubignore + .gitignore handling
+└── validators/
+    ├── validator.dart     // Base class + ValidationContext + Severity
+    ├── runner.dart        // Concurrent runner + report aggregation
+    └── *.dart             // 25 validators, each linking to upstream source
+```
+
+Every file carries a doc comment linking to the upstream Dart pub source
+it mirrors — for example:
+
+```dart
+/// Mirrors dart pub's
+/// [`SizeValidator`](https://github.com/dart-lang/pub/blob/master/lib/src/validator/size.dart):
+/// archives must be smaller than 100 MiB.
+```
+
+This makes it straightforward to review and apply future changes from
+the Dart SDK.
+
+### Publish flow (step by step)
+
+<Steps>
+
+1. **Parse flags.** The `PublishCommand` reads argResults and constructs a
+   `PublishOptions` value.
+
+2. **Resolve the target server.** `ServerResolver.resolve()` applies the
+   priority order described above and returns a `ResolvedServer` with
+   the URL, token, and the source (`cliFlag`, `pubspec`, `singleLogin`,
+   or `interactivePick`).
+
+3. **Read pubspec.** `readPubspec()` uses the official `pubspec_parse`
+   package so semantics match dart pub exactly.
+
+4. **Build or load the tarball.** `TarballBuilder` walks the directory,
+   applies `IgnoreFilter` (`.pubignore` with `.gitignore` fallback),
+   streams entries through the `tar` package, and pipes to
+   `dart:io`'s gzip encoder.
+
+5. **Run validators concurrently.** `runAllValidators()` fires all 25
+   validators in parallel via `Future.wait` and aggregates findings by
+   severity.
+
+6. **Confirm.** If there are warnings and no `--force`, ask the user. In
+   non-interactive shells, fail with a clear message instead of blocking.
+
+7. **Upload.** `ClubClient.publishFile()` runs the standard pub
+   3-step upload protocol (`GET /api/packages/versions/new` → multipart
+   POST → follow redirect to `newUploadFinish`).
+
+8. **Cleanup.** Temp tarballs are deleted on success or failure.
+
+</Steps>
+
+## Comparison: `club publish` vs `dart pub publish`
+
+| Aspect | `club publish` | `dart pub publish` |
+|--------|-----------------|---------------------|
+| Works without `publish_to` | **Yes** (core feature) | No — refuses with `none` or missing |
+| Multi-login picker | **Yes** (arrow-key TUI) | No |
+| `--server` override | **Yes** | Deprecated in dart pub |
+| `--version <semver>` override | **Yes** | — |
+| `--from-archive` upload | **Yes** | — |
+| Auth storage | `~/.config/club/credentials.json` | `~/.config/dart/pub-tokens.json` |
+| Validators | ~25 (mirrors dart pub) | ~25 |
+| Standard flags | 1:1 match for common flags | — |
+| Exit codes | Match dart pub | — |
+| Underlying protocol | Pub spec v2 (same wire format) | Pub spec v2 |
+
+## Related
+
+<LinkCard
+  title="CLI Reference — club publish"
+  description="Full flag reference, examples, troubleshooting."
+  href="/cli/publishing/"
+/>
+
+<LinkCard
+  title="Publishing Guide"
+  description="General publishing workflow, versioning, retraction."
+  href="/guides/publishing/"
+/>
+
+<LinkCard
+  title="Login & Setup"
+  description="How to log in with club login and configure multiple servers."
+  href="/cli/login-setup/"
+/>
+
+<LinkCard
+  title="CI/CD Guide"
+  description="Run club publish from GitHub Actions, GitLab CI, and other systems."
+  href="/guides/ci-cd/"
+/>

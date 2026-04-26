@@ -1,0 +1,247 @@
+---
+title: Upgrading
+description: How to upgrade club using Docker or from source, including schema behavior and rollback procedures.
+---
+
+import { Aside, Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+club follows semantic versioning. The database schema is applied idempotently on every startup, so upgrading is typically as simple as pulling a new image and restarting — there are no manual migration commands.
+
+## Before You Upgrade
+
+<Steps>
+
+1. **Read the release notes** for the version you are upgrading to. Check for breaking changes or special migration instructions.
+
+2. **Back up your data.** See [Backup & Restore](/operations/backup/) for instructions. At minimum, back up the metadata store (database).
+
+3. **Test in a staging environment** if possible, especially for major version upgrades.
+
+</Steps>
+
+<Aside type="caution">
+Always back up before upgrading. The schema is applied idempotently on every boot, but data-shape changes introduced by a new release may still be irreversible. A backup ensures you can roll back if something goes wrong.
+</Aside>
+
+---
+
+## Upgrade Steps
+
+<Tabs>
+  <TabItem label="Docker">
+    <Steps>
+
+    1. **Back up your data:**
+
+       ```bash
+       # SQLite
+       sqlite3 /data/db/club.db ".backup /backups/club-pre-upgrade.db"
+
+       # Filesystem blobs (tarballs + screenshots + blob-mode dartdoc)
+       tar -czf /backups/blobs-pre-upgrade.tar.gz -C /data blobs/
+       ```
+
+    2. **Pull the new image:**
+
+       ```bash
+       docker pull club:latest
+       # Or pin to a specific version:
+       docker pull club:1.2.0
+       ```
+
+    3. **Stop the current container:**
+
+       ```bash
+       docker compose down
+       ```
+
+    4. **Start with the new image:**
+
+       ```bash
+       docker compose up -d
+       ```
+
+    5. **Verify the upgrade:**
+
+       ```bash
+       # Check health
+       curl https://packages.example.com/api/v1/health
+
+       # Check version in response
+       curl -s https://packages.example.com/api/v1/health | jq .version
+
+       # Tail logs for any errors during schema application
+       docker compose logs club --tail 50
+       ```
+
+    </Steps>
+
+    If using a specific version tag in your `docker-compose.yml`, update it:
+
+    ```yaml
+    services:
+      club:
+        image: club:1.2.0  # Update version here
+    ```
+  </TabItem>
+  <TabItem label="From Source">
+    <Steps>
+
+    1. **Back up your data** (same as Docker).
+
+    2. **Pull the latest code:**
+
+       ```bash
+       cd /opt/club
+       git pull origin main
+       # Or checkout a specific tag:
+       git checkout v1.2.0
+       ```
+
+    3. **Update dependencies and regenerate models:**
+
+       ```bash
+       dart pub get
+
+       cd packages/club_core
+       dart run build_runner build --delete-conflicting-outputs
+       cd ../..
+       ```
+
+    4. **Rebuild the frontend:**
+
+       ```bash
+       cd packages/club_web
+       npm install
+       npm run build
+       cd ../..
+       ```
+
+    5. **Build and restart:**
+
+       ```bash
+       # Build with dart build cli (NOT dart compile exe)
+       dart build cli -t packages/club_server/bin/server.dart -o build/server
+
+       # The binary is at build/server/bundle/bin/server
+       sudo cp build/server/bundle/bin/server /usr/local/bin/club
+
+       # Restart
+       systemctl restart club
+       ```
+
+    6. **Verify the upgrade:**
+
+       ```bash
+       curl https://packages.example.com/api/v1/health
+       journalctl -u club --since "5 minutes ago"
+       ```
+
+    </Steps>
+  </TabItem>
+</Tabs>
+
+---
+
+## Schema Behavior
+
+### Idempotent, Not Versioned
+
+club does **not** use a versioned migration table. Instead, the entire schema is expressed as a list of idempotent statements that run on every server startup:
+
+- `CREATE TABLE IF NOT EXISTS ...`
+- `CREATE INDEX IF NOT EXISTS ...`
+- `ALTER TABLE ... ADD COLUMN ...` (with duplicate-column errors caught)
+- `CREATE VIRTUAL TABLE IF NOT EXISTS ... USING fts5(...)`
+
+There is no `schema_migrations` table. There are no numbered script files. Every boot re-applies the full schema; the `IF NOT EXISTS` clauses and column-exists guards make this safe.
+
+### What This Means for Upgrades
+
+| Scenario | Behavior |
+|----------|----------|
+| New tables added in the new version | Created on first boot of the new binary |
+| New columns added to existing tables | Added via `ALTER TABLE` on first boot |
+| New indexes | Created on first boot |
+| Column renames or drops | Require explicit, release-specific data migration code — see release notes |
+| Unchanged schema | No-op; schema statements re-run but nothing changes |
+
+You do not run a "migrate" command before or after upgrading. The server applies the schema during boot, **before** it starts accepting requests.
+
+<Aside type="note">
+Schema application typically completes in under a second. For very large databases, additive `ALTER TABLE` operations may take longer, but the server will not accept requests until the schema is fully applied.
+</Aside>
+
+---
+
+## Rollback Procedure
+
+If an upgrade causes issues, you can roll back to the previous version.
+
+<Aside type="danger">
+Rolling back an older server against a database that has been touched by a newer server is **not guaranteed to work**. New tables or columns created by the new version will still be present, and new rows may use data shapes the old version does not understand. Always restore the database from the pre-upgrade backup when rolling back.
+</Aside>
+
+<Steps>
+
+1. **Stop the server:**
+
+   ```bash
+   docker compose down
+   # or: systemctl stop club
+   ```
+
+2. **Restore the database from backup:**
+
+   ```bash
+   # SQLite
+   cp /backups/club-pre-upgrade.db /data/db/club.db
+
+   # PostgreSQL
+   pg_restore -h db.example.com -U club -d club /backups/club-pre-upgrade.dump
+   ```
+
+3. **Restore blob storage if needed:**
+
+   ```bash
+   tar -xzf /backups/packages-pre-upgrade.tar.gz -C /data
+   ```
+
+4. **Switch back to the previous version:**
+
+   ```bash
+   # Docker
+   # Edit docker-compose.yml to use the previous image tag
+   docker compose up -d
+
+   # From source
+   git checkout v1.1.0
+   dart build cli -t packages/club_server/bin/server.dart -o build/server
+   sudo cp build/server/bundle/bin/server /usr/local/bin/club
+   systemctl start club
+   ```
+
+5. **Verify the rollback:**
+
+   ```bash
+   curl https://packages.example.com/api/v1/health
+   ```
+
+</Steps>
+
+Any packages published or tokens created after the upgrade are lost with the database restore. This is why backing up before upgrading is critical.
+
+---
+
+## Version Pinning
+
+For production deployments, always pin to a specific version rather than using `latest`:
+
+```yaml
+# docker-compose.yml
+services:
+  club:
+    image: club:1.2.0   # Pin to specific version
+```
+
+This prevents accidental upgrades and ensures reproducible deployments. Update the version tag deliberately after testing.

@@ -1,0 +1,377 @@
+---
+title: A Beginner's Guide
+description: A complete walkthrough — self-host club with Docker, install the CLI, publish your first package, and consume it in another project.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+This guide walks through the full club pipeline end to end. By the time you're done, you'll have a running club server, a package you published from your laptop, and a second project that depends on it.
+
+## Overview
+
+You'll go through four steps, in order:
+
+1. [**Self-host club with Docker**](#step-1-self-host-club-with-docker) — run the server locally using a `docker-compose.yml` that pulls the official image.
+2. [**Install the CLI**](#step-2-install-the-cli) — one-line install of the `club` binary.
+3. [**Publish your first package**](#step-3-publish-your-first-package) — log in, create a package, and push it to your server.
+4. [**Use your package in another project**](#step-4-use-your-package-in-another-project) — add the published package as a dependency and import it.
+
+A fifth section at the end shows how to [automate publishing with GitHub Actions](#bonus-automate-with-github-actions). Skip it on the first pass if you just want the happy path.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose (for the server)
+- [Dart SDK](https://dart.dev/get-dart) 3.0+ (for creating and publishing packages)
+- Linux or macOS (the install script doesn't support Windows — see the [CLI installation guide](/cli/installation/) for the manual path)
+
+Throughout this guide, the local server runs at `http://localhost:8080`. In production you'd replace that with a real HTTPS URL.
+
+---
+
+## Step 1 — Self-host club with Docker
+
+The quickest way to get a working server is a two-file Docker Compose setup that pulls the official image from GitHub Container Registry. No repo clone required.
+
+<Steps>
+
+1. **Create a project directory**
+
+   ```bash
+   mkdir -p ~/club-server && cd ~/club-server
+   ```
+
+2. **Create `docker-compose.yml`**
+
+   ```yaml
+   services:
+     club:
+       image: ghcr.io/birjuvachhani/club:latest
+       container_name: club
+       restart: unless-stopped
+       ports:
+         - "127.0.0.1:8080:8080"
+       env_file: .env
+       volumes:
+         - club_data:/data
+       healthcheck:
+         test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+         interval: 30s
+         timeout: 5s
+         retries: 3
+         start_period: 10s
+
+   volumes:
+     club_data:
+   ```
+
+3. **Create `.env`**
+
+   ```bash
+   cat > .env <<EOF
+   SERVER_URL=http://localhost:8080
+   JWT_SECRET=$(openssl rand -hex 32)
+   EOF
+   ```
+
+   <Aside type="caution">
+     `SERVER_URL` must match the URL clients will actually use to reach the server — mismatches will cause 401s during publish. `JWT_SECRET` must be at least 32 characters.
+   </Aside>
+
+4. **Start the server**
+
+   ```bash
+   docker compose up -d
+   ```
+
+5. **Verify it's running**
+
+   ```bash
+   curl http://localhost:8080/api/v1/health
+   # {"status":"ok", ...}
+   ```
+
+6. **Create the owner account via the setup wizard**
+
+   On first startup the server prints a one-time **setup code** to the logs. You use it to create the initial owner account through the web UI.
+
+   ```bash
+   docker compose logs club | grep -i "setup code"
+   ```
+
+   Open [http://localhost:8080/setup](http://localhost:8080/setup), enter the setup code, then pick your email, display name, and password. The account is created with the `owner` role.
+
+   <Aside type="tip">
+     The setup wizard is IP-pinned to the browser that verified the code. After setup completes, `/setup` returns 404 and the code is discarded.
+   </Aside>
+
+</Steps>
+
+<Aside type="tip">
+  This is the minimum to follow the rest of the guide. For production deployment — TLS, PostgreSQL, S3, reverse proxies — see the detailed guides:
+
+  - [Docker deployment](/self-hosting/docker/)
+  - [Docker + PostgreSQL](/self-hosting/docker-postgres/)
+  - [Docker + S3](/self-hosting/docker-s3/)
+  - [TLS / HTTPS setup](/self-hosting/tls/)
+  - [Reverse proxy (Caddy / nginx)](/self-hosting/reverse-proxy/)
+</Aside>
+
+---
+
+## Step 2 — Install the CLI
+
+The `club` CLI is a native binary. One-line install:
+
+```bash
+curl -fsSL https://club.birju.dev/install.sh | bash
+```
+
+The script detects your OS and CPU, downloads the right archive, verifies its SHA-256, and drops the binary at `~/.local/bin/club`. If that directory isn't on your `PATH`, the installer prints the one-liner to add to your shell's rc file.
+
+Verify:
+
+```bash
+club --version
+```
+
+For Windows, manual downloads, version pinning, or building from source, see the [CLI installation guide](/cli/installation/).
+
+---
+
+## Step 3 — Publish your first package
+
+With the server running and the CLI installed, you'll now log in, create a small package, and push it up.
+
+<Steps>
+
+1. **Log in to your server**
+
+   ```bash
+   club login http://localhost:8080
+   ```
+
+   This opens your browser to complete an OAuth authorization flow (PKCE). Sign in with the owner account you created in Step 1, approve the CLI's `read,write` request, and the CLI stores a scoped personal access token in `~/.config/club/credentials.json`.
+
+   <Aside type="tip">
+     On headless machines use `club login --no-browser` for an email/password fallback, or `club login --key club_pat_...` to paste an existing token.
+   </Aside>
+
+2. **Register the token with `dart pub`**
+
+   ```bash
+   club setup
+   ```
+
+   Behind the scenes this runs `dart pub token add http://localhost:8080`, so the Dart SDK knows how to authenticate when you publish.
+
+3. **Create a package**
+
+   ```bash
+   mkdir -p ~/hello_club && cd ~/hello_club
+   ```
+
+   Create `pubspec.yaml`:
+
+   ```yaml
+   name: hello_club
+   version: 1.0.0
+   description: My first club package.
+   publish_to: http://localhost:8080
+
+   environment:
+     sdk: ^3.0.0
+   ```
+
+   <Aside type="caution">
+     The `publish_to` URL must match your server URL exactly — a trailing slash or `http` vs `https` mismatch will cause a 401.
+   </Aside>
+
+   Create `lib/hello_club.dart`:
+
+   ```dart
+   /// A friendly greeting.
+   String greet(String name) => 'Hello, $name!';
+   ```
+
+4. **Publish**
+
+   You have two options:
+
+   ```bash
+   # Option A: the club CLI (runs ~25 preflight validators)
+   club publish
+
+   # Option B: vanilla dart pub
+   dart pub publish --force
+   ```
+
+   `club publish` is the recommended path — it validates your package before upload (changelog, SDK constraints, README, dependencies, git status, size, etc.) and works without needing `publish_to:` in `pubspec.yaml` (it picks up your default club server automatically).
+
+   Open [http://localhost:8080](http://localhost:8080) in your browser — `hello_club` 1.0.0 should appear on the packages page.
+
+</Steps>
+
+For the longer walkthrough with READMEs, changelogs, and troubleshooting, see [Publishing Your First Package](/getting-started/first-package/) and the [Publishing guide](/guides/publishing/).
+
+---
+
+## Step 4 — Use your package in another project
+
+You publish packages so other projects can depend on them. Any developer who wants to consume packages from your club server goes through the same CLI setup: install, log in, then add a hosted dependency.
+
+<Steps>
+
+1. **Install and log in** (skip if you already did steps 2–3 above)
+
+   ```bash
+   curl -fsSL https://club.birju.dev/install.sh | bash
+   club login http://localhost:8080
+   club setup
+   ```
+
+   <Aside type="tip">
+     Only developers who need to publish need a personal login. For read-only consumers — including CI — a scoped API key is simpler (see the [bonus section](#bonus-automate-with-github-actions) below).
+   </Aside>
+
+2. **Create a project**
+
+   ```bash
+   mkdir -p ~/my_app && cd ~/my_app
+   dart create -t console .
+   ```
+
+3. **Add `hello_club` as a hosted dependency**
+
+   Edit `pubspec.yaml`:
+
+   ```yaml
+   dependencies:
+     hello_club:
+       hosted: http://localhost:8080
+       version: ^1.0.0
+   ```
+
+   The `hosted` field tells `dart pub` to fetch this package from your club server. All other dependencies (no `hosted` field) continue to come from pub.dev as normal.
+
+4. **Fetch and use it**
+
+   ```bash
+   dart pub get
+   ```
+
+   Edit `bin/my_app.dart`:
+
+   ```dart
+   import 'package:hello_club/hello_club.dart';
+
+   void main() {
+     print(greet('Developer'));
+   }
+   ```
+
+   ```bash
+   dart run
+   # Hello, Developer!
+   ```
+
+</Steps>
+
+For version pinning, upgrading, and mixing private and public packages, see [Using Packages](/guides/using-packages/).
+
+---
+
+## Bonus — Automate with GitHub Actions
+
+In CI you don't want to log in interactively — you want a scoped, machine-owned token. The pattern is:
+
+1. Create an API key in the web dashboard
+2. Store it as a CI secret
+3. Register it with `dart pub` at runtime using `--env-var`
+
+### Requirements
+
+- A club API key with the right scopes
+  - `read` only — if CI just runs `dart pub get` / tests
+  - `read` + `write` — if CI runs `dart pub publish`
+- The secret stored in your CI provider's secret store (GitHub Actions: **Settings → Secrets and variables → Actions**)
+- A reachable server URL (CI runners must be able to reach your club server)
+
+### Create the API key
+
+<Steps>
+
+1. Open the web UI and go to **Settings → API keys** (the `/settings/keys` page).
+2. Click **Create key**, give it a name like `github-actions-publish`, and select the scopes you need (`read` + `write` for a publish workflow). Scopes are clamped to your user role — a `member` cannot mint `admin` tokens.
+3. Optionally set an expiry (90 days is a good default — rotate rather than forget).
+4. Copy the full key (`club_pat_...`) — **it is only shown once**.
+5. In GitHub, add it as a repository secret named `CLUB_TOKEN`.
+
+</Steps>
+
+<Aside type="caution">
+  The token secret is displayed only once at creation. If you lose it, revoke it and create a new one.
+</Aside>
+
+### Publishing workflow
+
+This workflow publishes a new version whenever you push a `v*` tag.
+
+<Code code={`name: Publish
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - name: Register club token with dart pub
+        run: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+        env:
+          CLUB_TOKEN: \${{ secrets.CLUB_TOKEN }}
+
+      - name: Publish
+        run: dart pub publish --force
+        env:
+          CLUB_TOKEN: \${{ secrets.CLUB_TOKEN }}`} lang="yaml" title=".github/workflows/publish.yml" />
+
+The key step is `dart pub token add ... --env-var CLUB_TOKEN`. The `--env-var` form does *not* write the token to disk — it tells `dart pub` to read it from the named environment variable at runtime, which is exactly what you want in CI.
+
+### Typical release flow
+
+<Steps>
+
+1. Bump the `version` in `pubspec.yaml`.
+2. Commit and tag:
+
+   ```bash
+   git commit -am "Release v1.1.0"
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+
+3. GitHub Actions picks up the tag, runs the workflow, and the new version appears on your club server.
+
+</Steps>
+
+<Aside type="tip">
+  For a read-only CI job (build + test), use a `read`-scoped token and run `dart pub get` the same way — `dart pub token add https://club.example.com --env-var CLUB_TOKEN` followed by `dart pub get`.
+</Aside>
+
+For GitLab, Bitbucket, caching, and security best practices, see the full [CI/CD Integration guide](/guides/ci-cd/).
+
+---
+
+## Where to go next
+
+You now have the complete pipeline: a server, a published package, a consuming project, and automated publishing. Good follow-ups:
+
+- **[Publishers](/guides/publishers/)** — group packages under teams with member roles
+- **[Managing users](/guides/managing-users/)** — invite developers, reset passwords, manage roles
+- **[Package scoring](/guides/package-scoring/)** — enable pana analysis for health scores
+- **[Authentication](/guides/authentication/)** — tokens, scopes, and credential management in depth
+- **[Production self-hosting](/self-hosting/docker/)** — persistent volumes, TLS, PostgreSQL, S3

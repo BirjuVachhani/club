@@ -1,0 +1,178 @@
+---
+// CTA variant E4 — "Orange stamp proof"
+// Leans into the CLUB-as-rubber-stamp motif. Full-orange background,
+// corner registration ticks, perforated edges, a rotated SVG stamp
+// ring in the backdrop, and a postal-style "cover" layout.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <!-- Perforated edges -->
+  <div class="perf top" aria-hidden="true"></div>
+  <div class="perf bottom" aria-hidden="true"></div>
+
+  <!-- Background stamp ring -->
+  <svg class="stamp-ring" viewBox="0 0 400 400" aria-hidden="true">
+    <defs>
+      <path id="ring-path" d="M 200,200 m -140,0 a 140,140 0 1,1 280,0 a 140,140 0 1,1 -280,0" />
+    </defs>
+    <circle cx="200" cy="200" r="140" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="2 6"/>
+    <circle cx="200" cy="200" r="155" fill="none" stroke="#fff" stroke-width="1"/>
+    <text font-family="var(--font-mono)" font-size="14" fill="#fff" letter-spacing="8" font-weight="700">
+      <textPath href="#ring-path" startOffset="0">· CLUB · PRIVATE · PUB · DART · FLUTTER · SELF-HOSTED · 2026 · OPEN SOURCE · CLUB · PRIVATE · PUB ·</textPath>
+    </text>
+  </svg>
+
+  <!-- Corner registration ticks -->
+  <span class="tick tl"></span>
+  <span class="tick tr"></span>
+  <span class="tick bl"></span>
+  <span class="tick br"></span>
+
+  <div class="wrap">
+    <div class="rail mono">
+      <span>No. 001</span>
+      <span>— Cover block —</span>
+      <span>Est. 2026</span>
+    </div>
+
+    <h2 class="h2">
+      <span class="line">Stamp it.</span>
+      <span class="line italic">Ship it.</span>
+      <span class="line">Host it yourself.</span>
+    </h2>
+
+    <p class="lede">
+      CLUB is an open-source, self-hostable package repository
+      for Dart and Flutter. One container. Your infrastructure.
+      The stock dart pub CLI.
+    </p>
+
+    <div class="cta-row">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn-ink">
+        Read the quick start
+        <span class="arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn-outline">GitHub</a>
+    </div>
+
+    <div class="postal mono">
+      <div><span class="k">Format</span><span class="v">Pub Spec v2</span></div>
+      <div class="sep"></div>
+      <div><span class="k">Runtime</span><span class="v">1 × Docker</span></div>
+      <div class="sep"></div>
+      <div><span class="k">License</span><span class="v">Apache 2.0</span></div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative; overflow: hidden;
+    background: var(--color-stamp); color: #fff;
+    padding: 5rem 0 5.5rem;
+  }
+  .wrap { position: relative; z-index: 2; max-width: 64rem; margin: 0 auto; padding: 0 2rem; text-align: center; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.5rem; } }
+
+  /* Perforated edges — dots cut out of the orange */
+  .perf {
+    position: absolute; left: 0; right: 0; height: 12px;
+    background-image: radial-gradient(circle at 8px 6px, var(--color-bg) 4px, transparent 4.5px);
+    background-size: 16px 12px; pointer-events: none;
+  }
+  .perf.top    { top: 0; }
+  .perf.bottom { bottom: 0; transform: scaleY(-1); }
+
+  /* Corner ticks */
+  .tick {
+    position: absolute; width: 16px; height: 16px; pointer-events: none;
+  }
+  .tick::before, .tick::after {
+    content: ""; position: absolute; background: #fff;
+  }
+  .tick::before { height: 2px; width: 16px; }
+  .tick::after  { width: 2px; height: 16px; }
+  .tl { top: 1.75rem;   left: 1.75rem; }
+  .tl::before, .tl::after { top: 0; left: 0; }
+  .tr { top: 1.75rem;   right: 1.75rem; }
+  .tr::before, .tr::after { top: 0; right: 0; }
+  .bl { bottom: 1.75rem; left: 1.75rem; }
+  .bl::before, .bl::after { bottom: 0; left: 0; }
+  .br { bottom: 1.75rem; right: 1.75rem; }
+  .br::before, .br::after { bottom: 0; right: 0; }
+
+  /* Stamp ring */
+  .stamp-ring {
+    position: absolute; top: 50%; left: 50%;
+    width: 34rem; height: 34rem;
+    transform: translate(-50%, -50%) rotate(-6deg);
+    opacity: 0.18; pointer-events: none; z-index: 1;
+  }
+  @media (max-width: 768px) { .stamp-ring { width: 24rem; height: 24rem; opacity: 0.15; } }
+
+  .rail {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    gap: 0.5rem 1rem;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.25em; text-transform: uppercase;
+    color: #FFE4DA; font-weight: 700;
+    padding-bottom: 1.25rem; border-bottom: 1px dashed color-mix(in oklab, #fff 45%, transparent);
+  }
+
+  .h2 {
+    margin: 2.5rem auto 0; max-width: 18ch;
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.5rem, 6vw + 0.5rem, 5.5rem);
+    letter-spacing: -0.035em; line-height: 0.95;
+    color: #fff; display: flex; flex-direction: column; gap: 0.05em;
+  }
+  .h2 .line { display: block; }
+  .h2 .italic { font-style: italic; font-weight: 560; color: var(--color-ink); text-shadow: 0 0 0 transparent; }
+
+  .lede {
+    font-size: 1.05rem; line-height: 1.55;
+    color: #FFE4DA; margin: 1.75rem auto 0; max-width: 38rem;
+  }
+
+  .cta-row {
+    margin-top: 2rem;
+    display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center;
+  }
+  .btn-ink, .btn-outline {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.8em 1.25em; border-radius: 0.625rem;
+    font-family: var(--font-sans); font-size: 0.9rem; font-weight: 640;
+    transition: background 150ms, transform 150ms;
+  }
+  .btn-ink {
+    background: var(--color-ink); color: #fff;
+    border: 1px solid var(--color-ink);
+  }
+  .btn-ink:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -12px rgba(0,0,0,0.35); }
+  .btn-outline {
+    background: transparent; color: #fff;
+    border: 1px solid color-mix(in oklab, #fff 50%, transparent);
+  }
+  .btn-outline:hover { background: color-mix(in oklab, #fff 12%, transparent); border-color: #fff; }
+  .arrow { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+  .btn-ink:hover .arrow { transform: translateX(2px); }
+
+  /* Postal metadata row */
+  .postal {
+    margin: 2.5rem auto 0; padding: 0.75rem 1rem;
+    max-width: 44rem;
+    border-top: 1px dashed color-mix(in oklab, #fff 45%, transparent);
+    border-bottom: 1px dashed color-mix(in oklab, #fff 45%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.75rem 1.25rem; flex-wrap: wrap;
+  }
+  .postal > div:not(.sep) {
+    display: flex; flex-direction: column; gap: 0.1rem; align-items: center;
+  }
+  .postal .k { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: #FFE4DA; font-weight: 700; }
+  .postal .v { font-size: 0.82rem; color: #fff; font-weight: 600; }
+  .postal .sep { width: 3px; height: 3px; border-radius: 999px; background: #fff; opacity: 0.6; }
+
+  .mono { font-family: var(--font-mono); }
+</style>

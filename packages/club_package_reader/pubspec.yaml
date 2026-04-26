@@ -1,0 +1,25 @@
+name: club_package_reader
+description: Archive scanner for Dart package tarballs. Extracts pubspec/README/CHANGELOG/LICENSE/example/libraries and runs validation, producing a PackageSummary with any issues. Vendored from dart-lang/pub-dev's pub_package_reader with a ReaderPolicy knob for private-registry tuning.
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  checked_yaml: ^2.0.0
+  clock: ^1.1.0
+  collection: ^1.18.0
+  logging: ^1.2.0
+  path: ^1.8.0
+  pub_semver: ^2.0.0
+  pubspec_parse: ^1.2.0
+  tar: ^2.0.0
+  yaml: ^3.1.0
+  yaml_edit: ^2.0.1
+
+dev_dependencies:
+  http: ^1.0.0
+  lints: ^6.1.0
+  test: ^1.24.0

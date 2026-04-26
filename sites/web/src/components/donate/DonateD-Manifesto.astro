@@ -1,0 +1,107 @@
+---
+// Donate — D · Manifesto
+// Paper-mute band. A single long-form paragraph with roman-numeral
+// anchors, ending on two CTAs. Matches the Manifesto landing's voice.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+---
+
+<section id="f-donate" class="sec">
+  <div class="wrap">
+    <div class="eyebrow">§ An honest ask</div>
+    <h2 class="display">
+      Open source is a <span class="accent">gift</span>. <br class="md-only" />
+      Gifts need <span class="accent">keepers</span>.
+    </h2>
+
+    <div class="body">
+      <p>
+        CLUB is given away under Apache 2.0 because software that governs
+        how your team publishes code should never be rented. But giving it
+        away doesn't mean nobody paid for it. Servers have bills, releases
+        take time, issues need answers, and the gap between "works for me"
+        and "works for your team at 2 AM" is where the hours go.
+      </p>
+      <p>
+        If your company depends on CLUB, consider a recurring sponsorship.
+        It's the difference between a project that survives on weekends and
+        one that ships on a schedule you can plan around. If you're an
+        individual who just wants to say thanks, a coffee works too.
+      </p>
+    </div>
+
+    <div class="cta-row">
+      <a href={SPONSORS_URL} class="btn btn-primary" target="_blank" rel="noopener">
+        Sponsor on GitHub
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={BMC_URL} class="btn btn-ghost" target="_blank" rel="noopener">
+        Buy me a coffee
+      </a>
+    </div>
+
+    <ul class="tenets">
+      <li>
+        <span class="n mono">I.</span>
+        <div>
+          <strong>No perks, no unlocks.</strong>
+          <span class="mute">Sponsorship funds maintenance, not features. Everyone gets the full product.</span>
+        </div>
+      </li>
+      <li>
+        <span class="n mono">II.</span>
+        <div>
+          <strong>No rug pulls.</strong>
+          <span class="mute">Apache 2.0, forever. Fork it tomorrow if anything changes.</span>
+        </div>
+      </li>
+      <li>
+        <span class="n mono">III.</span>
+        <div>
+          <strong>No strings attached.</strong>
+          <span class="mute">Cancel anytime, any amount. Zero obligation if it stops making sense.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); color: var(--color-ink); }
+  .wrap { max-width: 64rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; color: var(--color-stamp); }
+  .display {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.1rem, 3.5vw + 0.5rem, 3.5rem);
+    letter-spacing: -0.028em; line-height: 1.08;
+    margin: 1rem 0 0; max-width: 22ch;
+  }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+  .accent { color: var(--color-stamp); }
+
+  .body {
+    margin-top: 2.5rem; max-width: 42rem;
+    font-size: 1.08rem; line-height: 1.7; color: var(--color-mute);
+  }
+  .body p { margin: 0 0 1.25rem; }
+  .body p:last-child { margin-bottom: 0; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.5rem; }
+
+  .tenets {
+    list-style: none; padding: 0;
+    margin: 3rem 0 0;
+    display: grid; gap: 0.5rem;
+    border-top: 1px solid var(--color-border); padding-top: 2rem;
+  }
+  .tenets li {
+    display: grid; grid-template-columns: 2.25rem 1fr; gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+  }
+  .tenets .n { color: var(--color-stamp); font-weight: 700; font-size: 0.9rem; }
+  .tenets strong { color: var(--color-ink); font-weight: 640; font-size: 0.98rem; letter-spacing: -0.01em; margin-right: 0.5rem; }
+  .tenets .mute { color: var(--color-mute); font-size: 0.95rem; line-height: 1.55; }
+  .mono { font-family: var(--font-mono); }
+</style>

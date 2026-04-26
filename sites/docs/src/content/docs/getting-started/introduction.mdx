@@ -1,0 +1,63 @@
+---
+title: Introduction
+description: Your private pub.dev — what CLUB does for your team and how it compares to the public registry.
+---
+
+**CLUB is your private pub.dev.** It's a self-hosted Dart package repository that speaks the same protocol as [pub.dev](https://pub.dev), so `dart pub get`, `dart pub publish`, `dart pub add`, and `flutter pub get` all work exactly the way your team already uses them — they just point at your server instead of the public one.
+
+## Who it's for
+
+If your team ships shared Dart or Flutter code, CLUB replaces the workarounds you probably have today:
+
+| Instead of... | ...you get |
+|----------|----------|
+| Copy-pasting code between projects | Versioned, semver-resolved packages |
+| Git dependencies in `pubspec.yaml` | Fast, cached resolves with proper version constraints and search |
+| Publishing to pub.dev | Packages stay private to your team |
+| Rolling your own registry | A drop-in pub.dev experience that your tooling already understands |
+
+## Features
+
+- **Works with `dart pub` unchanged** — no custom CLI, no patches, no plugins. Your team uses the tools they already know.
+- **Private by default** — every request is authenticated. Nothing is public unless you make it public.
+- **Publishers** — group packages under a team or organization with member roles, like pub.dev's verified publishers.
+- **Familiar web UI** — browse packages, read READMEs and changelogs, see version history, manage users and tokens.
+- **CI-friendly tokens** — scoped personal access tokens (`read`, `write`, `admin`) you can drop into GitHub Actions, GitLab CI, and friends.
+- **Package scoring** — optional pana-based pub points, just like pub.dev.
+- **Search** — full-text search across package names, descriptions, and READMEs.
+- **Runs anywhere** — one Docker container, no external database or queue required to get started.
+
+## CLUB vs pub.dev
+
+| | pub.dev | CLUB |
+|---|---------|-------|
+| Hosting | Google-managed | Self-hosted |
+| Visibility | Public | Private (auth required) |
+| Cost | Free | Free (your infrastructure) |
+| User accounts | Google account | Email/password, invited by an admin (or optional self-signup) |
+| Package scoring | pana analysis | pana analysis (optional — admin toggle) |
+| Search | Full-text | Full-text |
+| API compatibility | Pub Spec v2 | Pub Spec v2 |
+| CI/CD tokens | Google Cloud auth | Scoped personal access tokens |
+| Custom domain | — | ✓ |
+
+## Users and roles
+
+CLUB has four user roles, highest first:
+
+| Role | What it can do |
+|------|---------------|
+| `owner` | Everything, including promoting/demoting admins. One per server, created during first-time setup. |
+| `admin` | Manage users, publishers, and packages across the server. |
+| `member` | Publish packages they own and manage their own tokens. This is the default role for invited users and self-signups. (Previously called `editor` — old clients may still see that name.) |
+| `viewer` | Read-only. |
+
+The first account is created through a one-time web setup wizard on first boot. After that, `owner`s and `admin`s invite new users (or enable self-signup). See [Managing users](/guides/managing-users/) for the details.
+
+## Next steps
+
+- **[Beginner's Guide](/getting-started/tutorial/)** — install, publish, consume, and automate, end to end
+- **[Quick Start](/getting-started/quick-start/)** — a 5-minute Docker bring-up
+- **[Installation](/getting-started/installation/)** — all install options with configuration notes
+- **[Publish your first package](/getting-started/first-package/)** — the full publishing flow
+- **[Using packages](/guides/using-packages/)** — consume CLUB packages in your projects

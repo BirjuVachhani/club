@@ -1,0 +1,243 @@
+---
+// Feature — Everything you can't do on pub.dev
+// Design lifted from /dev/landing/a "Govern" module — headline + role
+// chips on the left, dark admin-panel mock on the right, a compact
+// feature grid below.
+import { byGroup, GROUP_LABELS } from "../../lib/landing-copy";
+
+const controlFeatures = byGroup("control");
+---
+
+<section id="f-control" class="sec">
+  <div class="wrap">
+    <div class="govern-grid">
+      <!-- Left: headline + roles -->
+      <div class="govern-left">
+        <div data-reveal>
+          <div class="eyebrow orange">§ Govern</div>
+          <h2 class="h2">Admin powers <a href="https://pub.dev" style="color: var(--color-stamp);">pub.dev</a><br />won't give you.</h2>
+          <p class="lede">{GROUP_LABELS.control.sub}</p>
+        </div>
+
+        <div class="roles" data-reveal-children data-reveal-step="100" data-reveal-base="120">
+          <div class="role"><span class="role-dot"></span><strong>Admin</strong> — runs the show</div>
+          <div class="role"><span class="role-dot mid"></span><strong>Editor</strong> — publishes &amp; curates</div>
+          <div class="role"><span class="role-dot soft"></span><strong>Viewer</strong> — browses &amp; downloads</div>
+        </div>
+      </div>
+
+      <!-- Right: admin panel mock (lifted from /dev/landing/f) -->
+      <div class="admin-mock" data-reveal="right">
+        <div class="am-head">
+          <span class="mono tiny dim">package</span>
+          <strong>acme_ui@2.4.1</strong>
+          <span class="pill orange">admin</span>
+        </div>
+        <div class="am-grid" data-reveal-children data-reveal-step="60" data-reveal-base="240">
+          <button class="amb"><span class="amb-dot"></span>Unlist version</button>
+          <button class="amb"><span class="amb-dot"></span>Retract 2.4.1</button>
+          <button class="amb"><span class="amb-dot"></span>Discontinue package</button>
+          <button class="amb"><span class="amb-dot"></span>Transfer ownership</button>
+          <button class="amb strong"><span class="amb-dot white"></span>Force-overwrite</button>
+          <button class="amb danger"><span class="amb-dot red"></span>Delete package</button>
+        </div>
+        <div class="am-log" data-reveal-children data-reveal-step="200" data-reveal-base="700">
+          <span class="mono tiny o">✓ 18:14  priya — retracted acme_ui@2.4.1</span>
+          <span class="mono tiny o">✓ 18:15  priya — force-overwrite acme_ui@2.4.1</span>
+          <span class="mono tiny o">✓ 18:18  priya — rotated ci-publisher token</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control features grid -->
+    <div class="feature-grid-sm" data-reveal-children data-reveal-step="80">
+      {controlFeatures.map((f) => (
+        <article class="feature-card compact">
+          <div class="feature-key">{f.key}</div>
+          <h3 class="h3 tight">{f.title}</h3>
+          <p class="feature-body">{f.body}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .dim { color: var(--color-mute-dark); }
+  .tag { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .h3 {
+    font-family: var(--font-sans); font-weight: 640;
+    font-size: 1.2rem; letter-spacing: -0.015em; line-height: 1.3; margin: 0.5rem 0 0;
+  }
+  .h3.tight { font-size: 1.1rem; }
+
+  .lede {
+    font-size: 1.1rem; line-height: 1.55; color: var(--color-mute);
+    margin: 1.5rem 0 0; max-width: 40rem;
+  }
+
+  /* Govern grid */
+  .govern-grid {
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 0.5fr) minmax(0, 0.5fr);
+    align-items: stretch;
+  }
+  @media (max-width: 900px) {
+    .govern-grid { grid-template-columns: 1fr; }
+    /* Stacked: admin panel mock above, copy below */
+    .admin-mock { order: 1; }
+    .govern-left { order: 2; }
+  }
+  @media (max-width: 768px) { .govern-grid { gap: 1.75rem; } }
+  .govern-left .h2 { margin-top: 1rem; }
+  .govern-left .lede { margin-top: 1rem; }
+
+  .roles { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .role {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.7rem 0.9rem; border: 1px solid var(--color-border);
+    border-radius: 10px; font-size: 0.9rem; background: var(--color-bg);
+    color: var(--color-mute);
+  }
+  .role { transition: border-color 200ms, background 200ms, transform 280ms var(--ease-out-quart); }
+  .role:hover {
+    transform: translateX(4px);
+    border-color: color-mix(in oklab, var(--color-stamp) 35%, var(--color-border));
+    background: color-mix(in oklab, var(--color-stamp) 4%, var(--color-bg));
+  }
+  .role-dot {
+    width: 9px; height: 9px; border-radius: 999px; background: var(--color-stamp);
+    position: relative;
+  }
+  .role-dot::after {
+    content: ""; position: absolute; inset: -3px; border-radius: 999px;
+    border: 1px solid var(--color-stamp);
+    opacity: 0; transform: scale(0.6);
+  }
+  .roles.is-visible .role-dot::after {
+    animation: role-dot-ping 2.4s var(--ease-out-quart) calc(var(--reveal-index, 0) * 140ms + 400ms);
+  }
+  @keyframes role-dot-ping {
+    0%   { opacity: 0.85; transform: scale(0.4); }
+    60%  { opacity: 0;    transform: scale(2.2); }
+    100% { opacity: 0;    transform: scale(2.2); }
+  }
+  .role-dot.mid { background: color-mix(in oklab, var(--color-stamp) 55%, #fff); }
+  .role-dot.soft { background: color-mix(in oklab, var(--color-stamp) 25%, #fff); }
+  .role strong { color: var(--color-ink); margin-right: 0.25rem; }
+  @media (prefers-reduced-motion: reduce) {
+    .role:hover { transform: none; }
+    .roles.is-visible .role-dot::after { animation: none; }
+  }
+
+  /* Admin mock (lifted from /dev/landing/f) */
+  .admin-mock {
+    background: #0E0E10; border: 1px solid var(--color-border-dark);
+    border-radius: 14px; padding: 1.5rem;
+    box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .am-head {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding-bottom: 1rem; border-bottom: 1px solid var(--color-border-dark);
+  }
+  .am-head strong { font-family: var(--font-mono); font-size: 0.95rem; color: #EDEDED; font-weight: 640; }
+
+  .am-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 1rem; }
+  @media (max-width: 480px) { .am-grid { grid-template-columns: 1fr; } }
+  .amb {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.75rem 0.9rem; min-height: 2.75rem; border-radius: 10px; text-align: left;
+    background: color-mix(in oklab, #EDEDED 5%, transparent); color: #EDEDED;
+    border: 1px solid var(--color-border-dark);
+    font-family: var(--font-sans); font-size: 0.88rem; font-weight: 560; cursor: pointer;
+    transition:
+      border-color 200ms,
+      background 200ms,
+      transform 200ms var(--ease-press, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+  .amb:hover {
+    border-color: var(--color-stamp);
+    background: color-mix(in oklab, var(--color-stamp) 8%, transparent);
+    transform: translateY(-1px);
+  }
+  .amb:active { transform: translateY(0) scale(0.97); transition-duration: 80ms; }
+  .amb.strong { background: var(--color-stamp); color: #fff; border-color: var(--color-stamp); }
+  .amb.strong:hover {
+    background: color-mix(in oklab, var(--color-stamp) 90%, white);
+    box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--color-stamp) 70%, transparent);
+  }
+  .amb.danger { color: #FFB199; }
+  .amb-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--color-stamp); }
+  .amb-dot.white { background: #fff; }
+  .amb-dot.red {
+    background: #FF4F18; box-shadow: 0 0 10px color-mix(in oklab, var(--color-stamp) 60%, transparent);
+    animation: danger-blink 2.2s ease-in-out infinite;
+  }
+  @keyframes danger-blink {
+    0%, 70%, 100% { box-shadow: 0 0 10px color-mix(in oklab, var(--color-stamp) 60%, transparent); }
+    85%           { box-shadow: 0 0 20px color-mix(in oklab, var(--color-stamp) 90%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .amb:hover, .amb:active { transform: none; }
+    .amb-dot.red { animation: none; }
+  }
+
+  .am-log {
+    margin-top: 1rem; padding-top: 0.85rem;
+    border-top: 1px dashed var(--color-border-dark);
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .am-log .tiny { font-size: 0.68rem; }
+
+  .tiny { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; }
+  .o { color: var(--color-stamp); }
+  .pill {
+    font-family: var(--font-mono); font-size: 0.58rem;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    background: var(--color-stamp-soft); color: var(--color-stamp-hover);
+    padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700;
+  }
+  .pill.orange { background: var(--color-stamp); color: #fff; }
+
+  /* Control features grid below */
+  .feature-grid-sm {
+    display: grid; gap: 1rem; margin-top: 2rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .feature-grid-sm { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .feature-grid-sm { margin-top: 1.5rem; }
+    .feature-card.compact { padding: 1.25rem 1.15rem; }
+  }
+  .feature-card {
+    padding: 2rem 1.75rem; background: var(--color-bg);
+    border: 1px solid var(--color-border); border-radius: 16px;
+    position: relative;
+  }
+  .feature-card.compact { padding: 1.5rem 1.4rem; }
+  .feature-key {
+    font-family: var(--font-mono); font-size: 0.64rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .feature-body {
+    margin: 0.65rem 0 0; font-size: 0.94rem; line-height: 1.55; color: var(--color-mute);
+  }
+</style>

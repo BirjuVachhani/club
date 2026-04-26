@@ -1,0 +1,237 @@
+---
+title: Package Operations
+description: Use the club_api client SDK to list versions, download archives, manage package options, and work with scores and likes.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ClubClient` exposes all package-read and package-management methods directly on the client instance. There are no sub-clients.
+
+## Listing Versions
+
+Retrieve all versions of a package, following the Pub Repository Spec v2 format:
+
+```dart
+final pkg = await client.listVersions('my_package');
+
+print('Package: ${pkg.name}');
+print('Latest stable: ${pkg.latest.version}');
+print('Total versions: ${pkg.versions.length}');
+
+for (final version in pkg.versions) {
+  print('  ${version.version}');
+}
+```
+
+Returns a `PackageData` object.
+
+## Getting a Specific Version
+
+```dart
+final version = await client.getVersion('my_package', '1.2.0');
+print('Version: ${version.version}');
+print('Archive URL: ${version.archiveUrl}');
+```
+
+Returns a `VersionInfo` object.
+
+## Downloading Archives
+
+Download the `.tar.gz` archive for a specific version as bytes:
+
+```dart
+import 'dart:io';
+
+final bytes = await client.downloadArchive('my_package', '1.2.0');
+final file = File('my_package-1.2.0.tar.gz');
+await file.writeAsBytes(bytes);
+print('Downloaded ${bytes.length} bytes to ${file.path}');
+```
+
+`downloadArchive` returns `List<int>` (the full archive bytes).
+
+## Package Options
+
+### Getting Options
+
+```dart
+final options = await client.getOptions('my_package');
+print('Discontinued: ${options.isDiscontinued}');
+print('Unlisted: ${options.isUnlisted}');
+```
+
+Returns `PkgOptions`.
+
+### Setting Options
+
+```dart
+// Discontinue a package
+await client.setOptions(
+  'my_package',
+  PkgOptions(isDiscontinued: true),
+);
+
+// Discontinue with a replacement pointer
+await client.setOptions(
+  'my_package',
+  PkgOptions(isDiscontinued: true, replacedBy: 'new_package'),
+);
+
+// Unlist a package (hide from search)
+await client.setOptions(
+  'my_package',
+  PkgOptions(isUnlisted: true),
+);
+
+// Reverse any option
+await client.setOptions(
+  'my_package',
+  PkgOptions(isDiscontinued: false, isUnlisted: false),
+);
+```
+
+## Version Options
+
+### Getting Version Options
+
+```dart
+final versionOpts = await client.getVersionOptions('my_package', '1.0.1');
+print('Retracted: ${versionOpts.isRetracted}');
+```
+
+### Setting Version Options (Retract / Un-retract)
+
+```dart
+// Retract a broken version
+await client.setVersionOptions(
+  'my_package',
+  '1.0.1',
+  VersionOptions(isRetracted: true),
+);
+
+// Un-retract a version
+await client.setVersionOptions(
+  'my_package',
+  '1.0.1',
+  VersionOptions(isRetracted: false),
+);
+```
+
+### Batch Retraction
+
+A common automation task — retract multiple versions at once:
+
+```dart
+Future<void> retractVersions(
+  ClubClient client,
+  String package,
+  List<String> versions,
+) async {
+  for (final version in versions) {
+    await client.setVersionOptions(
+      package, version, VersionOptions(isRetracted: true),
+    );
+    print('Retracted $package $version');
+  }
+}
+
+// Usage
+await retractVersions(client, 'my_package', ['1.0.1', '1.0.2', '1.0.3']);
+```
+
+## Like Count
+
+```dart
+final likes = await client.getLikeCount('my_package');
+print('$likes likes');
+```
+
+## Package Score
+
+```dart
+final score = await client.getScore('my_package');
+print('${score.grantedPoints}/${score.maxPoints} pub points');
+
+// Score for a specific version
+final v1Score = await client.getScore('my_package', version: '1.0.0');
+```
+
+Returns `VersionScore`, which includes pana status, granted/max points, and the pana/Dart/Flutter versions used.
+
+<Aside>
+Package scoring requires the server to be configured with a Dart SDK. See the [package scoring guide](/guides/package-scoring/) for setup instructions.
+</Aside>
+
+## Listing All Package Names
+
+Retrieve every package name on the server. Useful for autocomplete or batch operations:
+
+```dart
+final names = await client.listAllNames();
+print('${names.length} packages on server');
+for (final name in names) {
+  print('  $name');
+}
+```
+
+## Likes
+
+```dart
+// Like a package
+await client.like('my_package');
+
+// Unlike
+await client.unlike('my_package');
+
+// List packages the current user has liked
+final liked = await client.likedPackages();
+for (final name in liked) {
+  print(name);
+}
+```
+
+## Search
+
+```dart
+final results = await client.search(
+  'http',
+  page: 1,
+  sort: 'relevance',
+);
+// results is Map<String, dynamic> — inspect fields by key
+print(results);
+```
+
+Parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `String` | (required) | Full-text query |
+| `page` | `int` | `1` | 1-based page number |
+| `sort` | `String` | `'relevance'` | Sort mode (e.g., `relevance`, `updated`, `likes`) |
+
+## Example: Dashboard Script
+
+List all packages with their version counts and like counts:
+
+```dart
+import 'package:club_api/club_api.dart';
+
+Future<void> main() async {
+  final client = ClubClient(
+    serverUrl: Uri.parse('https://club.example.com'),
+    token: 'club_pat_...',
+  );
+
+  try {
+    final names = await client.listAllNames();
+    for (final name in names) {
+      final pkg = await client.listVersions(name);
+      final likes = await client.getLikeCount(name);
+      print('$name: ${pkg.versions.length} versions, $likes likes');
+    }
+  } finally {
+    client.close();
+  }
+}
+```

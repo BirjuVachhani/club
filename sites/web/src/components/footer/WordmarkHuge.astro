@@ -1,0 +1,142 @@
+---
+// Footer variant B — "Wordmark Huge"
+// Nav on top, then a massive CLUB wordmark as the closing visual,
+// then the copyright rail. Brand-forward — the kind of finish where
+// the name is the last thing you see.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Documentation", href: DOCS_URL },
+      { label: "GitHub", href: GITHUB_URL },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "Client SDK", href: docsUrl("/sdk/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+      { label: "License (Apache 2.0)", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <Mark height={34} />
+        <p class="tag">
+          A self-hosted, open-source package repository for Dart and
+          Flutter teams. Drop-in compatible with pub.dev.
+        </p>
+      </div>
+
+      <nav class="cols">
+        {cols.map((col) => (
+          <div>
+            <div class="col-k mono">{col.title}</div>
+            <ul>
+              {col.links.map((l) => (
+                <li><a href={l.href}>{l.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+
+    <!-- Oversized wordmark — scales to viewport -->
+    <div class="wordmark" aria-hidden="true">
+      <span class="wm">CLUB</span>
+      <span class="wm-dot">.</span>
+    </div>
+
+    <div class="rail">
+      <span class="mono">© {year} CLUB contributors · Apache License 2.0</span>
+      <span class="rail-r mono">
+        <span>No cookies. No telemetry.</span>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr { background: var(--color-ink-dark); color: #EDEDED; overflow: hidden; }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 4rem 2rem 0; }
+  @media (max-width: 768px) { .wrap { padding: 3rem 1.25rem 0; } }
+
+  .mono { font-family: var(--font-mono); }
+
+  .top {
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr);
+  }
+  @media (max-width: 900px) { .top { grid-template-columns: 1fr; gap: 2rem; } }
+
+  .brand { display: flex; flex-direction: column; gap: 1rem; }
+  .tag { margin: 0; max-width: 30ch; font-size: 0.95rem; line-height: 1.55; color: var(--color-mute-dark); }
+
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 600px) { .cols { grid-template-columns: repeat(2, 1fr); } }
+
+  .col-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; color: var(--color-mute-dark); }
+  .cols ul { list-style: none; padding: 0; margin: 0.85rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+
+  /* Oversized wordmark */
+  .wordmark {
+    margin: 4rem -2rem 0;
+    padding: 0 2rem;
+    line-height: 0.75;
+    user-select: none;
+    display: flex; align-items: baseline; justify-content: center;
+  }
+  .wm, .wm-dot {
+    font-family: var(--font-sans); font-weight: 700;
+    letter-spacing: -0.05em;
+    font-size: clamp(6rem, 32vw, 24rem);
+    color: #EDEDED;
+  }
+  .wm-dot { color: var(--color-stamp); margin-left: -0.04em; }
+
+  .rail {
+    padding: 1rem 0 1.75rem;
+    border-top: 1px solid var(--color-border-dark);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 1.5rem;
+    font-size: 0.72rem; letter-spacing: 0.1em;
+    color: var(--color-mute-dark);
+  }
+  .rail-r { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+  .rail-r a { color: var(--color-mute-dark); }
+  .rail-r a:hover { color: var(--color-stamp); }
+</style>

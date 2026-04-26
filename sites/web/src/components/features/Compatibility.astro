@@ -1,0 +1,120 @@
+---
+// Feature — Compatibility matrix
+// Design lifted verbatim from /dev/landing/c's "Compatibility" block.
+// Asymmetric heading + lede, then a 4-col matrix of dart pub / club
+// commands, all marked "Yes" with a short note.
+const rows: Array<[string, string, string, string]> = [
+  ["dart pub get", "Resolve & fetch deps", "Yes", "Point hosted: at your CLUB server"],
+  ["dart pub add", "Add a dependency", "Yes", "Supports --hosted-url"],
+  ["dart pub upgrade", "Bump to latest allowed", "Yes", "Respects constraint solving"],
+  ["dart pub publish", "Publish a package", "Yes", "OAuth or token auth"],
+  ["dart pub global activate", "Install a CLI package", "Yes", "Works from CLUB host"],
+  ["dart pub cache", "Inspect local cache", "Yes", "Client-side, unchanged"],
+  ["club login", "Log into a CLUB host", "Yes", "CLUB CLI · optional but nicer"],
+  ["club publish", "CLUB-native publish", "Yes", "Faster UX, richer output"],
+  ["club admin …", "Admin operations", "Yes", "Unlist, retract, transfer, roles"],
+];
+---
+
+<section id="f-compat" class="sec">
+  <div class="wrap">
+    <header class="section-head" data-reveal>
+      <div class="section-head-l">
+        <div class="eyebrow orange">§ Compatibility</div>
+        <h2 class="h2">
+          The commands you already type <span class="orange">still type the same</span>.
+        </h2>
+      </div>
+      <p class="lede narrow">
+        CLUB implements the same HTTP surface <a href="https://pub.dev">pub.dev</a> does. Your
+        clients don't need to know they're talking to a different host.
+      </p>
+    </header>
+
+    <div class="matrix" data-reveal-children data-reveal-step="40" data-reveal-base="120">
+      <div class="matrix-row head">
+        <span class="m-cell">Command</span>
+        <span class="m-cell">What it does</span>
+        <span class="m-cell">Works on CLUB?</span>
+        <span class="m-cell">Notes</span>
+      </div>
+      {rows.map(([cmd, desc, ok, note]) => (
+        <div class="matrix-row">
+          <span class="m-cell mono code">{cmd}</span>
+          <span class="m-cell">{desc}</span>
+          <span class="m-cell ok">✓ {ok}</span>
+          <span class="m-cell note">{note}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .wrap { max-width: 90rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-mute);
+  }
+  .eyebrow.orange { color: var(--color-stamp); }
+
+  .section-head {
+    display: grid; grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr);
+    gap: 2rem; align-items: end;
+    padding-bottom: 3rem; border-bottom: 1px solid var(--color-border);
+    margin-bottom: 3rem;
+  }
+  @media (max-width: 800px) { .section-head { grid-template-columns: 1fr; } }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.025em; line-height: 1.08; margin: 1rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+
+  .lede {
+    font-size: 1.05rem; line-height: 1.55; color: var(--color-mute);
+    margin: 0; max-width: 44rem;
+  }
+  .lede.narrow { max-width: 28rem; }
+
+  /* Compat matrix */
+  .matrix {
+    border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden;
+  }
+  .matrix-row {
+    display: grid; grid-template-columns: 14rem 1fr 9rem 1.2fr;
+    gap: 1.5rem; padding: 0.8rem 1.2rem; align-items: center;
+    border-bottom: 1px solid var(--color-border); font-size: 0.92rem;
+    transition: background 180ms, transform 200ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .matrix-row:not(.head):hover {
+    background: var(--color-stamp-soft);
+    transform: translateX(3px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .matrix-row:not(.head):hover { transform: none; }
+  }
+  @media (max-width: 1024px) {
+    .matrix-row { grid-template-columns: 1fr; gap: 0.25rem; padding: 1rem 1.1rem; }
+    .m-cell:first-child { font-size: 1rem; }
+    .matrix-row.head { display: none; }
+  }
+  .matrix-row:last-child { border-bottom: 0; }
+  .matrix-row.head {
+    background: var(--color-ink); color: #fff;
+    font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.16em;
+    text-transform: uppercase; font-weight: 600;
+  }
+  .m-cell.code { font-family: var(--font-mono); font-size: 0.88rem; color: var(--color-ink); }
+  .m-cell.ok { color: var(--color-stamp); font-weight: 600; }
+  .m-cell.note { color: var(--color-mute); font-size: 0.86rem; }
+</style>

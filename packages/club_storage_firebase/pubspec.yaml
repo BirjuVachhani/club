@@ -1,0 +1,24 @@
+name: club_storage_firebase
+description: Firebase Storage / Google Cloud Storage BlobStore implementation for club.
+version: 0.1.0
+homepage: https://club.birju.dev
+repository: https://github.com/BirjuVachhani/club
+issue_tracker: https://github.com/BirjuVachhani/club/issues
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  club_core:
+    path: ../club_core
+  crypto: ^3.0.7
+  googleapis: ^16.0.0
+  googleapis_auth: ^2.3.0
+  pointycastle: ^4.0.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.0

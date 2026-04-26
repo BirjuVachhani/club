@@ -1,0 +1,220 @@
+---
+// Scoring variant D — "Scores tab mock"
+// A realistic mock of what a package's Scores tab looks like on CLUB:
+// tabs row, pub-points summary, and per-check expansion under each
+// category. Looks like product, not marketing copy.
+const sections = [
+  {
+    key: "Follow Dart file conventions",
+    pts: "30 / 30",
+    full: true,
+    checks: [
+      { ok: true,  title: "Provide a valid pubspec.yaml",   sub: "10 / 10" },
+      { ok: true,  title: "Provide a valid README.md",      sub: "5 / 5" },
+      { ok: true,  title: "Provide a valid CHANGELOG.md",   sub: "5 / 5" },
+      { ok: true,  title: "Use an OSI-approved license",    sub: "10 / 10" },
+    ],
+  },
+  {
+    key: "Provide documentation",
+    pts: "20 / 20",
+    full: true,
+    checks: [
+      { ok: true, title: "20% of the public API has dartdoc", sub: "10 / 10" },
+      { ok: true, title: "Package has an example",             sub: "10 / 10" },
+    ],
+  },
+  {
+    key: "Platform support",
+    pts: "20 / 20",
+    full: true,
+    checks: [
+      { ok: true, title: "Supports 6 platforms", sub: "Android · iOS · Linux · macOS · Web · Windows" },
+    ],
+  },
+  {
+    key: "Pass static analysis",
+    pts: "40 / 50",
+    full: false,
+    checks: [
+      { ok: true,  title: "No errors reported by dart analyze",   sub: "30 / 30" },
+      { ok: false, title: "2 warnings in lib/src/theme.dart",     sub: "10 / 20" },
+    ],
+  },
+  {
+    key: "Support up-to-date dependencies",
+    pts: "30 / 40",
+    full: false,
+    checks: [
+      { ok: true,  title: "All constraints support latest stable", sub: "20 / 20" },
+      { ok: true,  title: "Dart SDK constraint is up-to-date",     sub: "10 / 10" },
+      { ok: false, title: "1 dep has a deprecated release",        sub: "0 / 10" },
+    ],
+  },
+];
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow orange">§ Quality</div>
+      <h2 class="h2">
+        Pub scoring, <span class="accent">rendered by the same engine</span>.
+      </h2>
+      <p class="lede">
+        CLUB runs pub.dev's <span class="ink">pana</span> scoring engine on every
+        publish and ships the result as a first-class tab on every package —
+        down to the individual check. Inside your walls, unchanged.
+      </p>
+    </div>
+
+    <!-- Package page mock -->
+    <div class="mock">
+      <!-- Header -->
+      <header class="mock-head">
+        <div class="crumbs mono">club.acme.com · packages · acme_ui</div>
+        <div class="pkg">
+          <h3 class="pkg-name">acme_ui <span class="pkg-v">2.4.1</span></h3>
+          <div class="pkg-meta mono">published 2 days ago</div>
+        </div>
+        <nav class="tabs">
+          <span class="tab">Readme</span>
+          <span class="tab">Changelog</span>
+          <span class="tab">Example</span>
+          <span class="tab active">Scores</span>
+          <span class="tab">API reference</span>
+          <span class="tab">Versions</span>
+        </nav>
+      </header>
+
+      <!-- Summary -->
+      <div class="summary">
+        <div class="summary-ring">
+          <svg viewBox="0 0 140 140" aria-hidden="true">
+            <circle cx="70" cy="70" r="56" fill="none" stroke="var(--color-paper-mute-2)" stroke-width="12"/>
+            <circle cx="70" cy="70" r="56" fill="none"
+              stroke="var(--color-stamp)" stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="308 352" transform="rotate(-90 70 70)"/>
+          </svg>
+          <div class="summary-center">
+            <strong>140</strong>
+            <em>/ 160</em>
+          </div>
+        </div>
+        <div class="summary-meta">
+          <div class="summary-k mono">Pub Points</div>
+          <div class="summary-h">Scored across 5 criteria.</div>
+          <div class="summary-foot mono">↻ recalculated on every publish</div>
+        </div>
+      </div>
+
+      <!-- Per-section checks -->
+      <div class="sections">
+        {sections.map((s) => (
+          <div class="sec-row">
+            <header class="sec-row-head">
+              <div class="sec-row-left">
+                <span class={`dot ${s.full ? "full" : "partial"}`}></span>
+                <strong>{s.key}</strong>
+              </div>
+              <span class={`sec-row-pts ${s.full ? "full" : ""}`}>{s.pts}</span>
+            </header>
+            <ul class="checks">
+              {s.checks.map((c) => (
+                <li class={c.ok ? "ok" : "warn"}>
+                  <span class="c-mark">{c.ok ? "✓" : "⚠"}</span>
+                  <span class="c-title">{c.title}</span>
+                  <span class="c-sub mono">{c.sub}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag">Also</span>
+      Users can <strong>like</strong> a package — a gentle social layer. Useful or ignorable, up to your team.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .intro { max-width: 56rem; margin: 0 0 2.5rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: var(--color-ink); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 44rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  /* Mock */
+  .mock {
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 18px; overflow: hidden;
+    box-shadow: 0 30px 60px -30px rgba(5,5,5,0.18);
+  }
+  .mock-head { padding: 1.25rem 1.5rem 0; border-bottom: 1px solid var(--color-border); }
+  .crumbs { font-size: 0.7rem; letter-spacing: 0.12em; color: var(--color-mute); text-transform: uppercase; }
+  .pkg { margin-top: 0.5rem; display: flex; align-items: baseline; gap: 0.85rem; }
+  .pkg-name { font-family: var(--font-sans); font-weight: 680; font-size: 1.75rem; letter-spacing: -0.02em; margin: 0; color: var(--color-ink); }
+  .pkg-v { font-family: var(--font-mono); font-size: 0.95rem; font-weight: 600; color: var(--color-stamp); margin-left: 0.25rem; }
+  .pkg-meta { font-size: 0.75rem; letter-spacing: 0.08em; color: var(--color-mute); }
+
+  .tabs { display: flex; gap: 0.5rem; margin-top: 1.25rem; overflow-x: auto; }
+  .tab { font-size: 0.88rem; padding: 0.65rem 0.2rem; color: var(--color-mute); white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: var(--color-ink); border-color: var(--color-stamp); font-weight: 640; }
+
+  .summary {
+    display: grid; grid-template-columns: auto 1fr; gap: 2rem; align-items: center;
+    padding: 2rem 1.5rem; background: var(--color-paper-mute);
+    border-bottom: 1px solid var(--color-border);
+  }
+  @media (max-width: 600px) { .summary { grid-template-columns: 1fr; text-align: center; } }
+  .summary-ring { position: relative; width: 10rem; height: 10rem; margin: 0 auto; }
+  .summary-ring svg { width: 100%; height: 100%; }
+  .summary-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .summary-center strong { font-family: var(--font-sans); font-weight: 700; font-size: 2.5rem; letter-spacing: -0.035em; color: var(--color-ink); line-height: 1; }
+  .summary-center em { font-style: normal; font-family: var(--font-mono); font-size: 0.8rem; color: var(--color-mute); margin-top: 0.2rem; }
+  .summary-k { font-size: 0.66rem; letter-spacing: 0.2em; color: var(--color-stamp); text-transform: uppercase; font-weight: 700; }
+  .summary-h { font-family: var(--font-sans); font-weight: 680; font-size: 1.25rem; color: var(--color-ink); margin-top: 0.2rem; letter-spacing: -0.015em; }
+  .summary-foot { margin-top: 0.5rem; font-size: 0.72rem; letter-spacing: 0.14em; color: var(--color-mute); text-transform: uppercase; }
+
+  /* Per-section */
+  .sections { padding: 0 1.5rem 0.5rem; }
+  .sec-row { border-bottom: 1px solid var(--color-border); padding: 1rem 0; }
+  .sec-row:last-child { border-bottom: 0; }
+  .sec-row-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.35rem 0; }
+  .sec-row-left { display: flex; align-items: center; gap: 0.6rem; }
+  .sec-row-left strong { font-family: var(--font-sans); font-weight: 640; color: var(--color-ink); font-size: 1rem; letter-spacing: -0.01em; }
+  .sec-row-pts { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700; color: var(--color-mute); }
+  .sec-row-pts.full { color: var(--color-stamp); }
+
+  .dot { width: 8px; height: 8px; border-radius: 999px; }
+  .dot.full { background: var(--color-stamp); }
+  .dot.partial { background: color-mix(in oklab, var(--color-stamp) 45%, #fff); border: 1px solid color-mix(in oklab, var(--color-stamp) 45%, transparent); }
+
+  .checks { list-style: none; padding: 0; margin: 0.35rem 0 0 1.3rem; display: flex; flex-direction: column; gap: 0.3rem; }
+  .checks li { display: grid; grid-template-columns: 1.25rem 1fr auto; gap: 0.6rem; align-items: baseline; font-size: 0.88rem; color: var(--color-ink); padding: 0.35rem 0; border-top: 1px dashed var(--color-border); }
+  .checks li:first-child { border-top: 0; }
+  .c-mark { font-weight: 700; }
+  .checks li.ok .c-mark  { color: var(--color-stamp); }
+  .checks li.warn .c-mark { color: #C68A00; }
+  .checks li.warn .c-title { color: var(--color-ink); }
+  .c-sub { font-size: 0.75rem; color: var(--color-mute); font-weight: 600; white-space: nowrap; }
+
+  .footnote {
+    margin-top: 1.5rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border); border-radius: 8px;
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+</style>

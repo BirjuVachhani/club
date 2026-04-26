@@ -1,0 +1,398 @@
+---
+title: Storage Backends
+description: Overview of the three storage layers, comparison of backends, and how to switch between SQLite/PostgreSQL, filesystem/S3/GCS, and SQLite FTS5/Meilisearch.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+club uses three independent storage layers, each behind an abstract interface. You can mix and match backends freely -- for example, SQLite for metadata with S3 for blob storage.
+
+## Three Storage Layers
+
+| Layer | Purpose | Default | Alternatives |
+|-------|---------|---------|--------------|
+| **Metadata Store** | Relational data (packages, versions, users, tokens, publishers, audit log) | SQLite | PostgreSQL |
+| **Blob Store** | Package tarballs, per-version screenshots, and optionally dartdoc indexed blobs | Filesystem | S3-compatible, GCS (native) |
+| **Search Index** | Full-text package search | SQLite FTS5 | Meilisearch |
+
+Each layer is configured independently via a single environment variable:
+
+```bash
+DB_BACKEND=sqlite          # or postgres
+BLOB_BACKEND=filesystem    # or s3 | gcs
+SEARCH_BACKEND=sqlite      # or meilisearch
+```
+
+On top of these three core layers there's one serve-strategy switch that controls **where rendered dartdoc HTML comes from** at request time:
+
+```bash
+DARTDOC_BACKEND=filesystem # or blob — orthogonal to BLOB_BACKEND
+```
+
+`DARTDOC_BACKEND=filesystem` serves HTML trees from a local directory (`DARTDOC_PATH`). `DARTDOC_BACKEND=blob` persists a per-package indexed blob via the **configured Blob Store** — same one used for tarballs — and serves via byte-range reads. See [Dartdoc Serving Specifications](/reference/dartdoc-serving/).
+
+See [Environment Variables](/configuration/env-vars/) for the full list of keys each backend accepts, and [Data Directory Layout](/reference/data-layout/) for the full `/data` tree showing where each layer writes on disk.
+
+---
+
+## Metadata Store: SQLite vs PostgreSQL
+
+<Tabs>
+  <TabItem label="SQLite (default)">
+    SQLite is the default metadata store. It requires zero external dependencies and stores everything in a single file.
+
+    **Pros:**
+    - Zero setup -- works out of the box
+    - Single-file database, easy to backup and restore
+    - WAL mode enables concurrent reads during writes
+    - Excellent performance for small to medium deployments (hundreds of packages)
+    - No external process to manage
+
+    **Cons:**
+    - Single-writer model (one write at a time, with WAL queuing)
+    - Not ideal for high-concurrency write workloads
+    - No built-in replication
+
+    **Configuration:**
+
+    ```bash
+    DB_BACKEND=sqlite
+    SQLITE_PATH=/data/db/club.db
+    ```
+
+    **SQLite pragmas** set on every connection:
+
+    ```sql
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA foreign_keys = ON;
+    PRAGMA busy_timeout = 5000;
+    ```
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    PostgreSQL is recommended for larger deployments or when you need concurrent write support, replication, or advanced query features.
+
+    **Pros:**
+    - True concurrent reads and writes
+    - Built-in replication and high availability
+    - Better for high-concurrency workloads
+    - Rich ecosystem of monitoring and management tools
+    - Supports large datasets efficiently
+
+    **Cons:**
+    - Requires running and managing a PostgreSQL server
+    - More complex backup procedures
+    - Higher resource usage
+
+    **Configuration:**
+
+    ```bash
+    DB_BACKEND=postgres
+    POSTGRES_URL=postgres://club:secret@db.example.com:5432/club
+    ```
+
+    <Aside type="caution">
+      The PostgreSQL backend is still maturing. SQLite is the recommended default today — switch only if you have a clear concurrency need and have verified your workload against the latest release.
+    </Aside>
+  </TabItem>
+</Tabs>
+
+### When to Choose PostgreSQL
+
+Consider switching from SQLite to PostgreSQL when:
+
+- You have more than 10 concurrent publishing users
+- You need database replication or failover
+- You are running multiple club server instances behind a load balancer
+- Your package catalog exceeds 1,000 packages with frequent updates
+
+<Aside type="tip">
+  Start with SQLite. It handles most private package repositories well. Migrate to PostgreSQL only when you have a specific need for it. The migration path is straightforward since both backends use the same schema.
+</Aside>
+
+---
+
+## Blob Store: Filesystem vs S3 vs GCS
+
+<Tabs>
+  <TabItem label="Filesystem (default)">
+    Stores package tarballs as files on the local filesystem.
+
+    **Pros:**
+    - Zero setup
+    - Fast local reads (no network latency)
+    - Easy to backup with standard tools (`tar`, `rsync`)
+    - Simple to inspect and debug
+
+    **Cons:**
+    - Tied to a single server's disk
+    - Disk space limited by the host
+    - No built-in redundancy
+    - Cannot be shared across multiple server instances
+
+    **Configuration:**
+
+    ```bash
+    BLOB_BACKEND=filesystem
+    BLOB_PATH=/data/blobs
+    ```
+
+    **File layout:**
+
+    ```
+    /data/blobs/
+    ├── my_package/
+    │   ├── 1.0.0/
+    │   │   ├── artifacts/
+    │   │   │   └── package.tar.gz
+    │   │   └── screenshots/
+    │   │       ├── 0
+    │   │       └── 1
+    │   └── 2.0.0/
+    │       └── artifacts/
+    │           └── package.tar.gz
+    ├── my_package/dartdoc/latest/     # only when DARTDOC_BACKEND=blob
+    │   ├── blob
+    │   └── index.json
+    └── other_package/
+        └── 0.1.0/
+            └── artifacts/
+                └── package.tar.gz
+    ```
+
+    Files are written atomically using a temp-file-then-rename pattern to prevent partial writes. Per-version screenshots and blob-mode dartdoc live under the same package directory so the whole blob tier can be backed up as one unit.
+  </TabItem>
+  <TabItem label="S3-compatible">
+    Stores package tarballs in an S3-compatible object store. Works with AWS S3, MinIO, DigitalOcean Spaces, and other compatible services.
+
+    **Pros:**
+    - Virtually unlimited storage
+    - Built-in redundancy and durability (99.999999999% for AWS S3)
+    - Shared across multiple server instances
+    - Pre-signed URLs for direct client downloads (reduces server bandwidth)
+
+    **Cons:**
+    - Requires an S3-compatible service
+    - Network latency on reads (mitigated by pre-signed URL redirects)
+    - More complex to set up and debug
+
+    **Configuration (AWS S3):**
+
+    ```bash
+    BLOB_BACKEND=s3
+    S3_BUCKET=club-packages
+    S3_REGION=us-east-1
+    S3_ACCESS_KEY=AKIA...
+    S3_SECRET_KEY=wJalrXUtnFEMI...
+    ```
+
+    **Configuration (MinIO / R2 / Spaces / B2 / GCS interop):**
+
+    ```bash
+    BLOB_BACKEND=s3
+    S3_ENDPOINT=http://minio:9000
+    S3_BUCKET=club-packages
+    S3_REGION=us-east-1
+    S3_ACCESS_KEY=minioadmin
+    S3_SECRET_KEY=minioadmin
+    ```
+
+    **Object layout:**
+
+    ```
+    s3://club-packages/
+    ├── my_package/1.0.0.tar.gz
+    ├── my_package/1.1.0.tar.gz
+    ├── my_package/2.0.0.tar.gz
+    └── other_package/0.1.0.tar.gz
+    ```
+
+    When a client downloads a package, the server issues a `302 redirect` to a pre-signed S3 URL. The client downloads directly from S3, reducing server bandwidth.
+
+    See [Docker with S3 storage](/self-hosting/docker-s3/) for provider-specific examples.
+  </TabItem>
+  <TabItem label="GCS (native)">
+    Uses the native Google Cloud Storage XML/JSON API with a service-account JSON or Application Default Credentials. Preferred on GCP-hosted deployments (GCE / GKE / Cloud Run).
+
+    **Pros:**
+    - Idiomatic GCP auth — no HMAC key management
+    - Works seamlessly with workload identity / metadata server (ADC)
+    - V4 signed URLs for direct client downloads when a private key is present
+
+    **Cons:**
+    - Requires Google Cloud — not portable
+    - Under ADC (no private key in process), the server must proxy bytes instead of redirecting
+
+    **Configuration:**
+
+    ```bash
+    BLOB_BACKEND=gcs
+    GCS_BUCKET=my-project.appspot.com
+    GCS_CREDENTIALS_FILE=/secrets/sa.json   # preferred
+    # GCS_CREDENTIALS_JSON='{"type":"service_account",...}'
+    # (unset both to use Application Default Credentials)
+    ```
+
+    Auth priority: `GCS_CREDENTIALS_FILE` > `GCS_CREDENTIALS_JSON` > ADC.
+
+    <Aside type="caution">
+      Under ADC there's no private key locally, so club can't sign download URLs and will fall back to proxying bytes. If redirect-based downloads matter, supply a service-account JSON.
+    </Aside>
+
+    If you prefer HMAC keys over a service-account JSON, use the `s3` backend with `S3_ENDPOINT=https://storage.googleapis.com` instead — see [Docker with S3 storage](/self-hosting/docker-s3/#firebase-storage--gcs-via-s3-interop).
+  </TabItem>
+</Tabs>
+
+### When to Choose S3
+
+Consider switching from filesystem to S3 when:
+
+- You need more storage than a single disk provides
+- You are running multiple club instances behind a load balancer
+- You want built-in redundancy without managing RAID or replication
+- You are already using AWS or a cloud provider with S3-compatible storage
+
+---
+
+## Search Index: SQLite FTS5 vs Meilisearch
+
+<Tabs>
+  <TabItem label="SQLite FTS5 (default)">
+    Uses SQLite's built-in FTS5 full-text search engine. Runs in the same process as the server with no external dependencies.
+
+    **Pros:**
+    - Zero setup -- built into SQLite
+    - Fast for small to medium catalogs
+    - No external service to manage
+    - Supports prefix matching and tag filters
+
+    **Cons:**
+    - Limited ranking/relevance tuning
+    - No typo tolerance
+    - Performance degrades with very large catalogs (10,000+ packages)
+
+    **Configuration:**
+
+    ```bash
+    SEARCH_BACKEND=sqlite
+    ```
+
+    The FTS5 index is maintained automatically via database triggers whenever packages are created, updated, or deleted.
+  </TabItem>
+  <TabItem label="Meilisearch">
+    Uses [Meilisearch](https://www.meilisearch.com/) as an external search engine. Provides advanced features like typo tolerance and better relevance ranking.
+
+    **Pros:**
+    - Typo-tolerant search
+    - Better relevance ranking
+    - Handles large catalogs efficiently
+    - Rich faceting and filtering
+
+    **Cons:**
+    - Requires running and managing a Meilisearch instance
+    - Additional infrastructure complexity
+    - Slight index latency (search results may lag a few seconds behind publishes)
+
+    **Configuration:**
+
+    ```bash
+    SEARCH_BACKEND=meilisearch
+    MEILISEARCH_URL=http://meilisearch:7700
+    MEILISEARCH_KEY=your-api-key
+    ```
+  </TabItem>
+</Tabs>
+
+### When to Choose Meilisearch
+
+Consider switching from SQLite FTS5 to Meilisearch when:
+
+- You have a large package catalog (1,000+ packages)
+- You want typo-tolerant search (e.g., "htttp" still finds "http")
+- You need advanced faceting or filtering beyond what FTS5 provides
+
+---
+
+## Switching Backends
+
+### Switching the Metadata Store
+
+To switch from SQLite to PostgreSQL:
+
+1. Set up a PostgreSQL database
+2. Update your configuration:
+   ```bash
+   DB_BACKEND=postgres
+   POSTGRES_URL=postgres://club:secret@db.example.com:5432/club
+   ```
+3. Restart the server -- migrations run automatically on startup and create the schema
+
+<Aside type="caution">
+  Switching the metadata backend starts with an empty database. There is no built-in migration tool to copy data between SQLite and PostgreSQL. If you need to migrate existing data, export from SQLite and import to PostgreSQL manually.
+</Aside>
+
+### Switching the Blob Store
+
+To switch from filesystem to S3:
+
+1. Set up an S3 bucket (or MinIO instance)
+2. Copy existing tarballs to the S3 bucket preserving the path structure:
+   ```bash
+   aws s3 sync /data/blobs/ s3://club-packages/
+   ```
+3. Update your configuration:
+   ```bash
+   BLOB_BACKEND=s3
+   S3_BUCKET=club-packages
+   S3_REGION=us-east-1
+   S3_ACCESS_KEY=...
+   S3_SECRET_KEY=...
+   ```
+4. Restart the server
+
+### Switching the Search Backend
+
+To switch from SQLite FTS5 to Meilisearch:
+
+1. Start a Meilisearch instance
+2. Update your configuration:
+   ```bash
+   SEARCH_BACKEND=meilisearch
+   MEILISEARCH_URL=http://meilisearch:7700
+   MEILISEARCH_KEY=your-api-key
+   ```
+3. Restart the server -- the search index is rebuilt automatically from the metadata store
+
+---
+
+## Recommended Configurations
+
+### Small Team (up to 50 packages)
+
+```bash
+DB_BACKEND=sqlite
+BLOB_BACKEND=filesystem
+SEARCH_BACKEND=sqlite
+```
+
+Zero external dependencies. Everything runs in a single container.
+
+### Medium Team (50-500 packages)
+
+```bash
+DB_BACKEND=sqlite
+BLOB_BACKEND=s3
+SEARCH_BACKEND=sqlite
+```
+
+Offload blob storage to S3 for durability and shared access, but keep SQLite for simplicity.
+
+### Large Organization (500+ packages)
+
+```bash
+DB_BACKEND=postgres
+BLOB_BACKEND=s3
+SEARCH_BACKEND=meilisearch
+```
+
+Full external stack for maximum scalability, concurrency, and search quality.

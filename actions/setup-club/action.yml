@@ -1,0 +1,171 @@
+# =============================================================================
+# setup-club - Install the club CLI and configure the Dart toolchain to use a
+# self-hosted club registry.
+#
+# After this action runs in a workflow:
+#   - `club` is on PATH for subsequent steps.
+#   - `dart pub get` / `dart pub publish` authenticate against the club server
+#     using the token supplied via the `token` input (resolved at use time
+#     from the CLUB_TOKEN env var, never written to disk).
+#   - `club publish` / `club whoami` work because the CLI also reads CLUB_TOKEN.
+#
+# The action does NOT install the Dart SDK. Run `dart-lang/setup-dart@v1`
+# (or equivalent) before this step.
+# =============================================================================
+name: 'Setup club'
+description: 'Install the club CLI and configure dart pub for a self-hosted club registry.'
+author: 'BirjuVachhani'
+
+inputs:
+  server:
+    description: 'club server URL (e.g. https://packages.example.com).'
+    required: true
+  token:
+    description: 'club personal access token (club_pat_...). Pass via secrets.'
+    required: true
+  version:
+    description: 'CLI release tag to install (e.g. 0.1.0). Empty installs the latest release.'
+    required: false
+    default: ''
+  set-default-registry:
+    description: 'When true, sets PUB_HOSTED_URL=<server> so club becomes the default pub registry for unscoped dependencies.'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    # Mask the token before any other step runs. GitHub already masks
+    # `${{ inputs.token }}` if it came from a secret, but ::add-mask::
+    # covers callers who pass a raw value, and being first ensures no
+    # later command's output (`set -x`, error dumps) can leak it.
+    - name: Mask token
+      shell: bash
+      env:
+        CLUB_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ -z "$CLUB_TOKEN" ]; then
+          echo "::error::Input 'token' is empty."
+          exit 1
+        fi
+        echo "::add-mask::$CLUB_TOKEN"
+
+    # The action shells out to `dart pub token add`, so a Dart SDK must be
+    # on PATH. Failing here with a clear message beats a cryptic "command
+    # not found" mid-step.
+    - name: Verify Dart SDK is available
+      shell: bash
+      run: |
+        if ! command -v dart >/dev/null 2>&1; then
+          echo "::error::Dart SDK not found. Add 'uses: dart-lang/setup-dart@v1' to your workflow before this action."
+          exit 1
+        fi
+        dart --version
+
+    # The version string flows into a GitHub download URL and onto the
+    # install-script command line. Both layers quote it, but rejecting
+    # obvious garbage (spaces, slashes, `..`) here means a typo fails with
+    # a clear error instead of a 404 from github.com.
+    - name: Validate version input
+      shell: bash
+      env:
+        CLUB_VERSION_INPUT: ${{ inputs.version }}
+      run: |
+        if [ -n "$CLUB_VERSION_INPUT" ]; then
+          if ! echo "$CLUB_VERSION_INPUT" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9._+-]+)?$'; then
+            echo "::error::Invalid version input '$CLUB_VERSION_INPUT' — expected a semver tag like 0.1.0 or v0.1.0."
+            exit 1
+          fi
+        fi
+
+    - name: Install club CLI (Linux / macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        CLUB_VERSION_INPUT: ${{ inputs.version }}
+        INSTALL_DIR: ${{ runner.temp }}/club-bin
+      run: |
+        mkdir -p "$INSTALL_DIR"
+        args=(--install-dir "$INSTALL_DIR")
+        if [ -n "$CLUB_VERSION_INPUT" ]; then
+          args+=(--version "$CLUB_VERSION_INPUT")
+        fi
+        # Download to a tempfile (rather than `curl | bash`) so a
+        # truncated or empty response from a misbehaving CDN/proxy
+        # surfaces as a real failure instead of a no-op zero-exit script.
+        script="$(mktemp)"
+        trap 'rm -f "$script"' EXIT
+        curl -fsSL https://club.birju.dev/install.sh -o "$script"
+        if [ ! -s "$script" ]; then
+          echo "::error::install.sh download produced an empty file."
+          exit 1
+        fi
+        bash "$script" "${args[@]}"
+        echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+
+    - name: Install club CLI (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        CLUB_VERSION_INPUT: ${{ inputs.version }}
+        INSTALL_DIR: ${{ runner.temp }}\club-bin
+      run: |
+        $ErrorActionPreference = 'Stop'
+        New-Item -ItemType Directory -Path $env:INSTALL_DIR -Force | Out-Null
+        $script = Join-Path $env:RUNNER_TEMP 'install-club.ps1'
+        Invoke-WebRequest -UseBasicParsing -Uri 'https://club.birju.dev/install.ps1' -OutFile $script
+        # Invoke-WebRequest throws on HTTP errors (because ErrorActionPreference
+        # is Stop), but a 200 with an empty body from a misbehaving
+        # proxy/CDN would write a zero-byte script and no-op silently.
+        # Mirror the Linux non-empty check.
+        if (-not (Test-Path $script) -or ((Get-Item $script).Length -eq 0)) {
+            Write-Host "::error::install.ps1 download produced an empty file."
+            exit 1
+        }
+        $params = @{ InstallDir = $env:INSTALL_DIR }
+        if ($env:CLUB_VERSION_INPUT) { $params.Version = $env:CLUB_VERSION_INPUT }
+        & $script @params
+        Add-Content -Path $env:GITHUB_PATH -Value $env:INSTALL_DIR
+
+    # Register the server with dart pub in env-var mode. The actual token
+    # value is never written to pub-tokens.json; dart pub looks it up from
+    # CLUB_TOKEN at request time.
+    #
+    # We invoke `dart pub token add` directly rather than `club setup`
+    # because the CLI's setup command currently swallows the inner exit
+    # code (writes stderr but returns 0). Calling the underlying tool
+    # gives us a real failure signal.
+    - name: Register token with dart pub
+      shell: bash
+      env:
+        SERVER: ${{ inputs.server }}
+      run: |
+        dart pub token add "$SERVER" --env-var CLUB_TOKEN
+
+    # Make CLUB_TOKEN visible to subsequent steps in the user's workflow.
+    # Without this, `dart pub get` would find the env-var mapping in
+    # pub-tokens.json but no value to fill it with at request time.
+    - name: Export environment for subsequent steps
+      shell: bash
+      env:
+        SERVER: ${{ inputs.server }}
+        CLUB_TOKEN: ${{ inputs.token }}
+        SET_DEFAULT: ${{ inputs.set-default-registry }}
+      run: |
+        echo "CLUB_TOKEN=$CLUB_TOKEN" >> "$GITHUB_ENV"
+        if [ "$SET_DEFAULT" = "true" ]; then
+          echo "PUB_HOSTED_URL=$SERVER" >> "$GITHUB_ENV"
+        fi
+
+    # Final sanity check: prove that `club` is on PATH and runnable. A
+    # broken GITHUB_PATH write or a mis-extracted archive would otherwise
+    # show up far downstream as `club: command not found` in the caller's
+    # next step.
+    - name: Verify installation
+      shell: bash
+      run: |
+        if ! command -v club >/dev/null 2>&1; then
+          echo "::error::club was installed but is not on PATH for subsequent steps."
+          exit 1
+        fi
+        club --version

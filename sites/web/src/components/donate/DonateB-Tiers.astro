@@ -1,0 +1,140 @@
+---
+// Donate — B · Tiered cards
+// Light band. Three sponsorship tiers with the middle one highlighted.
+// Tiers are suggestions, not gates — nothing in the product is paywalled.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+
+const tiers = [
+  {
+    tag: "Coffee",
+    amount: "$5",
+    cadence: "one-time",
+    blurb: "Keeps the test server online for a week. A quick thank-you from a happy user.",
+    cta: "Buy a coffee",
+    href: BMC_URL,
+    primary: false,
+  },
+  {
+    tag: "Supporter",
+    amount: "$10",
+    cadence: "per month",
+    blurb: "Recurring support for a regular contributor. The tier that moves the needle.",
+    cta: "Sponsor monthly",
+    href: SPONSORS_URL,
+    primary: true,
+  },
+  {
+    tag: "Team",
+    amount: "$50",
+    cadence: "per month",
+    blurb: "For teams running CLUB at work. Funds sustained maintenance, releases, and support.",
+    cta: "Sponsor as a team",
+    href: SPONSORS_URL,
+    primary: false,
+  },
+];
+---
+
+<section id="f-donate" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Support CLUB</div>
+      <h2 class="h2">Pick an amount that feels right.</h2>
+      <p class="lede">
+        CLUB is free and Apache 2.0. Sponsorship is how it stays that way —
+        maintained, documented, and shipped regularly by a person who cares.
+        Nothing is locked behind a tier. These are suggestions, not gates.
+      </p>
+    </header>
+
+    <div class="tiers">
+      {tiers.map((t) => (
+        <article class={`tier${t.primary ? " tier-primary" : ""}`}>
+          {t.primary && <span class="ribbon">Most common</span>}
+          <div class="tier-tag mono">{t.tag}</div>
+          <div class="tier-price">
+            <span class="amount">{t.amount}</span>
+            <span class="cadence">/ {t.cadence}</span>
+          </div>
+          <p class="tier-blurb">{t.blurb}</p>
+          <a
+            href={t.href}
+            class={`btn ${t.primary ? "btn-primary" : "btn-ghost"}`}
+            target="_blank"
+            rel="noopener"
+          >
+            {t.cta}
+            <span class="btn-arrow">→</span>
+          </a>
+        </article>
+      ))}
+    </div>
+
+    <p class="foot mono">
+      Sponsors appear on the project README with permission.
+      No perks, no unlocks, no ads — just thanks.
+    </p>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-paper-mute); color: var(--color-ink); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 50rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 42rem; }
+
+  .tiers {
+    margin-top: 3.5rem;
+    display: grid; gap: 1.25rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  @media (max-width: 900px) { .tiers { grid-template-columns: 1fr; } }
+
+  .tier {
+    position: relative;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    padding: 2rem 1.75rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    transition: border-color 150ms, transform 150ms, box-shadow 150ms;
+  }
+  .tier:hover { border-color: var(--color-stamp); transform: translateY(-2px); }
+
+  .tier-primary {
+    border-color: var(--color-stamp);
+    background: linear-gradient(180deg, var(--color-stamp-soft) 0%, var(--color-bg) 40%);
+    box-shadow: 0 24px 48px -30px color-mix(in oklab, var(--color-stamp) 60%, transparent);
+  }
+  .ribbon {
+    position: absolute; top: -0.7rem; right: 1.25rem;
+    background: var(--color-stamp); color: #fff;
+    font-family: var(--font-mono); font-size: 0.62rem;
+    letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;
+    padding: 0.3rem 0.55rem; border-radius: 3px;
+  }
+  .tier-tag {
+    font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-stamp); font-weight: 600;
+  }
+  .tier-price { display: flex; align-items: baseline; gap: 0.5rem; margin-top: -0.25rem; }
+  .amount {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.5rem, 3.5vw + 0.5rem, 3.5rem);
+    letter-spacing: -0.04em; line-height: 1; color: var(--color-ink);
+  }
+  .cadence { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-mute); }
+  .tier-blurb { margin: 0; font-size: 0.94rem; line-height: 1.55; color: var(--color-mute); flex: 1; }
+  .orange { color: var(--color-stamp); }
+
+  .foot {
+    margin-top: 2rem; font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--color-mute);
+  }
+</style>

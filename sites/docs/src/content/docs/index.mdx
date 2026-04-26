@@ -1,0 +1,104 @@
+---
+title: Overview
+description: Your private pub.dev — a self-hosted Dart package repository, fully compatible with dart pub.
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**Your private pub.dev.** CLUB is a self-hosted package repository for Dart and Flutter teams. It speaks the same protocol as [pub.dev](https://pub.dev), so every `dart pub get`, `dart pub publish`, and `dart pub add` works exactly the way your team already knows — only the packages stay inside your infrastructure.
+
+<CardGrid>
+  <LinkCard
+    title="Beginner's Guide →"
+    description="Install, publish, consume, and automate with GitHub Actions — end to end."
+    href="/getting-started/tutorial/"
+  />
+  <LinkCard
+    title="Quick Start"
+    description="Get a working server with Docker in under 5 minutes."
+    href="/getting-started/quick-start/"
+  />
+</CardGrid>
+
+## Why CLUB
+
+<CardGrid>
+  <Card title="Works with dart pub out of the box" icon="approve-check">
+    Drop-in replacement for pub.dev. No client-side patches, no custom CLI — your team uses `dart pub` and `flutter pub` exactly as before.
+  </Card>
+  <Card title="Private by default" icon="seti:lock">
+    Every package stays behind authentication. Email/password for humans, scoped tokens for CI.
+  </Card>
+  <Card title="One container, no dependencies" icon="seti:docker">
+    A single Docker image. No extra database server, no message queue, no Node.js at runtime. Runs anywhere Docker runs.
+  </Card>
+  <Card title="Scales with you" icon="seti:db">
+    Start on SQLite and the local filesystem. Move to PostgreSQL, S3, or Google Cloud Storage when you need to — change a few environment variables, not your workflow.
+  </Card>
+  <Card title="Familiar web UI" icon="laptop">
+    A pub.dev-style web dashboard for browsing packages, reading docs, and managing publishers, users, and tokens.
+  </Card>
+  <Card title="Built for teams" icon="rocket">
+    Publishers (organizations), per-package uploaders, roles, invite links, activity logs, and a CLI that fits cleanly into your CI pipeline.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<CardGrid>
+  <LinkCard
+    title="Beginner's Guide"
+    description="End-to-end walkthrough: install, publish, consume, and automate with GitHub Actions."
+    href="/getting-started/tutorial/"
+  />
+  <LinkCard
+    title="Quick Start"
+    description="Get a working server with Docker in under 5 minutes."
+    href="/getting-started/quick-start/"
+  />
+  <LinkCard
+    title="Introduction"
+    description="What CLUB does for you, how it compares to pub.dev, and what to expect."
+    href="/getting-started/introduction/"
+  />
+  <LinkCard
+    title="Installation"
+    description="Install options — Docker and from source."
+    href="/getting-started/installation/"
+  />
+</CardGrid>
+
+## Explore
+
+<CardGrid>
+  <LinkCard
+    title="Self-hosting"
+    description="Docker, PostgreSQL, S3, TLS, reverse proxies."
+    href="/self-hosting/docker/"
+  />
+  <LinkCard
+    title="Publishing"
+    description="Publish your first package and manage versions."
+    href="/guides/publishing/"
+  />
+  <LinkCard
+    title="CI/CD"
+    description="Automate publishing and dependency resolution."
+    href="/guides/ci-cd/"
+  />
+  <LinkCard
+    title="CLI reference"
+    description="Every `club` command and flag."
+    href="/cli/overview/"
+  />
+  <LinkCard
+    title="Client SDK"
+    description="Use the `club_api` Dart package programmatically."
+    href="/sdk/overview/"
+  />
+  <LinkCard
+    title="API reference"
+    description="The full HTTP API, including Pub Spec v2 endpoints."
+    href="/api/overview/"
+  />
+</CardGrid>

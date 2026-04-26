@@ -1,0 +1,26 @@
+name: club_indexed_blob
+description: |-
+  Indexed-blob format for storing many small files as a single blob + JSON
+  index. Vendored from dart-lang/pub-dev's `pkg/indexed_blob` (BSD-3) so
+  club's server can persist dartdoc HTML trees into its BlobStore using a
+  single PUT/GET per file-group plus byte-range reads for individual files.
+version: 0.1.0
+homepage: https://club.birju.dev
+repository: https://github.com/BirjuVachhani/club
+issue_tracker: https://github.com/BirjuVachhani/club/issues
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  async: ^2.8.0
+  jsontool: ^2.0.0
+  meta: ^1.7.0
+  path: ^1.8.0
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.0

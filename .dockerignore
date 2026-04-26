@@ -1,0 +1,84 @@
+# =============================================================================
+# .dockerignore — keep the build context lean.
+#
+# Without this file, every `docker build` uploads ~500 MB of repo cruft
+# (research/, sites/, node_modules/, .git, dummy data) to the daemon.
+# Even though the Dockerfile uses explicit COPY paths, the entire context
+# must be transferred first — this file slashes that to ~60 MB.
+#
+# Rule of thumb: deny everything that isn't directly consumed by a COPY
+# instruction in docker/Dockerfile.
+# =============================================================================
+
+# ── VCS metadata ─────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+.github
+
+# ── IDE / editor ─────────────────────────────────────────────────────────
+.idea
+.vscode
+*.iml
+*.swp
+*.swo
+
+# ── OS junk ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Local secrets / env ──────────────────────────────────────────────────
+.env
+.env.*
+!docker/.env.example
+
+# ── Build artifacts (regenerated inside the image) ──────────────────────
+**/build
+**/.dart_tool
+**/dist
+**/.svelte-kit
+
+# ── Dependencies (rebuilt inside the image) ─────────────────────────────
+**/node_modules
+
+# ── Tests (not needed at runtime, never used by build) ──────────────────
+**/test
+**/tests
+**/test_packages
+
+# ── Out-of-scope project directories ────────────────────────────────────
+# Reference material, design assets, dev databases — none of which are
+# consumed by the multi-stage build.
+research
+inspo
+dummy_data
+sites
+docs
+test_packages
+docker-dev
+
+# ── Legacy / scratch files ──────────────────────────────────────────────
+*.log
+*.tar.gz
+nohup.out
+
+# ── Package manager / Dart-specific noise ───────────────────────────────
+**/pubspec.lock.bak
+**/.packages
+
+# ── Plugin / harness state ──────────────────────────────────────────────
+.claude
+.claude-plugin
+.cursor
+CLAUDE.md
+AGENTS.md
+
+# ── Top-level docs and license (already shipped via the GitHub Release) ─
+README.md
+DESIGN.md
+LICENSE
+
+# ── Make / scripts only used at dev time ────────────────────────────────
+Makefile
+scripts
+docker-compose.dev.yml

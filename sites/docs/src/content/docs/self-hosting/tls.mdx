@@ -1,0 +1,287 @@
+---
+title: TLS / HTTPS
+description: Why HTTPS is required for club and how to set it up with Caddy, nginx + Let's Encrypt, or self-signed certificates.
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+## Why HTTPS Is Required
+
+The Dart SDK (`dart pub`) will not send authentication tokens over unencrypted HTTP connections to non-localhost URLs. This is a security feature built into the Dart tooling, not a club limitation.
+
+If you try to use club over plain HTTP with a non-localhost URL:
+
+- `dart pub token add http://packages.example.com` will refuse to store the token
+- `dart pub get` will not send the `Authorization` header
+- `dart pub publish` will fail with a 401 error
+
+<Aside>
+  The only exception is `localhost` and `127.0.0.1`. The Dart SDK allows HTTP for local development. For any other hostname, you must use HTTPS.
+</Aside>
+
+The recommended approach is to run club behind a reverse proxy that handles TLS termination. The club server itself listens on plain HTTP (port `LISTEN_PORT`, default `8080`) and the reverse proxy sits in front, providing HTTPS to clients.
+
+<Aside type="caution">
+  Two environment variables must be set correctly when you terminate TLS at a reverse proxy:
+
+  - **`SERVER_URL`** must be the public `https://` URL that clients actually see — not the internal HTTP address. This value is used in API responses (`archive_url`), upload redirects, and the implicit CORS origin.
+  - **`TRUST_PROXY=true`** tells club to honour `X-Forwarded-Proto` (for the session cookie `Secure` attribute) and `X-Forwarded-For` (for real client IPs in the audit log). Without it, sessions over HTTPS won't get secure cookies and your audit logs record the proxy's loopback IP.
+
+  See [Reverse Proxy → Trusting your proxy](/self-hosting/reverse-proxy/#trusting-your-proxy) for the full reasoning.
+</Aside>
+
+## Option A: Caddy (Recommended)
+
+[Caddy](https://caddyserver.com/) is the easiest option. It automatically provisions and renews Let's Encrypt TLS certificates with zero configuration.
+
+### Prerequisites
+
+- A domain name (e.g., `packages.example.com`) pointing to your server's IP
+- Ports 80 and 443 open in your firewall
+
+### Installation
+
+<Tabs>
+  <TabItem label="Debian/Ubuntu">
+    ```bash
+    sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+    sudo apt update
+    sudo apt install caddy
+    ```
+  </TabItem>
+  <TabItem label="Docker sidecar">
+    See the [reverse proxy guide](/self-hosting/reverse-proxy/) for a complete Docker Compose setup with Caddy as a sidecar container.
+  </TabItem>
+</Tabs>
+
+### Configuration
+
+Create or edit `/etc/caddy/Caddyfile`:
+
+```caddyfile
+packages.example.com {
+    reverse_proxy localhost:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+    request_body {
+        max_size 100MB
+    }
+}
+```
+
+That is the entire configuration. Caddy will:
+
+1. Listen on ports 80 and 443
+2. Obtain a Let's Encrypt certificate for `packages.example.com`
+3. Redirect HTTP to HTTPS
+4. Proxy all traffic to club on port 8080
+5. Automatically renew the certificate before it expires
+
+### Start Caddy
+
+```bash
+sudo systemctl enable caddy
+sudo systemctl restart caddy
+```
+
+### Verify
+
+```bash
+curl -I https://packages.example.com/api/v1/health
+```
+
+You should see a valid HTTPS response with a Let's Encrypt certificate.
+
+## Option B: nginx + Let's Encrypt
+
+Use this approach if you already have nginx deployed or prefer more control over TLS configuration.
+
+<Steps>
+
+1. **Install nginx and Certbot**
+
+   ```bash
+   sudo apt install nginx certbot python3-certbot-nginx
+   ```
+
+2. **Create the nginx configuration**
+
+   Create `/etc/nginx/sites-available/club`:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name packages.example.com;
+
+       location / {
+           return 301 https://$host$request_uri;
+       }
+   }
+
+   server {
+       listen 443 ssl http2;
+       server_name packages.example.com;
+
+       ssl_certificate /etc/letsencrypt/live/packages.example.com/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/packages.example.com/privkey.pem;
+       ssl_protocols TLSv1.2 TLSv1.3;
+       ssl_ciphers HIGH:!aNULL:!MD5;
+
+       client_max_body_size 100m;
+
+       location / {
+           proxy_pass http://127.0.0.1:8080;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header Connection "";
+           proxy_read_timeout 120s;
+       }
+   }
+   ```
+
+3. **Enable the site**
+
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/club /etc/nginx/sites-enabled/
+   sudo rm -f /etc/nginx/sites-enabled/default
+   ```
+
+4. **Obtain a certificate**
+
+   ```bash
+   sudo certbot --nginx -d packages.example.com
+   ```
+
+   Certbot will update the nginx configuration with the certificate paths and set up automatic renewal.
+
+5. **Test and reload**
+
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+6. **Verify auto-renewal**
+
+   ```bash
+   sudo certbot renew --dry-run
+   ```
+
+</Steps>
+
+### Certificate renewal
+
+Certbot installs a systemd timer that checks for renewal twice daily. Verify it is active:
+
+```bash
+sudo systemctl status certbot.timer
+```
+
+## Option C: Self-Signed Certificates (Testing Only)
+
+For local testing or internal networks where Let's Encrypt is not an option, you can use self-signed certificates.
+
+<Aside type="danger">
+  Self-signed certificates are not suitable for production. The Dart SDK will reject them by default. You will need to configure each client machine to trust the certificate, which is error-prone and insecure.
+</Aside>
+
+### Generate a self-signed certificate
+
+```bash
+sudo mkdir -p /etc/ssl/club
+
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/club/key.pem \
+  -out /etc/ssl/club/cert.pem \
+  -subj "/CN=packages.example.com"
+```
+
+### Use with Caddy
+
+```caddyfile
+packages.example.com {
+    tls /etc/ssl/club/cert.pem /etc/ssl/club/key.pem
+    reverse_proxy localhost:8080 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+    request_body {
+        max_size 100MB
+    }
+}
+```
+
+### Use with nginx
+
+Replace the `ssl_certificate` and `ssl_certificate_key` paths in the nginx configuration with your self-signed certificate paths:
+
+```nginx
+ssl_certificate /etc/ssl/club/cert.pem;
+ssl_certificate_key /etc/ssl/club/key.pem;
+```
+
+### Trusting the certificate on client machines
+
+For `dart pub` to accept a self-signed certificate, you need to add it to the system's trust store on each client machine:
+
+<Tabs>
+  <TabItem label="macOS">
+    ```bash
+    sudo security add-trusted-cert -d -r trustRoot \
+      -k /Library/Keychains/System.keychain cert.pem
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    sudo cp cert.pem /usr/local/share/ca-certificates/club.crt
+    sudo update-ca-certificates
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    Import-Certificate -FilePath cert.pem -CertStoreLocation Cert:\LocalMachine\Root
+    ```
+  </TabItem>
+</Tabs>
+
+After adding the certificate, restart any running Dart processes.
+
+## DNS Configuration
+
+Before any of these TLS options will work, your domain must resolve to your server's IP address:
+
+```
+packages.example.com  A     <your-server-ip>
+packages.example.com  AAAA  <your-server-ipv6>   (optional)
+```
+
+Verify DNS resolution:
+
+```bash
+nslookup packages.example.com
+```
+
+DNS propagation typically takes 5 to 60 minutes after you create or update the record.
+
+## Verifying TLS
+
+After setting up HTTPS, verify the full chain:
+
+```bash
+# Check the certificate
+openssl s_client -connect packages.example.com:443 -brief
+
+# Check the health endpoint over HTTPS
+curl -v https://packages.example.com/api/v1/health
+
+# Verify dart pub can communicate
+dart pub token add https://packages.example.com
+```
+
+All three should succeed without TLS errors.

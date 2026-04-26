@@ -1,0 +1,176 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+---
+
+<!--
+  HeroG — "Code-hero"
+  The hero *is* code. A centered, beautifully-set pubspec.yaml where
+  the hosted_url line is the focal point — highlighted with an orange
+  marker and a hand-drawn pointer. Typography does the talking.
+-->
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <!-- faint scan lines -->
+  <div
+    class="pointer-events-none absolute inset-0 opacity-[0.45]"
+    style="
+      background-image: repeating-linear-gradient(0deg, var(--color-paper-mute) 0 1px, transparent 1px 6px);
+      mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 0%, transparent 75%);
+    "
+  />
+
+  <div class="relative mx-auto w-full max-w-[72rem] px-6 pb-24 pt-36 md:px-10 md:pb-28 md:pt-40">
+    <!-- eyebrow -->
+    <div class="flex flex-col items-center text-center">
+      <span class="chip">
+        <span class="chip-dot"></span>
+        One line to switch hosts
+      </span>
+
+      <!-- headline (small — the code is the hero) -->
+      <h1
+        class="mt-7 max-w-[20ch]"
+        style="
+          font-family: var(--font-sans);
+          font-weight: 680;
+          letter-spacing: -0.025em;
+          line-height: 1.05;
+          font-size: clamp(1.75rem, 3vw + 0.5rem, 2.6rem);
+          color: var(--color-ink);
+        "
+      >
+        Change <em style="color: var(--color-stamp); font-style: italic;">where</em> your packages live.
+        Not how you publish them.
+      </h1>
+    </div>
+
+    <!-- CODE CARD -->
+    <div class="relative mt-12">
+      <!-- subtle halo -->
+      <div
+        class="pointer-events-none absolute -inset-6 rounded-[2rem] opacity-80 blur-3xl"
+        style="background: radial-gradient(ellipse at 50% 40%, var(--color-stamp-soft) 0%, transparent 70%);"
+      />
+
+      <!-- floating file tab -->
+      <div
+        class="relative z-10 mx-auto flex w-fit items-center gap-2 rounded-t-lg border border-b-0 px-4 py-1.5 font-mono text-[0.7rem] tracking-[0.12em] uppercase"
+        style="
+          background: var(--color-bg);
+          border-color: var(--color-border);
+          color: var(--color-mute);
+        "
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M4 0h6l4 4v10a2 2 0 01-2 2H4a2 2 0 01-2-2V2a2 2 0 012-2zm6 1.5v3h3L10 1.5z"/>
+        </svg>
+        pubspec.yaml
+      </div>
+
+      <pre
+        class="relative overflow-x-auto rounded-xl border"
+        style="
+          background: var(--color-ink-dark);
+          color: #EDEDED;
+          border-color: var(--color-border-dark);
+          font-family: var(--font-mono);
+          font-size: 0.95rem;
+          line-height: 1.75;
+          padding: 1.5rem 1.75rem;
+          box-shadow: 0 30px 80px -30px rgba(5,5,5,0.4);
+        "
+      ><code><span style="color: #9A9AA1;">name</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">acme_app</span>
+<span style="color: #9A9AA1;">version</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">2.4.0</span>
+
+<span style="color: #9A9AA1;">environment</span><span style="color: #EDEDED;">:</span>
+  <span style="color: #9A9AA1;">sdk</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">'>=3.0.0 &lt;4.0.0'</span>
+
+<span style="color: #9A9AA1;">dependencies</span><span style="color: #EDEDED;">:</span>
+  <span style="color: #9A9AA1;">flutter</span><span style="color: #EDEDED;">:</span>
+    <span style="color: #9A9AA1;">sdk</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">flutter</span>
+<span class="code-hl">  <span style="color: #9A9AA1;">acme_ui</span><span style="color: #EDEDED;">:</span>
+    <span style="color: #9A9AA1;">hosted</span><span style="color: #EDEDED;">:</span> <span style="color: var(--color-stamp); font-weight: 600;">https://club.acme.com</span>
+    <span style="color: #9A9AA1;">version</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">^2.4.0</span></span>
+  <span style="color: #9A9AA1;">billing_client</span><span style="color: #EDEDED;">:</span>
+    <span style="color: #9A9AA1;">hosted</span><span style="color: #EDEDED;">:</span> <span style="color: var(--color-stamp); font-weight: 600;">https://club.acme.com</span>
+    <span style="color: #9A9AA1;">version</span><span style="color: #EDEDED;">:</span> <span style="color: #EDEDED;">^0.9.0</span></code></pre>
+
+      <!-- annotation arrow + caption -->
+      <div
+        class="pointer-events-none absolute -right-2 top-[44%] hidden md:block"
+        style="color: var(--color-stamp);"
+      >
+        <svg width="180" height="80" viewBox="0 0 180 80" fill="none" aria-hidden="true">
+          <path
+            d="M 10 50 C 30 30, 70 20, 120 22"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+          />
+          <path
+            d="M 10 42 L 2 50 L 12 56"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+          />
+          <text
+            x="120" y="18"
+            font-family="var(--font-mono)"
+            font-size="11"
+            fill="currentColor"
+            style="letter-spacing: 0.12em; text-transform: uppercase;"
+          >Your CLUB host</text>
+          <text
+            x="120" y="34"
+            font-family="var(--font-mono)"
+            font-size="11"
+            fill="currentColor"
+            style="letter-spacing: 0.12em; text-transform: uppercase;"
+          >— that's the change</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- supporting copy + CTAs -->
+    <div class="mt-12 flex flex-col items-center text-center">
+      <p class="prose-body max-w-xl">
+        CLUB implements the Pub Spec v2 protocol. Point
+        <span class="font-mono" style="background: var(--color-stamp-soft); color: var(--color-stamp-hover); padding: 0 0.35em; border-radius: 4px;">hosted</span>
+        at your own server and the commands your team already runs — <span class="font-mono" style="color: var(--color-ink);">pub get</span>,
+        <span class="font-mono" style="color: var(--color-ink);">pub publish</span>,
+        <span class="font-mono" style="color: var(--color-ink);">pub upgrade</span> —
+        work unchanged.
+      </p>
+
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+          Get started
+          <span class="btn-arrow">→</span>
+        </a>
+        <a href={GITHUB_URL} class="btn btn-ghost">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .code-hl {
+    display: inline-block;
+    width: calc(100% + 3.5rem);
+    margin-left: -1.75rem;
+    padding-left: 1.55rem;
+    padding-right: 1.75rem;
+    background: color-mix(in oklab, var(--color-stamp) 14%, transparent);
+    border-left: 3px solid var(--color-stamp);
+  }
+</style>

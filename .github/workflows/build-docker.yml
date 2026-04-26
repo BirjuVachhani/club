@@ -1,0 +1,137 @@
+# =============================================================================
+# Build and push multi-arch Docker images for club.
+#
+# Produces linux/amd64 and linux/arm64 images using Docker Buildx.
+# Docker automatically pulls the correct variant for the host architecture.
+#
+# Triggers
+# ────────
+#   - release: [published]   — fires when a release is published (via the
+#     GitHub UI, gh CLI, or API). GitHub populates
+#     `github.event.release.tag_name` and `.prerelease`.
+#   - workflow_dispatch      — manual retrigger. The `tag` input names the
+#     release to build for. Use this when the release-triggered run
+#     failed partway and you need a rebuild.
+#
+# Both triggers build from the default branch (latest main). We do NOT
+# check out the tagged commit. Tags only name the release the build
+# belongs to; the source of truth is main.
+#
+# Images publish to GitHub Container Registry (ghcr.io). Docker registry
+# rules require the repository portion of the image reference to be
+# lowercase, even if the GitHub org/repo casing isn't, so we lowercase it
+# explicitly below.
+#
+# Tags applied:
+#   ghcr.io/<repo>:<version>              always
+#   ghcr.io/<repo>:latest                 only for non-prerelease releases
+#
+# Security notes
+# ──────────────
+# Untrusted inputs (workflow_dispatch input, release tag that may have
+# been created by a collaborator) are read into `env:` at the step level
+# and only ever referenced from shell as "$VAR". This avoids the
+# `${{ }}`-into-shell injection vector documented at
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+# =============================================================================
+name: Build Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to build for (e.g. v0.1.0).'
+        required: true
+        type: string
+  release:
+    types: [published]
+
+concurrency:
+  group: build-docker-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build & push multi-arch image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image reference
+        id: img
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Pick the tag from whichever trigger fired.
+          if [ -n "$RELEASE_TAG" ]; then
+            raw="$RELEASE_TAG"
+          elif [ -n "$INPUT_TAG" ]; then
+            raw="$INPUT_TAG"
+          else
+            echo "Neither a release event nor a dispatch tag input was provided." >&2
+            exit 1
+          fi
+
+          # Accept either `1.2.3` or `v1.2.3` — Dart/pub.dev convention
+          # leans toward the bare form. Strip `v` if present.
+          if ! echo "$raw" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9._+-]+)?$'; then
+            echo "Refusing to use unsafe tag: $raw" >&2
+            exit 1
+          fi
+          version="${raw#v}"
+
+          # Docker image repository names must be lowercase.
+          image="$(echo "$REPO" | tr '[:upper:]' '[:lower:]')"
+
+          # :latest only for full releases. On manual dispatch we don't
+          # know the prerelease flag, so default to pushing :latest and
+          # trust the operator who dispatched.
+          if [ "$RELEASE_PRERELEASE" = "true" ]; then
+            push_latest="false"
+          else
+            push_latest="true"
+          fi
+
+          echo "image=$image"               >> "$GITHUB_OUTPUT"
+          echo "version=$version"           >> "$GITHUB_OUTPUT"
+          echo "push_latest=$push_latest"   >> "$GITHUB_OUTPUT"
+          echo "Resolved: $image:$version (push_latest=$push_latest)"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.img.outputs.image }}:${{ steps.img.outputs.version }}
+            ${{ steps.img.outputs.push_latest == 'true' && format('{0}/{1}:latest', env.REGISTRY, steps.img.outputs.image) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

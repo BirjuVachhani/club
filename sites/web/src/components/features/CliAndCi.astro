@@ -1,0 +1,119 @@
+---
+// Feature — CLI & CI
+// Design lifted verbatim from /dev/landing/f's "FLAGSHIP 3 — CLI" block:
+//   - left: copy + 2×2 mini facts
+//   - right: terminal mock (club login / club publish)
+---
+
+<section id="f-cli" class="sec">
+  <div class="wrap">
+    <div class="flag-grid">
+      <div class="flag-copy" data-reveal="left">
+        <span class="eyebrow orange">CLI &amp; CI</span>
+        <h2 class="h2">Publish from the terminal. Ship from CI.</h2>
+        <p class="lede">
+          A first-class <span class="ink">club</span> CLI, and a GitHub Action
+          that speaks the same protocol. <span class="ink">dart pub</span>
+          still works the way it always did.
+        </p>
+        <div class="mini-grid" data-reveal-children data-reveal-step="70" data-reveal-base="200">
+          <div class="mini"><strong>club CLI</strong><span>login, publish, admin</span></div>
+          <div class="mini"><strong>dart pub</strong><span>unchanged, works alongside</span></div>
+          <div class="mini"><strong>GitHub Action</strong><span>first-party, out of the box</span></div>
+          <div class="mini"><strong>Named tokens</strong><span>one per CI pipeline</span></div>
+        </div>
+      </div>
+      <div class="flag-visual" data-reveal="right">
+        <div class="terminal">
+          <div class="term-head">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="term-title">acme-ui · zsh</span>
+          </div>
+          <pre><code><span class="p">$</span> club login <span class="o">--host=club.acme.com</span>
+<span class="dim">✓ logged in as mira@acme</span>
+
+<span class="p">$</span> club publish
+<span class="dim">Validating package...</span>
+<span class="dim">  ✓ pubspec.yaml · CHANGELOG.md · README.md</span>
+<span class="dim">  ✓ dartdoc generated (187 refs)</span>
+
+<span class="dim">Uploading acme_ui-</span><span class="o">2.4.1</span><span class="dim">.tar.gz</span>
+<span class="dim">  ✓ 184 kB in 0.4s</span>
+<span class="dim">  ✓ live: </span><span class="o">club.acme.com/packages/acme_ui/2.4.1</span><span class="cursor">▍</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); border-top: 1px solid var(--color-border); }
+  .wrap { max-width: 86rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } .wrap { padding: 0 1.25rem; } }
+
+  .orange, .o { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .dim { color: var(--color-mute-dark); }
+  .p { color: var(--color-stamp); }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.9em; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.025em; line-height: 1.08;
+    margin: 1rem 0 0; color: var(--color-ink); max-width: 20ch;
+  }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.25rem 0 0; max-width: 40rem; }
+
+  .flag-grid {
+    display: grid; gap: 3rem; align-items: center;
+    grid-template-columns: minmax(0, 0.48fr) minmax(0, 0.52fr);
+  }
+  @media (max-width: 1000px) {
+    .flag-grid { grid-template-columns: 1fr; }
+    /* Stacked: terminal mock above, copy below */
+    .flag-visual { order: 1; }
+    .flag-copy   { order: 2; }
+  }
+
+  .mini-grid { margin-top: 2rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem; max-width: 28rem; }
+  .mini {
+    padding: 0.85rem 0.95rem; background: var(--color-paper-mute); border: 1px solid var(--color-border);
+    border-radius: 10px; display: flex; flex-direction: column; gap: 0.2rem;
+    transition: border-color 200ms, background 200ms, transform 280ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .mini:hover {
+    border-color: color-mix(in oklab, var(--color-stamp) 40%, var(--color-border));
+    background: var(--color-stamp-soft);
+    transform: translateY(-2px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mini:hover { transform: none; }
+  }
+  .mini strong { font-family: var(--font-sans); font-weight: 640; font-size: 0.95rem; color: var(--color-ink); letter-spacing: -0.01em; }
+  .mini span { font-size: 0.82rem; color: var(--color-mute); }
+
+  /* Terminal */
+  .terminal {
+    background: var(--color-ink-dark); color: #EDEDED;
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 30px 60px -30px rgba(5,5,5,0.4);
+    border: 1px solid var(--color-border-dark);
+  }
+  .term-head {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--color-border-dark);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 999px; background: #3a3a3a; }
+  .term-title { margin-left: auto; font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute-dark); }
+  .terminal pre { margin: 0; padding: 1.25rem; font-family: var(--font-mono); font-size: 0.88rem; line-height: 1.75; overflow-x: auto; }
+  @media (max-width: 768px) {
+    .terminal pre { padding: 1rem; font-size: 0.74rem; line-height: 1.6; }
+    .mini-grid { margin-top: 1.5rem; grid-template-columns: 1fr; }
+  }
+  .cursor { display: inline-block; width: 0.55em; background: var(--color-stamp); color: transparent; animation: blink 1.1s step-end infinite; }
+  @keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+</style>

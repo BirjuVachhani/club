@@ -1,0 +1,163 @@
+---
+// Donate — C · Receipt / invoice
+// Paper-mute band with a mock pub-style receipt. Mono-forward, nods to
+// the CLI surface elsewhere on the page. Playful without losing weight.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+---
+
+<section id="f-donate" class="sec">
+  <div class="wrap">
+    <div class="grid">
+      <!-- Left: copy -->
+      <div class="copy">
+        <div class="eyebrow orange">§ Support CLUB</div>
+        <h2 class="h2">It's free. <br class="md-only" />Here's what it costs to keep that way.</h2>
+        <p class="lede">
+          CLUB doesn't have a sales team, a subscription, or a VC. It has a
+          person, a domain bill, a registry of releases, and an issue tracker.
+          If it saves your team a pub.dev workaround, consider picking up the
+          tab.
+        </p>
+        <div class="cta-row">
+          <a href={SPONSORS_URL} class="btn btn-primary" target="_blank" rel="noopener">
+            Sponsor on GitHub
+            <span class="btn-arrow">→</span>
+          </a>
+          <a href={BMC_URL} class="btn btn-ghost" target="_blank" rel="noopener">
+            Buy me a coffee
+          </a>
+        </div>
+      </div>
+
+      <!-- Right: mock receipt -->
+      <aside class="receipt" aria-label="A mock receipt showing what sponsorship funds">
+        <div class="r-head">
+          <div class="r-logo">◐ CLUB</div>
+          <div class="r-meta">
+            <div>RECEIPT · OPEN SOURCE</div>
+            <div>FY · ONGOING</div>
+          </div>
+        </div>
+
+        <div class="r-line">
+          <span>Domain &amp; CI minutes</span>
+          <span class="r-amt">$·$</span>
+        </div>
+        <div class="r-line">
+          <span>Release tooling &amp; review time</span>
+          <span class="r-amt">$·$·$</span>
+        </div>
+        <div class="r-line">
+          <span>Issue triage · docs &amp; examples</span>
+          <span class="r-amt">$·$·$·$</span>
+        </div>
+        <div class="r-line">
+          <span>Investor pressure</span>
+          <span class="r-amt zero">$0.00</span>
+        </div>
+        <div class="r-line">
+          <span>Ads &amp; telemetry</span>
+          <span class="r-amt zero">$0.00</span>
+        </div>
+
+        <div class="r-divider"></div>
+
+        <div class="r-total">
+          <span>Total · paid by <span class="accent">sponsors</span></span>
+          <span class="r-amt total">∞ thanks</span>
+        </div>
+
+        <div class="r-foot">
+          <span>✓ APACHE 2.0</span>
+          <span>✓ SELF-HOSTED</span>
+          <span>✓ NO STRINGS</span>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-paper-mute); color: var(--color-ink); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .grid {
+    display: grid; gap: 3rem;
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr);
+    align-items: center;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .orange { color: var(--color-stamp); }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch;
+  }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+  .lede { font-size: 1.08rem; line-height: 1.6; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 42rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+
+  /* Receipt */
+  .receipt {
+    background: #FEFCF7;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 1.75rem 1.75rem 1.25rem;
+    font-family: var(--font-mono); font-size: 0.86rem; line-height: 1.7;
+    box-shadow:
+      0 24px 48px -30px rgba(5,5,5,0.2),
+      0 1px 0 0 var(--color-border);
+    position: relative;
+    /* torn edge on the bottom */
+    clip-path: polygon(
+      0 0, 100% 0, 100% calc(100% - 12px),
+      96% 100%, 92% calc(100% - 8px), 88% 100%, 84% calc(100% - 8px),
+      80% 100%, 76% calc(100% - 8px), 72% 100%, 68% calc(100% - 8px),
+      64% 100%, 60% calc(100% - 8px), 56% 100%, 52% calc(100% - 8px),
+      48% 100%, 44% calc(100% - 8px), 40% 100%, 36% calc(100% - 8px),
+      32% 100%, 28% calc(100% - 8px), 24% 100%, 20% calc(100% - 8px),
+      16% 100%, 12% calc(100% - 8px), 8% 100%, 4% calc(100% - 8px),
+      0 100%
+    );
+  }
+  .r-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px dashed var(--color-border);
+  }
+  .r-logo {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: 1.25rem; letter-spacing: -0.02em;
+  }
+  .r-meta {
+    text-align: right; font-size: 0.62rem;
+    letter-spacing: 0.18em; color: var(--color-mute);
+  }
+  .r-line {
+    display: flex; justify-content: space-between; gap: 1rem;
+    padding: 0.35rem 0;
+    color: var(--color-ink);
+  }
+  .r-amt { color: var(--color-mute); letter-spacing: 0.08em; }
+  .r-amt.zero { color: var(--color-stamp); }
+  .r-divider {
+    margin: 0.75rem 0 0.5rem;
+    border-top: 1px dashed var(--color-border);
+  }
+  .r-total {
+    display: flex; justify-content: space-between; gap: 1rem;
+    font-weight: 700; color: var(--color-ink);
+    padding: 0.35rem 0;
+  }
+  .r-total .accent { color: var(--color-stamp); }
+  .r-amt.total { color: var(--color-stamp); letter-spacing: -0.01em; }
+  .r-foot {
+    margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem;
+    font-size: 0.62rem; letter-spacing: 0.18em; color: var(--color-mute);
+  }
+</style>

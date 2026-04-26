@@ -1,0 +1,214 @@
+---
+title: Publishing Packages
+description: Publish Dart packages to your club server — the upload flow, versioning, retraction, and troubleshooting.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+Publishing to club works just like publishing to pub.dev. You have two options:
+
+- **`club publish`** — the native club CLI command. Runs ~25 client-side validators, works **without** `publish_to:` in your pubspec, and supports CI-friendly flags like `--from-archive`, `--to-archive`, and `--server`.
+- **`dart pub publish`** — the standard Dart tool. Requires `publish_to:` to be set in `pubspec.yaml`.
+
+Under the hood both use the [Pub Repository Spec v2](https://github.com/dart-lang/pub/blob/master/doc/repository-spec-v2.md) that pub.dev implements.
+
+<Aside type="tip" title="Publishing without modifying pubspec.yaml">
+If your package cannot have `publish_to:` added (for example, a subpackage inside a monorepo), use `club publish` — it resolves the target server from your login state. See the [Smart Publishing guide](/guides/smart-publishing/) for the full flow.
+</Aside>
+
+## Setting `publish_to` in pubspec.yaml
+
+If you use `dart pub publish`, set `publish_to` so the Dart tool knows where to upload:
+
+<Code code={`name: my_package
+version: 1.0.0
+description: A useful internal package
+publish_to: https://club.example.com`} lang="yaml" title="pubspec.yaml" />
+
+<Aside type="tip">
+If you omit `publish_to`, `dart pub publish` defaults to pub.dev — always set it for private packages. `club publish` handles the missing-field case by auto-resolving from your login state.
+</Aside>
+
+## The 3-Step Upload Flow
+
+Whichever CLI you use, the wire protocol is identical:
+
+<Steps>
+
+1. **Request upload URL** — `GET /api/packages/versions/new`. The server returns a URL to `POST` the tarball to (pointing back at itself).
+
+2. **Upload the tarball** — the client packages your code into a `.tar.gz` and `POST`s it as multipart form data to that URL.
+
+3. **Finalize** — the client follows a redirect to the finalize URL. The server validates the archive, indexes the package, and enqueues **scoring** + **dartdoc** jobs. An entry is appended to the package activity log.
+
+</Steps>
+
+The max upload size is governed by `MAX_UPLOAD_BYTES` (default 100 MiB).
+
+## Publishing Your First Package
+
+<Steps>
+
+1. **Authenticate with the server**
+
+   ```bash
+   club login https://club.example.com
+   ```
+
+   See [Authentication](/guides/authentication/) for OAuth vs token-paste alternatives.
+
+2. **Register credentials with `dart pub`** (only needed for `dart pub publish`)
+
+   ```bash
+   club setup
+   ```
+
+3. **Publish**
+
+   <Tabs>
+     <TabItem label="club CLI">
+     ```bash
+     cd my_first_package/
+     club publish
+     ```
+
+     No `publish_to:` required — the CLI uses your login state. See [Smart Publishing](/guides/smart-publishing/).
+     </TabItem>
+     <TabItem label="dart pub">
+     Add `publish_to:` to `pubspec.yaml` first:
+
+     ```yaml title="pubspec.yaml"
+     name: my_first_package
+     version: 1.0.0
+     description: My first private package
+     publish_to: https://club.example.com
+     ```
+
+     Then:
+
+     ```bash
+     cd my_first_package/
+     dart pub publish
+     ```
+     </TabItem>
+   </Tabs>
+
+4. **Confirm the upload** when prompted, then wait for the success message.
+
+</Steps>
+
+## Republishing (New Versions)
+
+Bump the `version` in `pubspec.yaml` and publish again:
+
+```yaml
+version: 1.1.0  # was 1.0.0
+```
+
+```bash
+club publish
+```
+
+<Aside type="caution">
+You cannot republish the same version with different content. If you re-upload the exact same archive the server accepts it as a no-op. If the content differs, it rejects with **409 Conflict — version already exists**. Bump the version number to publish an update.
+</Aside>
+
+### Version Ordering
+
+club follows standard Dart semantic versioning:
+
+- Stable releases (`1.0.0`, `2.1.3`) are preferred by the resolver.
+- Prereleases (`1.0.0-beta.1`) are only selected when explicitly constrained.
+- The "latest" pointer always tracks the most recent stable release.
+
+## Useful `club publish` Flags
+
+| Flag | What it does |
+|------|--------------|
+| `--dry-run` | Run all validators without uploading. Exits non-zero on warnings unless `--ignore-warnings` is set. |
+| `--force` | Skip confirmation prompts. Required in non-interactive CI. |
+| `--server <url>` | Publish to a specific logged-in server, ignoring `publish_to:`. |
+| `--version <semver>` | Override the version in the tarball — handy for CI that derives version from a git tag. |
+| `--to-archive <path>` | Write the archive to disk instead of uploading. |
+| `--from-archive <path>` | Upload an existing `.tar.gz`. Implies `--skip-validation`. |
+| `--skip-validation` | Bypass the client-side validators. Server-side validation still runs. |
+| `--ignore-warnings` | With `--dry-run`, treat warnings as non-fatal. |
+| `--directory <path>` | Run as if `<path>` is the package directory. |
+
+See [Smart Publishing](/guides/smart-publishing/) for the full reference.
+
+### Dry run
+
+Validate without uploading:
+
+```bash
+club publish --dry-run
+```
+
+Combine with `--ignore-warnings` in a CI lint step to let warnings through without failing the build.
+
+## Version Retraction
+
+Retraction marks a version as broken without deleting it. Retracted versions remain downloadable (so existing lockfiles keep working) but are excluded from dependency resolution for new consumers.
+
+```http
+PUT /api/packages/<pkg>/versions/<v>/options
+Content-Type: application/json
+
+{ "isRetracted": true }
+```
+
+See [Package Admin](/guides/package-admin/) for the full set of post-publish operations.
+
+## Common Publishing Errors
+
+### `401 Unauthorized`
+
+Token missing or expired.
+
+```bash
+club login https://club.example.com
+club setup
+```
+
+### `403 Forbidden`
+
+You don't have permission to publish this package. Possible causes:
+
+- You are not an uploader for the package.
+- Your token lacks the `write` scope.
+- You are not a member of the publisher that owns this package.
+
+### `409 Conflict — version already exists`
+
+You're trying to publish a version that already exists with different content. Bump the version in `pubspec.yaml`.
+
+### `413 Payload Too Large`
+
+The archive exceeds `MAX_UPLOAD_BYTES` (default 100 MiB). Shrink the package or ask the server admin to raise the limit.
+
+### `publish_to` not set (dart pub only)
+
+```
+Publishing to pub.dev is not allowed for private packages.
+```
+
+Add `publish_to: https://club.example.com` to your `pubspec.yaml`, or switch to `club publish`.
+
+### Invalid package name
+
+Package names must be lowercase, alphanumeric with underscores, 1–64 characters:
+
+```
+Good:  my_package, http_client, utils2
+Bad:   My-Package, http.client, _private
+```
+
+### Tarball validation errors
+
+The server validates the uploaded archive:
+
+- Must be a valid `.tar.gz`.
+- Must contain a valid `pubspec.yaml` with `name`, `version`, `description`.
+- Version must be a canonical semver string.
+- No nested `pubspec.yaml` files (e.g. inside `example/`) — only the root pubspec is accepted.

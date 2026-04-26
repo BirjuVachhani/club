@@ -1,0 +1,39 @@
+# =============================================================================
+# club — PostgreSQL override
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: club-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-club}
+      POSTGRES_USER: ${POSTGRES_USER:-club}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-club} -d ${POSTGRES_DB:-club}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  club:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_BACKEND: postgres
+      POSTGRES_URL: "postgres://${POSTGRES_USER:-club}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-club}?sslmode=disable"
+
+volumes:
+  postgres_data:
+    # Explicit name keeps Postgres data stable across rebuilds and
+    # directory changes. See docker-compose.yml for rationale.
+    name: club_postgres_data
+    driver: local

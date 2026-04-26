@@ -1,0 +1,259 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+---
+
+<!--
+  HeroF — "Brutalist Grid"
+  Assertive Swiss/Bauhaus blocks. The viewport is carved into large
+  geometric panels of ink-dark, paper-mute, and stamp orange. The
+  headline knocks out across the boundary. No gradients, no tricks —
+  only type, grid, and color.
+-->
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <div class="relative mx-auto w-full max-w-[86rem] px-6 pb-10 pt-28 md:px-10 md:pb-14 md:pt-32">
+    <!-- meta row -->
+    <div
+      class="mb-6 flex flex-wrap items-center justify-between gap-3 border-y-2 py-3 font-mono text-[0.68rem] tracking-[0.2em] uppercase"
+      style="border-color: var(--color-ink); color: var(--color-ink);"
+    >
+      <div class="flex items-center gap-3">
+        <span style="color: var(--color-stamp);">■</span>
+        <span>CLUB / v0.1</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span>Dart</span>
+        <span style="color: var(--color-stamp);">×</span>
+        <span>Flutter</span>
+        <span style="color: var(--color-stamp);">×</span>
+        <span>Self-hosted</span>
+      </div>
+      <div>MIT · 2026</div>
+    </div>
+
+    <!-- Grid: 12 columns of blocks -->
+    <div
+      class="grid gap-3"
+      style="
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-auto-rows: minmax(80px, auto);
+      "
+    >
+      <!-- BIG HEADLINE PANEL (spans 8 columns) -->
+      <div
+        class="relative overflow-hidden p-6 md:p-10"
+        style="
+          grid-column: span 8 / span 8;
+          grid-row: span 3 / span 3;
+          background: var(--color-paper-mute);
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.68rem] tracking-[0.18em] uppercase"
+          style="color: var(--color-stamp);"
+        >
+          01 / Headline
+        </div>
+        <h1
+          class="mt-6"
+          style="
+            font-family: var(--font-sans);
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            line-height: 0.88;
+            font-size: clamp(3rem, 8vw, 8rem);
+            color: var(--color-ink);
+          "
+        >
+          HOST<br/>
+          <span style="background: var(--color-ink); color: var(--color-stamp); padding: 0 0.12em;">PUB</span><br/>
+          <span style="color: var(--color-stamp);">INSIDE.</span>
+        </h1>
+      </div>
+
+      <!-- BIG ORANGE MARK (spans 4 columns, 1 row) -->
+      <div
+        class="relative flex items-center justify-center overflow-hidden"
+        style="
+          grid-column: span 4 / span 4;
+          grid-row: span 1 / span 1;
+          background: var(--color-stamp);
+          color: #fff;
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.72rem] font-bold tracking-[0.3em] uppercase"
+        >
+          Self-hosted
+        </div>
+        <!-- huge arrow -->
+        <svg
+          class="ml-3"
+          width="42" height="18" viewBox="0 0 42 18" fill="none" aria-hidden="true"
+        >
+          <path d="M0 9 H 36 M 28 2 L 40 9 L 28 16" stroke="#fff" stroke-width="2.5" stroke-linecap="square" />
+        </svg>
+      </div>
+
+      <!-- COPY PANEL (spans 4 cols, 2 rows) -->
+      <div
+        class="relative p-6 md:p-7"
+        style="
+          grid-column: span 4 / span 4;
+          grid-row: span 2 / span 2;
+          background: var(--color-ink-dark);
+          color: #EDEDED;
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.68rem] tracking-[0.18em] uppercase"
+          style="color: var(--color-stamp);"
+        >
+          02 / About
+        </div>
+        <p class="prose-body mt-4" style="color: #EDEDED;">
+          A Pub Spec v2 compatible package server
+          for Dart &amp; Flutter teams. One container.
+          Your storage. Your auth. Your rules.
+        </p>
+        <div
+          class="mt-6 font-mono text-[0.72rem] tracking-[0.12em] uppercase"
+          style="color: var(--color-mute-dark);"
+        >
+          ↳ Open source · MIT
+        </div>
+      </div>
+
+      <!-- SMALL NUMBER BLOCK (spans 2 cols) -->
+      <div
+        class="relative flex flex-col justify-between p-4"
+        style="
+          grid-column: span 2 / span 2;
+          grid-row: span 1 / span 1;
+          background: var(--color-bg);
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.62rem] tracking-[0.18em] uppercase"
+          style="color: var(--color-mute);"
+        >
+          Containers
+        </div>
+        <div
+          class="leading-none"
+          style="
+            font-family: var(--font-sans);
+            font-weight: 700;
+            font-size: 3.5rem;
+            letter-spacing: -0.05em;
+            color: var(--color-ink);
+          "
+        >
+          1<span style="color: var(--color-stamp);">.</span>
+        </div>
+      </div>
+
+      <!-- SMALL NUMBER BLOCK (spans 2 cols) -->
+      <div
+        class="relative flex flex-col justify-between p-4"
+        style="
+          grid-column: span 2 / span 2;
+          grid-row: span 1 / span 1;
+          background: var(--color-paper-mute-2);
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.62rem] tracking-[0.18em] uppercase"
+          style="color: var(--color-mute);"
+        >
+          Lock-in
+        </div>
+        <div
+          class="leading-none"
+          style="
+            font-family: var(--font-sans);
+            font-weight: 700;
+            font-size: 3.5rem;
+            letter-spacing: -0.05em;
+            color: var(--color-stamp);
+          "
+        >
+          0
+        </div>
+      </div>
+
+      <!-- CTA PANEL (spans 4 cols) -->
+      <div
+        class="relative p-6 md:p-8"
+        style="
+          grid-column: span 4 / span 4;
+          grid-row: span 1 / span 1;
+          background: var(--color-stamp);
+          color: #fff;
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <div
+          class="font-mono text-[0.62rem] tracking-[0.2em] uppercase"
+          style="color: #FFE4DA;"
+        >
+          03 / Act
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <a
+            href={docsUrl("/getting-started/quick-start/")}
+            class="inline-flex items-center gap-2 rounded-none px-3 py-2 font-mono text-[0.75rem] font-bold tracking-[0.12em] uppercase"
+            style="background: var(--color-ink); color: #fff; border: 2px solid var(--color-ink);"
+          >
+            Get started
+            <span>→</span>
+          </a>
+          <a
+            href={GITHUB_URL}
+            class="inline-flex items-center gap-2 rounded-none px-3 py-2 font-mono text-[0.75rem] font-bold tracking-[0.12em] uppercase"
+            style="background: transparent; color: #fff; border: 2px solid #fff;"
+          >
+            GitHub
+            <span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- WIDE TAG STRIP (spans 8 cols) -->
+      <div
+        class="relative flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-4 md:px-8"
+        style="
+          grid-column: span 8 / span 8;
+          grid-row: span 1 / span 1;
+          background: var(--color-bg);
+          border: 2px solid var(--color-ink);
+        "
+      >
+        <span
+          class="font-mono text-[0.66rem] tracking-[0.2em] uppercase"
+          style="color: var(--color-stamp);"
+        >
+          ↳ spec
+        </span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">Pub Spec v2</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-mute);">·</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">SQLite + filesystem</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-mute);">·</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">S3 pluggable</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-mute);">·</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">FTS5 search</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-mute);">·</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">Bcrypt + SHA-256</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-mute);">·</span>
+        <span class="font-mono text-[0.72rem]" style="color: var(--color-ink);">Docker</span>
+      </div>
+    </div>
+  </div>
+</section>

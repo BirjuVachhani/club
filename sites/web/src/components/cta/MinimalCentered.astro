@@ -1,0 +1,53 @@
+---
+// CTA variant A — "Minimal centered"
+// The current CTA: centered headline, tight paragraph, two buttons.
+// Quiet confidence, light background.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <div class="wrap">
+    <h2 class="h2">
+      Ready to host your own <span class="accent">pub</span>?
+    </h2>
+    <p class="lede">
+      Run it in a container on your laptop in five minutes. When you're
+      ready, scale it to the storage and ingress you already operate.
+    </p>
+    <div class="cta-row">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+        Read the quick start
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn btn-ghost">GitHub</a>
+    </div>
+    <div class="foot mono">Apache 2.0 · open source · self-hosted</div>
+  </div>
+</section>
+
+<style>
+  .cta { padding: 6rem 0; background: var(--color-bg); border-top: 1px solid var(--color-border); text-align: center; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2rem, 3vw + 0.5rem, 2.75rem);
+    letter-spacing: -0.028em; line-height: 1.1; margin: 0 auto;
+    max-width: 24ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 1.05rem; line-height: 1.55; color: var(--color-mute);
+    margin: 1.25rem auto 0; max-width: 34rem;
+  }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 2rem; }
+
+  .foot {
+    margin-top: 1.75rem;
+    font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+</style>

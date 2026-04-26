@@ -1,0 +1,248 @@
+---
+title: CLI Publishing
+description: Publish Dart packages to club with a fully native publish flow that mirrors `dart pub publish` and adds smart server resolution.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+`club publish` is a **native** drop-in replacement for `dart pub publish`. It
+shares the same flag set, the same exit codes, and runs the same 25 client-side
+validators — but adds one critical superpower:
+
+> **You do not need `publish_to:` in your pubspec.yaml.**
+
+This unlocks publishing packages that live inside larger projects (where
+modifying `pubspec.yaml` is not an option) without losing any of the safety
+checks `dart pub publish` provides.
+
+<Aside type="tip" title="Feature deep-dive">
+For a focused walkthrough of how the new smart server resolution works,
+why it exists, and how it compares to `dart pub publish`, read the
+[Smart Publishing guide](/guides/smart-publishing/).
+</Aside>
+
+## Quick start
+
+```bash
+$ cd path/to/your/package
+$ club publish
+Publishing my_package 1.2.0 from /Users/me/code/my_package
+Target server: https://club.example.com  (auto-selected (only logged-in server))
+
+Building package archive...
+Created /tmp/club-publish-...tar.gz (12.4 KiB, 18 files)
+
+Running 25 validators...
+✓ All validators passed.
+
+Publish my_package 1.2.0 to https://club.example.com? [Y/n] y
+
+Uploading to https://club.example.com...
+✓ Successfully uploaded my_package version 1.2.0.
+```
+
+## Flags
+
+The flag set is identical to `dart pub publish` (matched against the
+[upstream `LishCommand`](https://github.com/dart-lang/pub/blob/master/lib/src/command/lish.dart))
+plus `--server`.
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--directory <path>` | `-C` | Run as if `<path>` is the package directory. Useful for monorepos. |
+| `--dry-run` | `-n` | Validate without uploading. Exits non-zero on errors (and warnings unless `--ignore-warnings`). |
+| `--force` | `-f` | Skip confirmation prompts. Required in CI when there is no TTY. |
+| `--skip-validation` | | Bypass all 25 client-side validators. The server still validates. |
+| `--ignore-warnings` | | With `--dry-run` only: do not exit non-zero on warnings. |
+| `--to-archive <path>` | | Write the produced `.tar.gz` to `<path>` instead of uploading. |
+| `--from-archive <path>` | | Upload an existing `.tar.gz` instead of building one. Implies `--skip-validation`. |
+| `--server <url>` | `-s` | Override `publish_to` and the auto-picker. Must be a server you have logged in to with `club login`. |
+| `--version <semver>` | | Override the version being published. Rewrites the version inside the tarball's `pubspec.yaml` without modifying source files. Must be valid semver. |
+
+## How the target server is resolved
+
+`club publish` resolves the target server with this priority — only the
+**first match** is used:
+
+<Steps>
+
+1. **`--server <url>`** flag (highest priority). The URL must be in your
+   logged-in credentials, otherwise the command exits with a hint to run
+   `club login`.
+2. **`publish_to:` in pubspec.yaml**, when present and not `none`. The URL
+   must be in your logged-in credentials.
+3. **Auto-pick from logged-in servers**:
+   - 1 server: used automatically (with confirmation, unless `--force`).
+   - 2+ servers: an arrow-key TUI picker appears (in CI, this fails with
+     a clear error directing you to use `--server`).
+   - 0 servers: exits with a hint to run `club login <url>`.
+
+</Steps>
+
+This means you can publish a package whose `pubspec.yaml` has either no
+`publish_to:` at all, or `publish_to: none`, without modifying it.
+
+<Aside type="tip">
+The conventional `dart pub publish` semantic for `publish_to: none` is
+"this package is private, refuse to publish". `club publish` overrides
+this — `none` is treated the same as missing, so the picker takes over.
+</Aside>
+
+### Examples
+
+```bash
+# Pubspec has publish_to set → that server is used.
+club publish
+
+# Pubspec has no publish_to, you have one login → that one is used.
+club publish
+
+# Pubspec has no publish_to, you have multiple logins → arrow-key picker.
+club publish
+
+# Force a specific server regardless of pubspec.
+club publish --server https://internal.club.example.com
+
+# Try a publish without uploading.
+club publish --dry-run
+
+# Build the archive locally for inspection.
+club publish --to-archive ./pkg.tar.gz
+
+# Upload an archive that was built earlier.
+club publish --from-archive ./pkg.tar.gz --force
+```
+
+## Validation
+
+Before uploading, `club publish` runs the same 25 validators as
+`dart pub publish`. Each validator mirrors the upstream implementation —
+see the inline doc comments in `lib/src/publish/validators/` for the
+GitHub link to its upstream counterpart.
+
+Validators are grouped by severity:
+
+- **Errors** block publish unconditionally. Pass `--skip-validation` to
+  bypass (or fix the issue).
+- **Warnings** require interactive confirmation, or `--force` in CI.
+- **Hints** are informational only and never block.
+
+The full list of validators (in run order):
+
+1. `AnalyzeValidator` — runs `dart analyze --fatal-infos`.
+2. `ChangelogValidator` — CHANGELOG present and mentions current version.
+3. `CompiledDartdocValidator` — no `doc/api/` or `.ddc.js` artifacts.
+4. `DependencyValidator` — no path/git deps; reasonable version constraints.
+5. `DependencyOverrideValidator` — non-dev deps not silently overridden.
+6. `DeprecatedFieldsValidator` — no `transformers`, `web`, `author`, `authors`.
+7. `DevtoolsExtensionValidator` — `extension/devtools/` is well formed.
+8. `DirectoryValidator` — only standard top-level dirs.
+9. `ExecutableValidator` — `bin/<name>.dart` exists for every executable.
+10. `FileCaseValidator` — no case collisions.
+11. `FlutterConstraintValidator` — Flutter SDK constraint with upper bound.
+12. `FlutterPluginFormatValidator` — uses the federated plugin format.
+13. `GitignoreValidator` — no archived files are simultaneously gitignored.
+14. `GitStatusValidator` — git working tree is clean.
+15. `LeakDetectionValidator` — no AWS/Google/GitHub/Slack/PEM keys in files.
+16. `LicenseValidator` — LICENSE file present at the root.
+17. `NameValidator` — package name follows pub conventions.
+18. `PubspecPresentValidator` — `pubspec.yaml` is in the archive.
+19. `PubspecFieldValidator` — required fields present and well-formed.
+20. `PubspecTypoValidator` — top-level field names are not typos.
+21. `ReadmeValidator` — README file present.
+22. `RelativeVersionValidator` — new version greater than latest published.
+23. `SdkConstraintValidator` — Dart SDK constraint with upper bound.
+24. `SizeValidator` — archive < 100 MiB.
+25. `StrictDependenciesValidator` — `lib/`, `bin/`, `hook/` only import declared deps.
+
+## CI usage
+
+`club publish` is fully CI-friendly:
+
+- **All confirmation prompts can be skipped** with `--force`.
+- **Server picker fails fast** in non-interactive shells with an error
+  pointing to `--server`.
+- **Color output is auto-disabled** when stdout is not a TTY (or when
+  `NO_COLOR` is set, per [no-color.org](https://no-color.org/)).
+- **Exit codes** match dart pub conventions:
+  - `0` — success
+  - `65` — validation failed (data error)
+  - `66` — pubspec/package not found
+  - `78` — config / server resolution / aborted
+
+A typical CI step looks like:
+
+```yaml
+- name: Publish
+  run: club publish --force --server https://club.example.com
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+`CLUB_TOKEN` shadows any stored credentials, so there is no need to pre-seed a credentials file. Alternatively, run `club login --key club_pat_... https://club.example.com` as a previous step to materialise the credentials file.
+
+## Comparing with `dart pub publish`
+
+| Aspect | `club publish` | `dart pub publish` |
+|--------|-----------------|---------------------|
+| Server resolution | `--server` → `publish_to` → logged-in picker | `--server` (deprecated) → `publish_to` → `PUB_HOSTED_URL` |
+| Works without `publish_to` | ✅ | ❌ — refuses if `none` or missing |
+| Picks from multiple logins | ✅ arrow-key TUI | ❌ |
+| Validators | All 25, mirrored from upstream | All 25 |
+| Flags | All standard flags + `--server` | All standard flags |
+| Exit codes | Same as upstream | — |
+| Auth storage | `~/.config/club/credentials.json` | `~/.config/dart/pub-tokens.json` |
+
+## Troubleshooting
+
+### `Not logged in to <url>`
+
+Either `--server` or `publish_to:` points at a server you have not logged
+in to:
+
+```bash
+club login https://club.example.com
+```
+
+### `No club server is configured.`
+
+You have not run `club login` yet. Do that first.
+
+### `Cannot prompt in a non-interactive shell.`
+
+You are in CI (or piping output) but the runner needs to confirm
+something. Pass `--force` (and/or `--server <url>` if there are multiple
+logins).
+
+### `Found N error(s).`
+
+A validator produced a hard error. Read the message, fix the issue, or
+pass `--skip-validation` if you absolutely cannot fix it (the server will
+still validate).
+
+### `dart analyze reported issues`
+
+Run `dart analyze` directly to see the issues, fix them, then retry. If
+you must publish anyway, `--skip-validation` bypasses the analyzer.
+
+## Implementation notes
+
+The publish flow is laid out as small, focused modules under
+`packages/club_cli/lib/src/publish/` so future updates to `dart pub
+publish` can be mirrored cheaply:
+
+```
+publish/
+├── publish_runner.dart    # Orchestration (matches LishCommand.runProtected)
+├── pubspec_reader.dart    # Pubspec parsing (uses pubspec_parse package)
+├── server_resolver.dart   # The --server / publish_to / picker logic
+├── tarball_builder.dart   # tar + gzip (matches createTarGz)
+├── ignore_filter.dart     # .pubignore + .gitignore handling
+└── validators/
+    ├── validator.dart     # Base class + ValidationContext + Severity
+    ├── runner.dart        # Concurrent runner + report aggregation
+    └── *.dart             # 25 validators, each linking to upstream source
+```
+
+Every file carries a doc comment with a link to the upstream Dart pub
+source it mirrors, making it straightforward to apply future SDK changes.

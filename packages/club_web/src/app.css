@@ -1,0 +1,601 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Bitcount Grid Double';
+  src: url('/BitcountGridDouble-VariableFont_CRSV,ELSH,ELXP,slnt,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Doto';
+  src: url('/Doto-VariableFont_ROND,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root,
+:root.light-theme {
+  --background: #FFFFFF;
+  --foreground: #141517;
+  --card: #FFFFFF;
+  --card-foreground: #141517;
+  --popover: #FFFFFF;
+  --popover-foreground: #141517;
+  --primary: #FF4F18;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EAECF0;
+  --secondary-foreground: #1f2937;
+  --muted: #f8f8f8;
+  --muted-foreground: #64748b;
+  --accent: #FFF0EB;
+  --accent-foreground: #141517;
+  --destructive: #dc2626;
+  --destructive-foreground: #fef2f2;
+  --border: #E0E2E7;
+  --input: #D5D7DC;
+  --ring: rgba(255, 79, 24, 0.28);
+  --success: #16a34a;
+  --warning: #d97706;
+
+  --pub-default-text-color: var(--foreground);
+  --pub-heading-text-color: var(--foreground);
+  --pub-link-text-color: var(--primary);
+  --pub-link-hover-color: #CC3600;
+  --pub-default-background: var(--background);
+  --pub-card-background: var(--card);
+  --pub-card-border: var(--border);
+  --pub-header-background: #050505;
+  --pub-header-text-color: #F2F4F7;
+  --pub-footer-background: #050505;
+  --pub-footer-text-color: #9A9AA1;
+  --pub-tag-background: #FFF0EB;
+  --pub-tag-text-color: #CC3600;
+  --pub-input-background: var(--background);
+  --pub-input-border: var(--input);
+  --pub-divider-color: var(--border);
+  --pub-muted-text-color: var(--muted-foreground);
+  --pub-success-color: var(--success);
+  --pub-error-color: var(--destructive);
+  --pub-like-color: #d97706;
+
+  --pub-font-family: 'Inter Variable', 'Inter', sans-serif;
+  --pub-heading-font-family: 'Inter Variable', 'Inter', sans-serif;
+  --pub-code-font-family: 'Fira Code', 'Roboto Mono', monospace;
+  /* Semantic alias — prefer in new code. --pub-code-font-family is the
+     legacy name kept around for older pages. */
+  --font-mono: var(--pub-code-font-family);
+  --pub-code-font-size: 0.9rem;
+  --pub-inline-code-font-size: 0.88em;
+  --pub-code-background: #F2F4F7;
+  --pub-code-border: #d8dce3;
+  --pub-code-text-color: #24292e;
+  --pub-code-muted-color: #586069;
+  --pub-code-keyword-color: #d73a49;
+  --pub-code-string-color: #032f62;
+  --pub-code-number-color: #005cc5;
+  --pub-code-title-color: #6f42c1;
+  --pub-code-type-color: #e36209;
+  --pub-code-comment-color: #6a737d;
+  --pub-code-meta-color: #e36209;
+  --pub-code-addition-background: #e6f4ea;
+  --pub-code-addition-color: #0d652d;
+  --pub-code-deletion-background: #fce8e6;
+  --pub-code-deletion-color: #a50e0e;
+}
+
+:root.dark-theme {
+  --background: #050505;
+  --foreground: #EDEDED;
+  --card: #111111;
+  --card-foreground: #EDEDED;
+  --popover: #111111;
+  --popover-foreground: #EDEDED;
+  --primary: #FF4F18;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #E4E4E7;
+  --muted: #161616;
+  --muted-foreground: #9A9AA1;
+  --accent: #1F1F1F;
+  --accent-foreground: #F3F4F6;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFF1F2;
+  --border: #252525;
+  --input: #333333;
+  --ring: rgba(255, 79, 24, 0.24);
+  --success: #22C55E;
+  --warning: #F59E0B;
+
+  --pub-default-text-color: var(--foreground);
+  --pub-heading-text-color: var(--foreground);
+  --pub-link-text-color: #FF6633;
+  --pub-link-hover-color: #FF8855;
+  --pub-default-background: var(--background);
+  --pub-card-background: var(--card);
+  --pub-card-border: var(--border);
+  --pub-header-background: #050505;
+  --pub-header-text-color: #F2F4F7;
+  --pub-footer-background: #050505;
+  --pub-footer-text-color: #9A9AA1;
+  --pub-tag-background: #1C1410;
+  --pub-tag-text-color: #FF8855;
+  --pub-input-background: var(--background);
+  --pub-input-border: var(--input);
+  --pub-divider-color: var(--border);
+  --pub-muted-text-color: var(--muted-foreground);
+  --pub-success-color: var(--success);
+  --pub-error-color: var(--destructive);
+  --pub-like-color: #FBBF24;
+
+  --pub-code-background: #0e0e0e;
+  --pub-code-border: #262626;
+  --pub-code-text-color: #e6edf3;
+  --pub-code-muted-color: #8b949e;
+  --pub-code-keyword-color: #ff7b72;
+  --pub-code-string-color: #a5d6ff;
+  --pub-code-number-color: #79c0ff;
+  --pub-code-title-color: #d2a8ff;
+  --pub-code-type-color: #ffa657;
+  --pub-code-comment-color: #8b949e;
+  --pub-code-meta-color: #ffa657;
+  --pub-code-addition-background: rgba(15, 157, 88, 0.2);
+  --pub-code-addition-color: #9ae6b4;
+  --pub-code-deletion-background: rgba(217, 48, 37, 0.2);
+  --pub-code-deletion-color: #ffb4ab;
+}
+
+:root {
+  /* Typography — app UI scale. 15px base, ~1.125× ratio between steps. */
+  --text-xs: 0.75rem;         /* 12px — micro-labels, captions */
+  --text-sm: 0.8125rem;       /* 13px — secondary meta */
+  --text-secondary: 0.875rem; /* 14px — secondary body, dense UI */
+  --text-body: 0.9375rem;     /* 15px — default app body */
+  --text-md: 1rem;            /* 16px — comfortable prose */
+  --text-lg: 1.0625rem;       /* 17px */
+  --text-xl: 1.1875rem;       /* 19px — section heading */
+  --text-2xl: 1.4375rem;      /* 23px — heading */
+  --text-3xl: 1.8125rem;      /* 29px — page title */
+  --text-display: 2.25rem;    /* 36px — display */
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-body: 1.6;
+  --leading-loose: 1.75;
+
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+  --tracking-wide: 0.04em;
+  --tracking-widest: 0.08em;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#svelte {
+  min-height: 100%;
+}
+
+/* Prevent stray wide children from producing a horizontal scrollbar on
+   the page itself (common on mobile with wide tables, code blocks, or
+   tag rows). Legitimate horizontal scroll still works inside dedicated
+   containers that set `overflow-x: auto`. */
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--pub-font-family);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-kerning: normal;
+  font-feature-settings: "kern", "calt";
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-top: 0;
+  color: var(--foreground);
+  font-family: var(--pub-heading-font-family);
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--pub-link-hover-color);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--input);
+  border-radius: 0.5rem;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+/* Browsers paint a hard-coded yellow/white background on autofilled inputs.
+   Override with an inset shadow matching our theme background, since the
+   actual `background` property is ignored on :-webkit-autofill. The Safari/
+   Chrome (-webkit-) and standard (:autofill) selectors are kept in separate
+   rule blocks: a CSS rule list is dropped entirely if any selector is
+   unrecognized, so mixing browser-specific selectors invalidates both. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+  box-shadow: 0 0 0 1000px var(--background) inset;
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset, 0 0 0 4px var(--ring);
+  box-shadow: 0 0 0 1000px var(--background) inset, 0 0 0 4px var(--ring);
+}
+
+/* Standard pseudo-class (Firefox 86+, Chrome 108+, Safari 15+). Firefox
+   doesn't honor the box-shadow trick the same way, but it also doesn't
+   paint a yellow background by default — these declarations keep the
+   text/caret/background colors aligned with our theme. */
+input:autofill,
+textarea:autofill,
+select:autofill {
+  background-color: var(--background);
+  color: var(--foreground);
+  caret-color: var(--foreground);
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  border: 1.5px solid var(--pub-divider-color);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--pub-divider-color);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+input[type="radio"]:checked {
+  border-color: var(--primary);
+}
+
+input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  transform: translate(-50%, -50%);
+}
+
+input[type="radio"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+code,
+pre {
+  font-family: var(--pub-code-font-family);
+  font-variant-ligatures: contextual common-ligatures;
+  font-feature-settings: "calt", "liga";
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+pre {
+  overflow-x: auto;
+  border: 1px solid var(--pub-code-border);
+  border-radius: 0.75rem;
+  background: var(--pub-code-background);
+  padding: 0.875rem 1.125rem;
+  margin: 1rem 0;
+  font-size: var(--pub-code-font-size);
+  line-height: 1.55;
+  tab-size: 2;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+pre:hover,
+pre:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--pub-code-muted-color) 35%, transparent) transparent;
+}
+
+pre::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0 0.5rem;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+pre:hover::-webkit-scrollbar-thumb,
+pre:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--pub-code-muted-color) 30%, transparent);
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--pub-code-muted-color) 55%, transparent);
+}
+
+pre::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+code {
+  font-size: var(--pub-inline-code-font-size);
+}
+
+:not(pre) > code {
+  border: 1px solid var(--pub-code-border);
+  border-radius: 0.375rem;
+  background: var(--pub-code-background);
+  color: var(--pub-code-text-color);
+  padding: 0.1em 0.36em;
+  letter-spacing: -0.005em;
+}
+
+pre code {
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--pub-code-text-color);
+}
+
+.hljs {
+  background: transparent;
+  color: var(--pub-code-text-color);
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-bullet {
+  color: var(--pub-code-text-color);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--pub-code-comment-color);
+  font-style: italic;
+}
+
+.hljs-meta {
+  color: var(--pub-code-meta-color);
+}
+
+.hljs-meta .hljs-keyword {
+  color: var(--pub-code-meta-color);
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section,
+.hljs-name {
+  color: var(--pub-code-keyword-color);
+  font-weight: 500;
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: var(--pub-code-title-color);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-property {
+  color: var(--pub-code-title-color);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-symbol,
+.hljs-link {
+  color: var(--pub-code-string-color);
+}
+
+.hljs-subst {
+  color: var(--pub-code-keyword-color);
+}
+
+.hljs-number,
+.hljs-literal {
+  color: var(--pub-code-number-color);
+}
+
+.hljs-type,
+.hljs-built_in,
+.hljs-builtin-name {
+  color: var(--pub-code-type-color);
+}
+
+.hljs-params {
+  color: var(--pub-code-text-color);
+}
+
+.hljs-punctuation,
+.hljs-operator {
+  color: var(--pub-code-muted-color);
+}
+
+.hljs-addition {
+  background: var(--pub-code-addition-background);
+  color: var(--pub-code-addition-color);
+}
+
+.hljs-deletion {
+  background: var(--pub-code-deletion-background);
+  color: var(--pub-code-deletion-color);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+@layer components {
+  .message,
+  .token-created,
+  .create-form,
+  .publisher-card,
+  .login-card,
+  .setup-card,
+  .oauth-card {
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
+    background: var(--card);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .message {
+    color: var(--foreground);
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .btn-deny,
+  .danger,
+  .btn-danger {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+}
+
+/* ── Brand logos ──────────────────────────────────────────── */
+/* club_logo.svg and club_logo_text.svg have accent orange (#FE4F17)
+   baked in. Render them unchanged in both themes so the brand color
+   stays consistent — do NOT apply filter: invert(). */
+.brand-icon,
+.brand-wordmark {
+  display: block;
+}

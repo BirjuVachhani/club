@@ -1,0 +1,156 @@
+---
+title: Publishers
+description: Group packages under an organization in club — creating publishers, managing members, and assigning packages.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Publishers are club's first-class organization concept. They let teams group related packages under a shared identity and manage who can publish to them centrally.
+
+## What a Publisher Has
+
+Each publisher has:
+
+- **`id`** — URL slug, e.g. `mycompany`. Lowercase alphanumeric with hyphens. Cannot be changed after creation.
+- **`displayName`** — human-readable name shown in the UI.
+- **`description`** — free-form blurb on the publisher page.
+- **`websiteUrl`** — optional homepage link.
+- **`contactEmail`** — optional contact address.
+- **Members** — a list of users, each with `role: "admin"` or `role: "member"`.
+
+When a package is owned by a publisher:
+
+- All publisher **members** and **admins** can publish new versions.
+- Publisher **admins** can additionally manage membership and update publisher details.
+- A publisher badge is rendered on the package page.
+
+### Publisher-owned vs uploader-owned packages
+
+| Aspect | Uploader-owned | Publisher-owned |
+|--------|---------------|-----------------|
+| Who can publish | The listed uploaders | All publisher members + any named uploaders |
+| Management | Per-package uploader list | Centralized membership on the publisher |
+| Displayed as | "Published by jane@example.com" | "Published by mycompany" |
+| Best for | Personal / prototype packages | Team / org packages |
+
+A package can also be **both**: a publisher is set **and** it has extra named uploaders. Write access is the union of the two.
+
+## Creating a Publisher
+
+Only **server admins** can create publishers.
+
+<Tabs>
+  <TabItem label="Web UI">
+  Go to **Admin > Publishers > New publisher**. Fill in the id, display name, and optional fields. Submit to create.
+  </TabItem>
+  <TabItem label="API">
+  ```http
+  POST /api/publishers
+  Content-Type: application/json
+
+  {
+    "id": "mycompany",
+    "displayName": "My Company",
+    "description": "Internal packages for My Company",
+    "websiteUrl": "https://mycompany.com",
+    "contactEmail": "packages@mycompany.com"
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+<Aside>
+The publisher `id` becomes the URL slug (e.g. `/publishers/mycompany`) and cannot be changed later. Everything else is editable.
+</Aside>
+
+## Updating Publisher Details
+
+Publisher admins can update any mutable field via:
+
+```http
+PUT /api/publishers/<id>
+Content-Type: application/json
+
+{
+  "displayName": "My Company Inc.",
+  "description": "Updated description",
+  "websiteUrl": "https://new-site.mycompany.com",
+  "contactEmail": "new-packages@mycompany.com"
+}
+```
+
+Or from the publisher detail page in the web UI.
+
+## Managing Members
+
+### Member roles
+
+| Role | Can publish | Can manage members | Can set package publisher | Can update publisher details |
+|------|:-----------:|:-----------------:|:-------------------------:|:----------------------------:|
+| `admin` | yes | yes | yes | yes |
+| `member` | yes | — | — | — |
+
+### Add or update a member
+
+```http
+PUT /api/publishers/<id>/members/<userId>
+Content-Type: application/json
+
+{ "role": "admin" }
+```
+
+Use `"role": "member"` for a regular member. If the user is not yet a member, they are added.
+
+### Remove a member
+
+```http
+DELETE /api/publishers/<id>/members/<userId>
+```
+
+<Aside type="caution">
+A publisher must always retain at least one admin. The last admin cannot be removed or demoted.
+</Aside>
+
+### Web UI
+
+The publisher detail page under `/publishers/<id>` lists members with their roles. Publisher admins see **Add member** / **Remove** / role toggle controls inline.
+
+## Assigning a Package to a Publisher
+
+Any existing uploader of a package can hand it over to a publisher they belong to:
+
+```http
+PUT /api/packages/<pkg>/publisher
+Content-Type: application/json
+
+{ "publisherId": "mycompany" }
+```
+
+To clear the publisher and return to uploader-only ownership:
+
+```http
+PUT /api/packages/<pkg>/publisher
+{ "publisherId": null }
+```
+
+<Steps>
+
+1. You must be an **uploader** on the package (or a server admin).
+2. You must be a **member or admin** of the target publisher.
+3. Existing uploaders on the package are preserved — they keep write access alongside publisher members.
+4. To fully hand over ownership, remove individual uploaders from the package after setting the publisher.
+
+</Steps>
+
+## Viewing a Publisher
+
+The public publisher page at `/publishers/<id>` shows:
+
+- Publisher info (display name, description, website, contact).
+- Member list with roles (visible to members; admins see management controls).
+- All packages owned by the publisher.
+
+## Related
+
+- [Package Administration](/guides/package-admin/) — uploader management, options, retraction.
+- [Managing Users](/guides/managing-users/) — creating the accounts that become publisher members.

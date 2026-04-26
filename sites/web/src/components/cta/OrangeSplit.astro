@@ -1,0 +1,188 @@
+---
+// CTA variant E3 — "Orange / ink split"
+// The band is split 60/40: stamp-orange on the left, ink-dark on the
+// right. Headline breaks across both halves — "Host your own" on
+// orange, "pub." on ink. High-contrast dramatic close.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <div class="split">
+    <!-- Orange half -->
+    <div class="half orange">
+      <div class="rail mono" data-reveal>
+        <span class="dot"></span>
+        Private <a href="https://pub.dev">pub.dev</a> · Apache 2.0
+      </div>
+      <h2 class="h2" data-reveal data-reveal-delay="120">
+        <span class="word">Host</span>
+        <span class="word">your</span>
+        <span class="word">own</span>
+      </h2>
+      <p class="lede" data-reveal data-reveal-delay="260">
+        One container. Your cloud. Five minutes
+        to see it running, an afternoon to roll
+        it out for the team.
+      </p>
+      <div class="cta-row" data-reveal data-reveal-delay="380">
+        <a href={docsUrl("/getting-started/quick-start/")} class="btn-ink">
+          Read the quick start
+          <span class="arrow">→</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Ink half -->
+    <div class="half ink">
+      <div class="rail mono end" data-reveal>
+        <span class="chev">›</span>
+        CLUB
+      </div>
+      <h2 class="h2-dot" data-reveal="zoom" data-reveal-delay="180">
+        pub.
+      </h2>
+      <div class="meta mono" data-reveal-children data-reveal-step="80" data-reveal-base="300">
+        <div><span class="k">Runtime</span><span class="v">1 × Docker</span></div>
+        <div><span class="k">Arch</span><span class="v">amd64 · arm64</span></div>
+        <div><span class="k">License</span><span class="v">Apache 2.0</span></div>
+      </div>
+      <div class="cta-row" data-reveal data-reveal-delay="520">
+        <a href={GITHUB_URL} class="btn-outline">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta { background: var(--color-ink-dark); }
+  .split {
+    display: grid; gap: 0;
+    grid-template-columns: minmax(0, 0.6fr) minmax(0, 0.4fr);
+    min-height: 28rem;
+  }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; min-height: 0; } }
+
+  .half { padding: 4rem 3rem; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; }
+  @media (max-width: 768px) { .half { padding: 2.5rem 1.25rem; } }
+
+  .half.orange { background: var(--color-stamp); color: #fff; }
+  .half.ink    { background: var(--color-ink-dark); color: #EDEDED; }
+
+  .rail {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+    font-weight: 700;
+  }
+  .half.orange .rail { color: #FFE4DA; }
+  .half.ink .rail    { color: var(--color-mute-dark); }
+  .rail.end { justify-content: flex-end; }
+  .rail .dot { width: 7px; height: 7px; background: #fff; border-radius: 999px; }
+  .rail .chev { color: var(--color-stamp); font-weight: 700; font-size: 1rem; line-height: 1; }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(3rem, 5.5vw + 0.5rem, 5rem);
+    letter-spacing: -0.035em; line-height: 0.98;
+    margin: 0; color: #fff; max-width: 14ch;
+    display: flex; flex-wrap: wrap; gap: 0.22em;
+  }
+  .h2 .word {
+    display: inline-block;
+    opacity: 0; transform: translate3d(0, 30px, 0);
+    transition:
+      opacity 620ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      transform 620ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .h2 .word:nth-child(1) { transition-delay: calc(var(--reveal-delay, 0ms) + 60ms); }
+  .h2 .word:nth-child(2) { transition-delay: calc(var(--reveal-delay, 0ms) + 170ms); }
+  .h2 .word:nth-child(3) { transition-delay: calc(var(--reveal-delay, 0ms) + 280ms); }
+  .h2.is-visible .word { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .h2 .word { opacity: 1 !important; transform: none !important; transition: none; }
+  }
+
+  .h2-dot {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(4rem, 10vw, 8rem);
+    letter-spacing: -0.06em; line-height: 0.85;
+    margin: 0; color: #EDEDED;
+  }
+  .h2-dot::after {
+    content: ""; display: inline-block;
+    width: 0.28em; height: 0.28em; border-radius: 999px;
+    background: var(--color-stamp); margin-left: -0.08em; margin-bottom: 0.08em;
+    vertical-align: baseline;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-stamp) 55%, transparent);
+  }
+  .h2-dot.is-visible::after {
+    animation: cta-dot-pulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) 700ms infinite;
+  }
+  @keyframes cta-dot-pulse {
+    0%   { box-shadow: 0 0 0 0   color-mix(in oklab, var(--color-stamp) 55%, transparent); }
+    60%  { box-shadow: 0 0 0 14px color-mix(in oklab, var(--color-stamp) 0%, transparent); }
+    100% { box-shadow: 0 0 0 0   color-mix(in oklab, var(--color-stamp) 0%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .h2-dot.is-visible::after { animation: none; }
+  }
+
+  .lede { font-size: 1rem; line-height: 1.55; color: #FFE4DA; margin: 0; max-width: 32rem; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+    padding-top: 1rem; border-top: 1px dashed var(--color-border-dark);
+  }
+  @media (max-width: 480px) {
+    .meta { grid-template-columns: 1fr 1fr; }
+  }
+  .meta > div { display: flex; flex-direction: column; gap: 0.15rem; }
+  .meta .k { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-mute-dark); font-weight: 700; }
+  .meta .v { font-size: 0.82rem; color: #EDEDED; font-weight: 600; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.5rem; }
+
+  /* Buttons */
+  .btn-ink {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.8em 1.3em; border-radius: 0.625rem;
+    background: var(--color-ink); color: #fff;
+    font-family: var(--font-sans); font-size: 0.92rem; font-weight: 640;
+    border: 1px solid var(--color-ink);
+    transition:
+      background 150ms,
+      transform 220ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      box-shadow 220ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .btn-ink:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -12px rgba(0,0,0,0.55);
+  }
+  .btn-ink:active { transform: translateY(0) scale(0.97); transition-duration: 80ms; }
+
+  .btn-outline:hover { transform: translateY(-1.5px); }
+  .btn-outline:active { transform: translateY(0) scale(0.97); transition-duration: 80ms; }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-ink:hover, .btn-ink:active,
+    .btn-outline:hover, .btn-outline:active { transform: none; }
+  }
+
+  .btn-outline {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.75em 1.2em; border-radius: 0.625rem;
+    background: transparent; color: #EDEDED;
+    font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600;
+    border: 1px solid color-mix(in oklab, #EDEDED 35%, transparent);
+    transition: background 150ms, border-color 150ms;
+  }
+  .btn-outline:hover { border-color: var(--color-stamp); background: color-mix(in oklab, var(--color-stamp) 10%, transparent); }
+
+  .arrow { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+  .btn-ink:hover .arrow { transform: translateX(2px); }
+
+  .mono { font-family: var(--font-mono); }
+</style>

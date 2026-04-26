@@ -1,0 +1,76 @@
+---
+const parts = [
+  {
+    n: "01",
+    t: "Publish and install",
+    b: "Your team publishes private packages with dart pub publish and pulls them with dart pub get. Same commands, same workflow — just a repository you own.",
+    meta: "drop-in · no workflow changes",
+  },
+  {
+    n: "02",
+    t: "Teams and access",
+    b: "Organize packages under publishers your team owns. Admins manage membership, members publish and read. Named API tokens let CI runs publish without sharing credentials — revoke any token in a click.",
+    meta: "publishers · roles · api tokens",
+  },
+  {
+    n: "03",
+    t: "Yours to run",
+    b: "Deploy anywhere Docker runs — your cloud, your datacenter, even a laptop. Packages stay on hardware you control, under the security and compliance policies you already have in place.",
+    meta: "self-hosted · your infrastructure",
+  },
+];
+---
+
+<section
+  id="anatomy"
+  class="relative"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <div class="mx-auto w-full max-w-[80rem] px-6 py-20 md:px-10 md:py-28">
+    <div class="grid gap-10 md:grid-cols-[minmax(0,0.46fr)_minmax(0,0.54fr)] md:gap-16">
+      <div>
+        <div class="eyebrow" style="color: var(--color-mute);">
+          01 — Anatomy
+        </div>
+        <h2 class="h2 mt-4 max-w-[18ch]">
+          A Pub Spec v2 server, <span style="color: var(--color-stamp);">one binary</span>.
+        </h2>
+        <p class="prose-body mt-5 max-w-md">
+          CLUB is a Dart application that ships as a single Docker image.
+          It serves the pub API, the web UI, and the admin dashboard from
+          one process. Storage, search, and identity are all modular.
+        </p>
+      </div>
+
+      <ol class="flex flex-col">
+        {
+          parts.map((item, i) => (
+            <li
+              class="flex gap-6 border-t py-7 md:gap-8 md:py-8"
+              style={`border-color: var(--color-border); ${i === parts.length - 1 ? "border-bottom: 1px solid var(--color-border);" : ""}`}
+            >
+              <span
+                class="shrink-0 font-mono text-[0.72rem] tracking-[0.12em]"
+                style="color: var(--color-stamp);"
+              >
+                {item.n}
+              </span>
+              <div class="min-w-0">
+                <h3 class="h3">{item.t}</h3>
+                <p class="mt-2 max-w-md text-[0.95rem] leading-relaxed" style="color: var(--color-mute);">
+                  {item.b}
+                </p>
+                <div
+                  class="mt-3 font-mono text-[0.68rem] tracking-[0.1em] uppercase"
+                  style="color: var(--color-mute);"
+                >
+                  {item.meta}
+                </div>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,163 @@
+---
+// Feature — Storage backends (all production-ready)
+// Dark band. Three tiles — Filesystem, S3, Firebase Storage (GCS).
+// Emphasis: the filesystem backend is production-ready too, not just
+// a dev default. Swap with a single env var.
+const backends = [
+  {
+    k: "Filesystem",
+    tag: "Your disk",
+    tagline: "Production-ready — not just for dev.",
+    desc: "Perfect for single-server deploys, private clusters, and any environment where you'd rather not run an object store. Block storage, filesystem snapshots, backup tooling — all the disk-level primitives you already use just work.",
+    env: "BLOB_BACKEND=fs",
+    fit: ["Single-server deploys", "Air-gapped environments", "Private clouds", "NFS / EBS / Persistent volumes"],
+  },
+  {
+    k: "S3 · S3-compatible",
+    tag: "Object storage",
+    tagline: "Scale to any capacity.",
+    desc: "Any S3-compatible endpoint: AWS S3, Cloudflare R2, MinIO, Wasabi, Backblaze B2 — set the endpoint and credentials and go. Tarballs stream directly to the bucket, no local spool.",
+    env: "BLOB_BACKEND=s3",
+    fit: ["AWS, R2, B2, Wasabi, MinIO", "Multi-region replication", "Teams already on S3", "Thousands of packages"],
+  },
+  {
+    k: "Firebase Storage (GCS)",
+    tag: "Google Cloud",
+    tagline: "Native for GCP shops.",
+    desc: "For teams already running on Google Cloud — uses Firebase Storage (which is GCS under the hood) with service-account auth. Same IAM, same monitoring, same billing line.",
+    env: "BLOB_BACKEND=gcs",
+    fit: ["GCP-native teams", "Existing GCS buckets", "Workload identity / ADC", "Consolidated GCP billing"],
+  },
+];
+---
+
+<section id="f-backends" class="sec">
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow orange">§ Storage</div>
+      <h2 class="h2">
+        Three backends, <br class="md-only" />
+        <span class="accent">all production-ready</span>.
+      </h2>
+      <p class="lede">
+        Filesystem, S3, or Firebase Storage (GCS) for package tarballs.
+        Pick one at deploy time with a single environment variable — no
+        code changes, no forks, no vendor lock-in. Filesystem isn't a
+        dev-only fallback; it's a real option for teams who'd rather
+        own their disk. <span class="lede-aside">Metadata lives in an
+        embedded SQLite database — no separate service to run.</span>
+      </p>
+    </header>
+
+    <div class="backends" data-reveal-children data-reveal-step="110">
+      {backends.map((b, i) => (
+        <article class={`backend ${i === 0 ? "featured" : ""}`}>
+          <header class="b-head">
+            <span class="b-tag mono">{b.tag}</span>
+            <h3 class="b-name">{b.k}</h3>
+            <p class="b-tagline">{b.tagline}</p>
+          </header>
+          <p class="b-desc">{b.desc}</p>
+
+          <div class="b-fit">
+            <div class="mono b-fit-k">Good fit for</div>
+            <ul>
+              {b.fit.map((x) => <li><span class="o">·</span>{x}</li>)}
+            </ul>
+          </div>
+
+          <div class="b-env">
+            <span class="mono mute">env</span>
+            <code class="mono">{b.env}</code>
+          </div>
+        </article>
+      ))}
+    </div>
+
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0; background: var(--color-ink-dark); color: #EDEDED;
+  }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 54rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute-dark); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: #EDEDED; }
+  .accent { color: var(--color-stamp); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute-dark); margin: 1.5rem 0 0; max-width: 44rem; }
+  .lede-aside { color: color-mix(in oklab, var(--color-mute-dark) 80%, transparent); }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .backends {
+    margin-top: 3rem; display: grid; gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 1000px) { .backends { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .backends { margin-top: 2.25rem; }
+    .backend { padding: 1.5rem 1.25rem; }
+    .backend.featured::before { left: 1rem; }
+  }
+
+  .backend {
+    padding: 1.75rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px solid var(--color-border-dark);
+    border-radius: 18px;
+    display: flex; flex-direction: column; gap: 1rem;
+    transition: transform 320ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)), border-color 200ms;
+  }
+  .backend:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--color-stamp) 40%, var(--color-border-dark));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .backend:hover { transform: none; }
+  }
+  .backend.featured {
+    background: #0E0E10;
+    border: 1px solid var(--color-stamp);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-stamp) 14%, transparent);
+    position: relative;
+  }
+  .backend.featured::before {
+    content: "Often overlooked — worth a real look";
+    position: absolute; top: -0.7rem; left: 1.5rem;
+    font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase;
+    background: var(--color-stamp); color: #fff;
+    padding: 0.25rem 0.55rem; border-radius: 3px; font-weight: 700;
+  }
+
+  .b-tag { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .b-name { font-family: var(--font-sans); font-weight: 700; font-size: 1.45rem; letter-spacing: -0.02em; margin: 0.4rem 0 0; color: #EDEDED; }
+  .b-tagline { margin: 0.3rem 0 0; font-family: var(--font-sans); font-weight: 560; font-size: 1rem; color: var(--color-stamp); letter-spacing: -0.01em; }
+  .b-desc { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--color-mute-dark); }
+
+  .b-fit {
+    padding: 0.85rem 1rem; border: 1px dashed var(--color-border-dark);
+    border-radius: 10px;
+  }
+  .b-fit-k { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-mute-dark); font-weight: 700; margin-bottom: 0.4rem; }
+  .b-fit ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .b-fit li { display: grid; grid-template-columns: 1rem 1fr; gap: 0.4rem; font-size: 0.85rem; color: var(--color-mute-dark); }
+  .b-fit li .o { color: var(--color-stamp); font-weight: 700; }
+
+  .b-env {
+    margin-top: auto;
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    background: #050505; border: 1px solid var(--color-border-dark); border-radius: 8px;
+  }
+  .b-env .mono.mute { font-size: 0.6rem; letter-spacing: 0.18em; color: var(--color-mute-dark); text-transform: uppercase; }
+  .b-env code { font-size: 0.82rem; color: #EDEDED; }
+
+  .mono { font-family: var(--font-mono); }
+  .mute { color: var(--color-mute-dark); }
+  .o { color: var(--color-stamp); }
+</style>

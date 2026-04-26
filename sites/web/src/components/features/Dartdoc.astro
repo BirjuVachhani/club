@@ -1,0 +1,209 @@
+---
+// Feature — Auto-hosted dartdoc API reference
+// Paper-mute band. A mock API reference tree carries the argument:
+// classes, methods, fields — all auto-generated and rendered alongside
+// the README on the package page.
+---
+
+<section id="f-dartdoc" class="sec">
+  <div class="wrap">
+    <div class="grid">
+      <!-- Visual: mock API reference -->
+      <div class="visual" data-reveal="left">
+        <div class="doc">
+          <div class="doc-tabs">
+            <span class="dt">Readme</span>
+            <span class="dt">Changelog</span>
+            <span class="dt">Example</span>
+            <span class="dt active">API reference</span>
+            <span class="dt">Versions</span>
+          </div>
+          <div class="doc-body">
+            <aside class="api-side">
+              <div class="mono api-side-k">PACKAGES</div>
+              <div class="api-side-item">acme_ui</div>
+
+              <div class="mono api-side-k">LIBRARIES</div>
+              <div class="api-side-item indent">acme_ui</div>
+              <div class="api-side-item indent active">theme.dart</div>
+              <div class="api-side-item indent">buttons.dart</div>
+              <div class="api-side-item indent">motion.dart</div>
+            </aside>
+
+            <main class="api-main">
+              <div class="api-crumbs mono">acme_ui · theme.dart</div>
+              <h3 class="api-title">ThemeTokens <span class="api-type">class</span></h3>
+              <p class="api-desc">Typed access to the design-system tokens — colors, spacing, radii, typography.</p>
+
+              <div class="api-group">
+                <div class="mono api-group-k">Constructors</div>
+                <div class="api-member"><code>ThemeTokens(</code><span class="api-arg">this.colors, this.space, this.radii</span><code>)</code></div>
+              </div>
+
+              <div class="api-group">
+                <div class="mono api-group-k">Properties</div>
+                <div class="api-member"><code>colors</code> <span class="api-type">ColorSet</span> <span class="api-mod">final</span></div>
+                <div class="api-member"><code>space</code> <span class="api-type">SpaceScale</span> <span class="api-mod">final</span></div>
+                <div class="api-member"><code>radii</code> <span class="api-type">RadiusScale</span> <span class="api-mod">final</span></div>
+              </div>
+
+              <div class="api-group">
+                <div class="mono api-group-k">Methods</div>
+                <div class="api-member"><code>copyWith(</code><span class="api-arg">&#123;ColorSet? colors, SpaceScale? space&#125;</span><code>)</code> <span class="api-ret">→ ThemeTokens</span></div>
+                <div class="api-member"><code>resolve(</code><span class="api-arg">BuildContext context</span><code>)</code> <span class="api-ret">→ Theme</span></div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copy -->
+      <div class="copy" data-reveal="right">
+        <div class="eyebrow orange">§ Docs</div>
+        <h2 class="h2">API reference, <br class="md-only" /><span class="accent">auto-hosted</span>.</h2>
+        <p class="lede">
+          Publish a package and CLUB renders its full <span class="ink">dartdoc</span>
+          alongside the README — classes, methods, fields, links between
+          them, all on your domain, no extra pipeline to maintain.
+        </p>
+        <div class="facts" data-reveal-children data-reveal-step="60" data-reveal-base="180">
+          <div class="fact">
+            <span class="fact-k mono">GENERATED</span>
+            <span class="fact-v">On every publish</span>
+          </div>
+          <div class="fact">
+            <span class="fact-k mono">HOSTED</span>
+            <span class="fact-v">Your domain, alongside the README</span>
+          </div>
+          <div class="fact">
+            <span class="fact-k mono">SEARCH</span>
+            <span class="fact-v">Class &amp; method names indexed</span>
+          </div>
+          <div class="fact">
+            <span class="fact-k mono">MARKDOWN</span>
+            <span class="fact-v">READMEs, CHANGELOGs, examples — full GFM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-paper-mute); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } .wrap { padding: 0 1.25rem; } }
+
+  .grid { display: grid; gap: 3rem; grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr); align-items: center; }
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: 1fr; }
+    /* Stacked (mobile + tablet): mock UI above, title/copy below */
+    .visual { order: 1; }
+    .copy { order: 2; }
+  }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 18ch; color: var(--color-ink); }
+  .accent { color: var(--color-stamp); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 34rem; }
+  .lede .ink {
+    color: var(--color-stamp-hover); font-family: var(--font-mono);
+    background: var(--color-stamp-soft);
+    border: 1px solid var(--color-stamp-tint);
+    padding: 0.05em 0.35em; border-radius: 5px;
+    font-size: 0.92em; font-weight: 600;
+  }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .facts { margin-top: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+  @media (max-width: 520px) { .facts { grid-template-columns: 1fr; } }
+  .fact { padding: 0.75rem 0.9rem; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 10px; display: flex; flex-direction: column; gap: 0.2rem; }
+  .fact-k { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .fact-v { font-size: 0.88rem; color: var(--color-ink); }
+
+  /* ──────────────────────────────────────────────────────────────
+     Doc mock — scales like an illustration (no reflow).
+     The visual wrapper owns the responsive sizing via aspect-ratio +
+     container-query scaling. Inside, .doc always renders at its
+     "design" dimensions (36rem × 28rem) and is proportionally scaled
+     via transform so the mock looks identical at every viewport —
+     just smaller. This avoids the sidebar collapsing / tabs wrapping
+     at narrow widths.
+     ────────────────────────────────────────────────────────────── */
+  .visual {
+    width: 100%;
+    max-width: 36rem;                   /* never bigger than design size */
+    margin-inline: 0;
+    container-type: inline-size;
+    aspect-ratio: 36 / 28;              /* matches .doc design ratio */
+    position: relative;
+  }
+  @media (max-width: 1000px) {
+    .visual { margin-inline: auto; }    /* centered when stacked */
+  }
+
+  .doc {
+    position: absolute; top: 0; left: 0;
+    width: 36rem; height: 28rem;         /* fixed design size */
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 24px 50px -30px rgba(5,5,5,0.2), 0 2px 0 0 var(--color-border);
+    transform-origin: top left;
+    /* Scale to fit container; cap at 1 so we never upscale past design */
+    transform: scale(min(1, calc(100cqi / 36rem)));
+  }
+
+  .doc-tabs {
+    display: flex; gap: 0.2rem; padding: 0 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
+  .dt {
+    font-size: 0.85rem; padding: 0.85rem 0.85rem;
+    color: var(--color-mute); white-space: nowrap;
+    border-bottom: 2px solid transparent;
+  }
+  .dt.active { color: var(--color-ink); border-color: var(--color-stamp); font-weight: 640; }
+
+  .doc-body {
+    display: grid; grid-template-columns: 11rem 1fr;
+    height: calc(28rem - 3rem);          /* tabs ≈ 3rem — fixed math */
+  }
+
+  .api-side {
+    padding: 0.85rem 0.5rem; border-right: 1px solid var(--color-border);
+    background: var(--color-paper-mute);
+    display: flex; flex-direction: column; gap: 0.15rem;
+    min-width: 0;
+  }
+  .api-side-k {
+    font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 700;
+    padding: 0.5rem 0.6rem 0.2rem;
+  }
+  .api-side-item {
+    font-size: 0.82rem; padding: 0.35rem 0.6rem; border-radius: 6px;
+    color: var(--color-ink); font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+  .api-side-item.indent { padding-left: 1.2rem; color: var(--color-mute); }
+  .api-side-item.active { background: var(--color-stamp-soft); color: var(--color-stamp-hover); font-weight: 600; }
+
+  .api-main { padding: 1.25rem 1.5rem 1.5rem; }
+  .api-crumbs { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute); }
+  .api-title { font-family: var(--font-sans); font-weight: 680; font-size: 1.55rem; letter-spacing: -0.02em; margin: 0.6rem 0 0.25rem; color: var(--color-ink); display: flex; align-items: baseline; gap: 0.55rem; }
+  .api-type { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; padding: 0.15rem 0.4rem; background: var(--color-stamp-soft); border-radius: 4px; }
+  .api-desc { font-size: 0.92rem; color: var(--color-mute); margin: 0.35rem 0 1rem; line-height: 1.5; }
+
+  .api-group { border-top: 1px dashed var(--color-border); padding-top: 0.75rem; margin-top: 0.5rem; }
+  .api-group-k { font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-mute); font-weight: 700; }
+  .api-member {
+    padding: 0.4rem 0; display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
+    font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-ink);
+  }
+  .api-member code { color: var(--color-stamp); font-weight: 600; }
+  .api-arg { color: var(--color-mute); }
+  .api-ret { color: var(--color-stamp-hover); font-style: italic; }
+  .api-mod { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute); background: var(--color-paper-mute); padding: 0.1rem 0.35rem; border-radius: 4px; }
+</style>

@@ -1,0 +1,435 @@
+---
+title: Environment Variables
+description: Complete reference of all club environment variables with defaults, requirements, and examples.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+club is configured primarily through environment variables. Every setting can be controlled via an environment variable, and environment variables always take precedence over values in the [YAML config file](/configuration/yaml/).
+
+**Priority order:** Environment variable > YAML config file > Default value
+
+<Aside type="note">
+  Environment variable names use plain `UPPER_SNAKE_CASE` with no `CLUB_` prefix. The container/process namespace already scopes them.
+</Aside>
+
+<Aside type="tip">
+  For the full `/data` tree — what each path holds, which tier it belongs to, and what's safe to wipe or skip from backups — see [Data Directory Layout](/reference/data-layout/).
+</Aside>
+
+## Server
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SERVER_URL` | **Yes** | -- | Public URL of the club server |
+| `HOST` | No | `0.0.0.0` | IP address to bind the HTTP server to |
+| `LISTEN_PORT` | No | `8080` | Port the server listens on inside the container |
+| `LOG_LEVEL` | No | `info` | Log verbosity |
+
+### SERVER_URL
+
+The public URL where clients will reach the server. Used to construct `archive_url` in API responses, upload redirect URLs, and the implicitly-trusted Origin for browser requests.
+
+```bash
+SERVER_URL=https://packages.example.com
+```
+
+<Aside type="caution">
+  Must include the scheme (`https://`). No trailing slash. If your server is behind a reverse proxy, this should be the external URL that clients connect to, not the internal URL.
+</Aside>
+
+### HOST
+
+The IP address to bind the HTTP listener to.
+
+```bash
+HOST=0.0.0.0    # Listen on all interfaces (default)
+HOST=127.0.0.1  # Localhost only (when behind a reverse proxy on the same machine)
+```
+
+### LISTEN_PORT
+
+The port the server listens on inside the container (or host, for a from-source install).
+
+```bash
+LISTEN_PORT=8080    # Default
+LISTEN_PORT=3000    # Custom port
+```
+
+<Aside type="caution">
+  This variable is intentionally **not** called `PORT`. In docker-compose, `PORT` is conventionally used for the **host-side** port mapping. Using `LISTEN_PORT` for the server's internal listen port keeps those two concerns separate.
+</Aside>
+
+### LOG_LEVEL
+
+Controls log verbosity. Valid values: `debug`, `info`, `warning`, `error`.
+
+```bash
+LOG_LEVEL=info     # Default: normal operation
+LOG_LEVEL=debug    # Verbose logging for development/debugging
+LOG_LEVEL=warning  # Quiet mode, only warnings and errors
+```
+
+---
+
+## Authentication and sessions
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | **Yes** | -- | HMAC secret used by the auth subsystem (>= 32 chars). Name is historical — sessions themselves are opaque tokens, not JWTs. |
+| `SESSION_TTL_HOURS` | No | `1` | Session token sliding time-to-live in hours |
+| `TOKEN_EXPIRY_DAYS` | No | `365` | Default API token expiry in days |
+| `BCRYPT_COST` | No | `12` | bcrypt hashing cost factor (10-14 recommended) |
+| `SIGNUP_ENABLED` | No | `false` | Enable `/signup` and public `POST /api/auth/signup` |
+| `TRUST_PROXY` | No | `false` | Trust `X-Forwarded-Proto` / `X-Forwarded-For` headers |
+| `ALLOWED_ORIGINS` | No | -- | CSV of extra browser origins permitted on public state-changing endpoints |
+
+### JWT_SECRET
+
+HMAC secret used by the auth subsystem. **Must be at least 32 characters.** (The name is historical — session tokens themselves are opaque values stored in the database, not JSON Web Tokens.)
+
+```bash
+# Generate a secure secret
+JWT_SECRET=$(openssl rand -hex 32)
+```
+
+<Aside type="danger">
+  Use a cryptographically random string of at least 32 characters. Never use a simple string like `"secret"` in production. If this value is compromised, an attacker can forge session tokens. If you lose or change it, all existing sessions become invalid.
+</Aside>
+
+### SESSION_TTL_HOURS
+
+How long web UI session tokens remain valid, in hours.
+
+```bash
+SESSION_TTL_HOURS=1    # Default: 1 hour
+SESSION_TTL_HOURS=8    # Longer sessions for internal use
+```
+
+### TOKEN_EXPIRY_DAYS
+
+Default expiry for newly created API tokens, in days. Users can override this per-token.
+
+```bash
+TOKEN_EXPIRY_DAYS=365   # Default: 1 year
+TOKEN_EXPIRY_DAYS=90    # Shorter expiry for tighter security
+```
+
+### BCRYPT_COST
+
+The bcrypt cost factor for password hashing. Higher values are more secure but slower.
+
+```bash
+BCRYPT_COST=12   # Default: good balance of security and speed
+BCRYPT_COST=14   # Higher security, ~4x slower than 12
+BCRYPT_COST=10   # Faster, acceptable for development
+```
+
+<Aside type="note">
+  Values between 10 and 14 are recommended. Each increment roughly doubles the computation time.
+</Aside>
+
+### SIGNUP_ENABLED
+
+When `true`, exposes the `/signup` page and `POST /api/auth/signup` endpoint so anyone can self-register. New signups are created with the `member` role so they can publish immediately. Default: `false` (closed / invite-only).
+
+```bash
+SIGNUP_ENABLED=true
+```
+
+### TRUST_PROXY
+
+When `true`, the server honours `X-Forwarded-Proto` (to decide whether to set the `Secure` attribute on session cookies) and `X-Forwarded-For` (to record the real client IP in audit logs). Enable only when club is behind a reverse proxy that strips any client-supplied copies of these headers.
+
+```bash
+TRUST_PROXY=true
+```
+
+See [Trusting your proxy](/self-hosting/reverse-proxy/#trusting-your-proxy) for the full rationale.
+
+### ALLOWED_ORIGINS
+
+Comma-separated list of additional browser origins allowed to POST to public, unauthenticated endpoints (`/api/auth/login`, `/api/auth/signup`, `/api/setup/*`). `SERVER_URL` is always trusted implicitly.
+
+```bash
+ALLOWED_ORIGINS=https://www.packages.example.com,https://packages.internal.example.com
+```
+
+---
+
+## Database (Metadata Store)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DB_BACKEND` | No | `sqlite` | Database backend: `sqlite` or `postgres` |
+| `SQLITE_PATH` | No | `/data/db/club.db` | Path to SQLite database file |
+| `POSTGRES_URL` | Conditional | -- | PostgreSQL connection URL (required when `DB_BACKEND=postgres`) |
+
+```bash
+DB_BACKEND=sqlite     # Default: zero-dependency, great for small/medium deployments
+DB_BACKEND=postgres   # Larger deployments; requires POSTGRES_URL
+```
+
+### SQLITE_PATH
+
+Path to the SQLite database file. Only used when `DB_BACKEND=sqlite`.
+
+```bash
+SQLITE_PATH=/data/db/club.db       # Default (Docker)
+SQLITE_PATH=/var/lib/club/club.db  # Custom path
+```
+
+<Aside type="tip">
+  The directory must exist and be writable. SQLite also creates `-wal` and `-shm` files alongside the main database file.
+</Aside>
+
+### POSTGRES_URL
+
+Standard PostgreSQL connection URL. **Required** when `DB_BACKEND=postgres`.
+
+```bash
+POSTGRES_URL=postgres://club:secret@localhost:5432/club
+POSTGRES_URL=postgres://club:secret@db.example.com:5432/club?sslmode=require
+```
+
+<Aside type="note">
+  The PostgreSQL backend is still maturing. For production deployments today, SQLite is the recommended default. Verify against the latest release notes before committing to Postgres.
+</Aside>
+
+---
+
+## Blob Storage
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BLOB_BACKEND` | No | `filesystem` | `filesystem`, `s3`, or `gcs` |
+| `BLOB_PATH` | No | `/data/blobs` | Root directory for filesystem-backed blob storage (tarballs + screenshots + blob-mode dartdoc) |
+| `S3_BUCKET` | Conditional | -- | S3 bucket name (required for `s3`) |
+| `S3_REGION` | Conditional | -- | S3 region (required for `s3`) |
+| `S3_ACCESS_KEY` | Conditional | -- | S3 access key ID (required for `s3`) |
+| `S3_SECRET_KEY` | Conditional | -- | S3 secret access key (required for `s3`) |
+| `S3_ENDPOINT` | Optional | -- | S3-compatible endpoint (MinIO, R2, Spaces, B2, GCS interop) |
+| `GCS_BUCKET` | Conditional | -- | GCS bucket name (required for `gcs`) |
+| `GCS_CREDENTIALS_FILE` | Optional | -- | Path to service-account JSON |
+| `GCS_CREDENTIALS_JSON` | Optional | -- | Inline service-account JSON |
+
+### BLOB_BACKEND
+
+Where to store package `.tar.gz` archives.
+
+```bash
+BLOB_BACKEND=filesystem   # Default: local disk
+BLOB_BACKEND=s3           # AWS S3 / R2 / MinIO / Spaces / B2 / GCS S3-interop
+BLOB_BACKEND=gcs          # Native Google Cloud Storage (service account / ADC)
+```
+
+### BLOB_PATH
+
+Root directory for package tarballs when `BLOB_BACKEND=filesystem`.
+
+```bash
+BLOB_PATH=/data/blobs      # Default (Docker)
+```
+
+### S3 Configuration
+
+`S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` are **required** when `BLOB_BACKEND=s3`. `S3_ENDPOINT` is optional for AWS but required for anything else.
+
+```bash
+# AWS S3
+BLOB_BACKEND=s3
+S3_BUCKET=club-packages
+S3_REGION=us-east-1
+S3_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+S3_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+# MinIO or other S3-compatible (Cloudflare R2, DO Spaces, Backblaze B2, GCS interop)
+S3_ENDPOINT=http://minio:9000
+```
+
+See [Docker with S3 storage](/self-hosting/docker-s3/) for provider-specific guidance.
+
+### GCS Configuration
+
+`GCS_BUCKET` is **required** when `BLOB_BACKEND=gcs`. Auth priority: `GCS_CREDENTIALS_FILE` > `GCS_CREDENTIALS_JSON` > Application Default Credentials.
+
+```bash
+BLOB_BACKEND=gcs
+GCS_BUCKET=my-project.appspot.com
+GCS_CREDENTIALS_FILE=/secrets/sa.json
+# or:
+# GCS_CREDENTIALS_JSON='{"type":"service_account",...}'
+# or: leave both unset to use ADC (GCE/GKE/Cloud Run metadata server)
+```
+
+<Aside type="caution">
+  Under Application Default Credentials there's no private key in the server process, so club cannot generate V4 signed download URLs and will fall back to proxying bytes. For redirect-based downloads, supply a real service-account JSON.
+</Aside>
+
+---
+
+## Search
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SEARCH_BACKEND` | No | `sqlite` | `sqlite` (FTS5) or `meilisearch` |
+| `MEILISEARCH_URL` | Conditional | -- | Meilisearch URL (required when `meilisearch`) |
+| `MEILISEARCH_KEY` | Conditional | -- | Meilisearch API key (required when `meilisearch`) |
+
+```bash
+SEARCH_BACKEND=sqlite       # Default: SQLite FTS5, zero dependencies
+SEARCH_BACKEND=meilisearch  # Advanced search features or very large catalogs
+MEILISEARCH_URL=http://meilisearch:7700
+MEILISEARCH_KEY=your-meilisearch-api-key
+```
+
+---
+
+## Upload
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TEMP_DIR` | No | `/data/tmp/uploads` | Temporary directory for upload processing |
+| `MAX_UPLOAD_BYTES` | No | `104857600` | Maximum tarball upload size in bytes (100 MiB) |
+
+```bash
+MAX_UPLOAD_BYTES=104857600    # Default: 100 MiB
+MAX_UPLOAD_BYTES=524288000    # 500 MiB for large packages
+MAX_UPLOAD_BYTES=10485760     # 10 MiB for strict limits
+```
+
+<Aside type="tip">
+  If you raise `MAX_UPLOAD_BYTES`, update your reverse proxy's request-body limit to match (`client_max_body_size` in nginx, `request_body { max_size ... }` in Caddy).
+</Aside>
+
+---
+
+## Dartdoc
+
+Settings for API-reference HTML generation and serving. See the [Dartdoc Serving Specifications](/reference/dartdoc-serving/) for the full behavioural spec.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DARTDOC_BACKEND` | No | `filesystem` | Serve path selector: `filesystem` (local tree, served by `shelf_static`) or `blob` (indexed blob inside the configured `BlobStore`, served via byte-range reads with an in-process LRU). |
+| `DARTDOC_PATH` | No | `/data/cache/dartdoc` | Local tree root for `DARTDOC_BACKEND=filesystem`. Ignored in blob mode. |
+| `DARTDOC_CACHE_MAX_MEMORY_MB` | No | `64` | Hard cap on the in-process LRU (blob mode only). Entries larger than this are served uncached. |
+
+```bash
+# Default: single-container deployments on a persistent /data volume.
+DARTDOC_BACKEND=filesystem
+
+# Blob mode: works with ANY BLOB_BACKEND. With BLOB_BACKEND=filesystem
+# the indexed blob lives at <BLOB_PATH>/<pkg>/dartdoc/latest/… on local
+# disk. With s3/gcs it rides along in the same bucket as tarballs.
+DARTDOC_BACKEND=blob
+DARTDOC_CACHE_MAX_MEMORY_MB=128
+```
+
+<Aside type="note">
+  `DARTDOC_BACKEND` is orthogonal to `BLOB_BACKEND`. Choosing `DARTDOC_BACKEND=blob` does not opt you into S3 or GCS — it reuses whatever `BlobStore` you've already configured. The only reason to change `BLOB_BACKEND` is if you want tarballs themselves on S3/GCS.
+</Aside>
+
+<Aside type="caution">
+  `DARTDOC_BACKEND=filesystem` works on a single container but breaks across multiple replicas — each replica's local dartdoc directory is private, so only the replica that generated the docs can serve them. Flip to `DARTDOC_BACKEND=blob` for horizontal scaling. This applies regardless of `BLOB_BACKEND`.
+</Aside>
+
+---
+
+## Scoring (pana Analysis)
+
+Scoring is managed entirely from the admin UI -- no environment variables needed. Go to **Admin > Settings > Scoring** to download a Flutter SDK and enable scoring. In Docker, the Flutter SDK and pub cache live under `/data/cache/sdks` and `/data/cache/pub-cache`. See the [package scoring guide](/guides/package-scoring/) for details.
+
+---
+
+## Static files
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `STATIC_FILES_PATH` | No | auto-detect | Path to the SvelteKit static build output |
+
+Auto-detection probes, in order:
+
+1. `/app/static/web` (Docker default)
+2. `packages/club_web/build` (local dev, from repo root)
+
+Override only if neither default matches your layout.
+
+---
+
+## Config file
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CONFIG` | No | `/etc/club/config.yaml` | Path to an optional YAML config file |
+
+```bash
+CONFIG=/etc/club/config.yaml   # Explicit path
+```
+
+If unset, club checks for `/etc/club/config.yaml`; if the file doesn't exist, YAML loading is simply skipped. See [YAML Config File](/configuration/yaml/) for the file format.
+
+---
+
+## Admin account
+
+There are **no** `ADMIN_EMAIL` / `ADMIN_PASSWORD` environment variables. On first boot, club prints a one-time **setup code** to the server logs and exposes a web wizard at `/setup`. Visit that URL, paste the code, and create the initial admin account through the browser.
+
+```
+[INFO] Setup code: XXXX-XXXX-XXXX-XXXX
+[INFO] Finish setup at: https://packages.example.com/setup
+```
+
+Once an admin exists, the setup wizard closes and the code is no longer valid.
+
+---
+
+## Validation
+
+The server validates configuration at startup and fails fast with a clear error message if anything is wrong:
+
+| Rule | Error Message |
+|------|--------------|
+| `JWT_SECRET` not set | `JWT_SECRET is required.` |
+| `JWT_SECRET` < 32 chars | `JWT_SECRET must be at least 32 characters.` |
+| `DB_BACKEND=postgres` without URL | `POSTGRES_URL must be set when DB_BACKEND=postgres.` |
+| `BLOB_BACKEND=s3` without bucket/keys | `S3_ACCESS_KEY and S3_SECRET_KEY are required when BLOB_BACKEND=s3.` |
+| `BLOB_BACKEND=gcs` without bucket | `GCS_BUCKET is required when BLOB_BACKEND=gcs.` |
+| `SEARCH_BACKEND=meilisearch` without URL | `MEILISEARCH_URL must be set when SEARCH_BACKEND=meilisearch.` |
+
+---
+
+## Quick Reference by Profile
+
+### Minimal (Development)
+
+```bash
+SERVER_URL=http://localhost:8080
+JWT_SECRET=dev-secret-at-least-32-characters-long
+```
+
+Finish admin setup via the one-time code printed to the logs.
+
+### Docker Default (SQLite + Filesystem)
+
+```bash
+SERVER_URL=https://packages.example.com
+JWT_SECRET=$(openssl rand -hex 32)
+TRUST_PROXY=true      # when behind a reverse proxy
+```
+
+### Production (PostgreSQL + S3)
+
+```bash
+SERVER_URL=https://packages.example.com
+JWT_SECRET=$(openssl rand -hex 32)
+TRUST_PROXY=true
+
+DB_BACKEND=postgres
+POSTGRES_URL=postgres://club:secret@db.example.com:5432/club
+
+BLOB_BACKEND=s3
+S3_BUCKET=club-packages
+S3_REGION=us-east-1
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=wJalrXUtnFEMI...
+```

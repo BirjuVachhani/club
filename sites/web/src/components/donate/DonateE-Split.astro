@@ -1,0 +1,200 @@
+---
+// Donate — E · Split (monthly vs one-time)
+// Two panes side-by-side: recurring sponsorship (left, dark) and
+// one-time coffee (right, paper). Lets visitors self-select without a
+// "best option" bias — both are valid.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+---
+
+<section id="f-donate" class="sec">
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow orange">§ If you'd like</div>
+      <h2 class="h2">Only if you feel like it.</h2>
+      <p class="lede">
+        CLUB is free and will stay that way. If it's been useful and you'd
+        like to say thanks, here are two easy ways — pick whichever fits,
+        skip both with zero guilt.
+      </p>
+    </header>
+
+    <div class="panes" data-reveal-children data-reveal-step="140">
+      <!-- Pane 1: GitHub Sponsors -->
+      <a class="pane pane-primary" href={SPONSORS_URL} target="_blank" rel="noopener">
+        <div class="pane-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/>
+          </svg>
+        </div>
+        <div class="pane-tag mono">RECURRING</div>
+        <div class="pane-title">Sponsor on GitHub</div>
+        <p class="pane-blurb">
+          Monthly support from $5. The tier that actually changes how
+          much time the project gets. Cancel anytime.
+        </p>
+        <div class="pane-foot">
+          <span class="pill">GitHub Sponsors</span>
+          <span class="arrow">→</span>
+        </div>
+      </a>
+
+      <!-- Pane 2: Buy Me a Coffee -->
+      <a class="pane pane-soft" href={BMC_URL} target="_blank" rel="noopener">
+        <div class="pane-mark coffee" aria-hidden="true">
+          <span>☕</span>
+        </div>
+        <div class="pane-tag mono">ONE-TIME</div>
+        <div class="pane-title">Buy me a coffee</div>
+        <p class="pane-blurb">
+          A quick thank-you. No account, no recurring charge — just a
+          tip if CLUB helped you out today.
+        </p>
+        <div class="pane-foot">
+          <span class="pill">Buy Me a Coffee</span>
+          <span class="arrow">→</span>
+        </div>
+      </a>
+    </div>
+
+    <p class="foot mono">
+      ✓ 100% goes to maintenance ✓ No perks, no unlocks ✓ Apache 2.0 forever
+    </p>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); color: var(--color-ink); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 50rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; }
+  .lede { font-size: 1.08rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 42rem; }
+
+  .panes {
+    margin-top: 3.5rem;
+    display: grid; gap: 1.25rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .panes { margin-top: 2.25rem; gap: 1rem; }
+    .pane { padding: 1.75rem 1.25rem 1.4rem; }
+    .pane-title { font-size: 1.4rem; }
+  }
+
+  .pane {
+    position: relative;
+    padding: 2.25rem 2rem 1.75rem;
+    border-radius: 20px;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    text-decoration: none;
+    transition:
+      transform 280ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      box-shadow 280ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      border-color 180ms;
+    overflow: hidden;
+  }
+  .pane:hover { transform: translateY(-4px); }
+  .pane:active { transform: translateY(-1px) scale(0.995); transition-duration: 100ms; }
+  @media (prefers-reduced-motion: reduce) {
+    .pane:hover, .pane:active { transform: none; }
+  }
+
+  .pane-primary {
+    background: var(--color-ink-dark); color: #EDEDED;
+    border: 1px solid var(--color-border-dark);
+    box-shadow: 0 24px 48px -28px rgba(5,5,5,0.4);
+  }
+  .pane-primary::after {
+    content: ""; position: absolute;
+    right: -6rem; top: -6rem;
+    width: 18rem; height: 18rem; border-radius: 999px;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.15; filter: blur(36px); pointer-events: none;
+  }
+  .pane-primary:hover { border-color: var(--color-stamp); box-shadow: 0 32px 64px -28px rgba(5,5,5,0.55); }
+
+  .pane-soft {
+    background: var(--color-paper-mute);
+    color: var(--color-ink);
+    border: 1px solid var(--color-border);
+  }
+  .pane-soft:hover { border-color: var(--color-stamp); background: var(--color-stamp-soft); }
+
+  .pane-mark {
+    width: 3rem; height: 3rem; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in oklab, var(--color-stamp) 25%, transparent);
+    color: var(--color-stamp);
+    transition: transform 380ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .pane:hover .pane-mark { transform: scale(1.08) rotate(-6deg); }
+  .pane-primary .pane-mark { animation: heart-beat 3.4s ease-in-out infinite; }
+  @keyframes heart-beat {
+    0%, 90%, 100% { transform: scale(1); }
+    45%           { transform: scale(1.08); }
+    50%           { transform: scale(1.02); }
+    55%           { transform: scale(1.09); }
+  }
+  .pane-soft .pane-mark { background: var(--color-bg); color: var(--color-stamp); border: 1px solid var(--color-border); font-size: 1.5rem; }
+  .pane-soft:hover .pane-mark .coffee, .pane-soft:hover .pane-mark span { animation: steam 1.2s ease-in-out infinite; }
+  @keyframes steam {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-2px); }
+  }
+  .pane-mark.coffee span { font-size: 1.4rem; line-height: 1; display: inline-block; }
+  @media (prefers-reduced-motion: reduce) {
+    .pane:hover .pane-mark { transform: none; }
+    .pane-primary .pane-mark { animation: none; }
+    .pane-soft:hover .pane-mark span { animation: none; }
+  }
+
+  .pane-tag {
+    font-size: 0.64rem; letter-spacing: 0.22em; text-transform: uppercase;
+    font-weight: 700; color: var(--color-stamp);
+    margin-top: 0.25rem;
+  }
+  .pane-title {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: 1.65rem; letter-spacing: -0.02em; line-height: 1.15;
+  }
+  .pane-primary .pane-title { color: #EDEDED; }
+  .pane-soft .pane-title { color: var(--color-ink); }
+  .pane-blurb {
+    margin: 0; font-size: 0.98rem; line-height: 1.55;
+    max-width: 36ch;
+  }
+  .pane-primary .pane-blurb { color: var(--color-mute-dark); }
+  .pane-soft .pane-blurb { color: var(--color-mute); }
+
+  .pane-foot {
+    margin-top: 1.25rem; display: flex; align-items: center; justify-content: space-between;
+    padding-top: 1rem; border-top: 1px dashed;
+  }
+  .pane-primary .pane-foot { border-color: var(--color-border-dark); }
+  .pane-soft .pane-foot { border-color: var(--color-border); }
+  .pill {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .pane-primary .pill { color: var(--color-mute-dark); }
+  .pane-soft .pill { color: var(--color-mute); }
+  .arrow {
+    color: var(--color-stamp); font-size: 1.2rem; font-weight: 500;
+    transition: transform 260ms var(--ease-press, cubic-bezier(0.2, 0.8, 0.2, 1));
+  }
+  .pane:hover .arrow { transform: translateX(5px); }
+  @media (prefers-reduced-motion: reduce) {
+    .pane:hover .arrow { transform: none; }
+  }
+
+  .foot {
+    margin-top: 2rem; font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--color-mute);
+  }
+  .mono { font-family: var(--font-mono); }
+</style>

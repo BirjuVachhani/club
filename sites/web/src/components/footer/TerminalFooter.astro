@@ -1,0 +1,163 @@
+---
+// Footer variant D — "Terminal"
+// The closing visual is a terminal window printing `club --version`.
+// Playful, dev-forward. Nav columns sit below it. Feels consistent
+// with the terminal aesthetic used in the hero and scoring sections.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Documentation", href: DOCS_URL },
+      { label: "GitHub", href: GITHUB_URL },
+      { label: "Changelog", href: docsUrl("/changelog/") },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+      { label: "License (Apache 2.0)", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <div class="wrap">
+    <!-- Terminal window -->
+    <figure class="term">
+      <header class="term-head">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="term-title mono">~ · zsh</span>
+        <span class="term-right mono">
+          <span class="pulse"></span>
+          up for 127 days
+        </span>
+      </header>
+      <pre><code><span class="p">$</span> club --version
+<span class="dim">club 0.1.0 · linux/arm64 · Dart 3.5.0</span>
+<span class="dim">build: ghcr.io/club/club@sha256:3b41…</span>
+
+<span class="p">$</span> club whoami
+<span class="dim">signed in as </span><span class="o">you@your-org</span><span class="dim"> · 127 packages · 4 publishers</span>
+
+<span class="p">$</span> echo <span class="o">"thanks for reading"</span><span class="cursor">▍</span></code></pre>
+    </figure>
+
+    <div class="top">
+      <div class="brand">
+        <Mark height={26} />
+        <p class="tag">Private pub.dev. Self-hosted. Open source.</p>
+      </div>
+
+      <nav class="cols">
+        {cols.map((col) => (
+          <div>
+            <div class="col-k mono">{col.title}</div>
+            <ul>
+              {col.links.map((l) => (
+                <li><a href={l.href}>{l.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+
+    <div class="rail">
+      <span class="mono">© {year} CLUB contributors · Apache License 2.0</span>
+      <span class="rail-r mono">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <span>No cookies. No telemetry.</span>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr { background: var(--color-ink-dark); color: #EDEDED; }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 3rem 2rem 1.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 2.25rem 1.25rem 1.25rem; } }
+
+  .mono { font-family: var(--font-mono); }
+  .o { color: var(--color-stamp); font-weight: 600; }
+  .dim { color: var(--color-mute-dark); }
+  .p { color: var(--color-stamp); }
+
+  /* Terminal */
+  .term {
+    margin: 0 auto; max-width: 44rem;
+    background: #050505; color: #EDEDED;
+    border: 1px solid var(--color-border-dark); border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -30px rgba(0,0,0,0.55);
+  }
+  .term-head {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--color-border-dark);
+    background: #0E0E10;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 999px; background: #3a3a3a; }
+  .term-title { margin-left: 0.5rem; font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute-dark); }
+  .term-right { margin-left: auto; display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-mute-dark); }
+  .pulse { width: 6px; height: 6px; border-radius: 999px; background: var(--color-stamp); box-shadow: 0 0 8px color-mix(in oklab, var(--color-stamp) 55%, transparent); }
+
+  .term pre { margin: 0; padding: 1rem 1.1rem; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.75; color: #EDEDED; overflow-x: auto; }
+  .cursor { display: inline-block; width: 0.55em; background: var(--color-stamp); color: transparent; animation: blink 1.1s step-end infinite; }
+  @keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+
+  /* Nav block */
+  .top {
+    margin-top: 3rem;
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 0.35fr) minmax(0, 0.65fr);
+  }
+  @media (max-width: 900px) { .top { grid-template-columns: 1fr; gap: 2rem; } }
+
+  .brand { display: flex; flex-direction: column; gap: 0.85rem; }
+  .tag { margin: 0; max-width: 28ch; font-size: 0.88rem; line-height: 1.55; color: var(--color-mute-dark); }
+
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 600px) { .cols { grid-template-columns: repeat(2, 1fr); } }
+  .col-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; color: var(--color-mute-dark); }
+  .cols ul { list-style: none; padding: 0; margin: 0.85rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+
+  .rail {
+    margin-top: 2.5rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border-dark);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 1.5rem;
+    font-size: 0.72rem; letter-spacing: 0.1em;
+    color: var(--color-mute-dark);
+  }
+  .rail-r { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+  .rail-r a { color: var(--color-mute-dark); }
+  .rail-r a:hover { color: var(--color-stamp); }
+</style>

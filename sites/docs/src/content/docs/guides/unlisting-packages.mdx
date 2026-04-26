@@ -1,0 +1,98 @@
+---
+title: Unlisting a Package
+description: Hide a club package from search and browse listings while keeping it fully downloadable for known dependents.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Unlisting hides a package from the club web UI — search results and the browse/listing pages — while leaving every version fully downloadable. It's the right choice when a package should still resolve for anyone who knows its name (lockfiles, direct dependencies, internal teams) but shouldn't show up for casual discovery.
+
+## When to Unlist
+
+- **Internal-only packages** in an otherwise shared registry (e.g. team-specific tooling on a company-wide server).
+- **Stale or abandoned packages** you want to hide from browse without [discontinuing](/guides/discontinuing-packages/) them outright.
+- **Forks or experiments** that shouldn't be recommended to new users but still need to resolve for existing consumers.
+
+Unlist is reversible at any time with no side effects — it's purely a visibility toggle.
+
+## How It Differs From Discontinuing and Retracting
+
+| Operation | Scope | Downloadable? | Resolvable by version solver? | Hidden from browse? | Visible banner? |
+|-----------|-------|:-------------:|:-----------------------------:|:-------------------:|:---------------:|
+| **Unlist** | Package | yes | yes | **yes** | no |
+| **Discontinue** | Package | yes | yes | no | yes |
+| **Retract** | Single version | yes | **no** (SDK ≥ 2.15) | no | badge |
+
+The three compose freely — an internal helper package, for instance, is often both unlisted and discontinued.
+
+## What Actually Changes
+
+- The package is excluded from `/packages` browse listings and search results in the web UI.
+- The search API endpoints skip unlisted packages.
+- The pub API response for `/api/packages/<pkg>` still returns all versions as normal and sets `"isUnlisted": true`.
+- `dart pub get`, `dart pub upgrade`, and `dart pub add <exact_name>` all keep working — the version solver treats unlisted packages the same as listed ones.
+- If you access the package page by URL, it still loads. Only **discovery** is affected.
+
+<Aside type="note">
+Unlisting does not affect access control. To restrict **who** can download a package, the package needs to live on a server whose auth policy enforces that — unlisting alone does not make a package private.
+</Aside>
+
+## Who Can Unlist
+
+- Any named **uploader** on the package.
+- Any **admin of the publisher** that owns it.
+- A server **admin** or **owner**.
+
+## Unlisting a Package
+
+<Tabs>
+  <TabItem label="Web UI">
+  <Steps>
+
+  1. Open the package page.
+  2. Switch to the **Admin** tab.
+  3. Toggle **Unlisted**.
+  4. Save.
+
+  </Steps>
+
+  The package immediately stops appearing in search and browse listings; the direct URL continues to work.
+  </TabItem>
+
+  <TabItem label="HTTP API">
+  ```http
+  PUT /api/packages/<pkg>/options
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+  { "isUnlisted": true }
+  ```
+
+  Omit other fields to leave them unchanged.
+  </TabItem>
+</Tabs>
+
+## Re-listing
+
+```http
+PUT /api/packages/<pkg>/options
+{ "isUnlisted": false }
+```
+
+The package becomes discoverable again on the next search / browse refresh.
+
+## Audit Log
+
+Unlist and re-list each append an entry to the package activity log:
+
+```http
+GET /api/packages/<pkg>/activity-log
+```
+
+Event kind: `packageOptionsUpdated` (with `isUnlisted` in the before/after payload).
+
+## See Also
+
+- [Package Administration overview](/guides/package-admin/)
+- [Discontinuing a Package](/guides/discontinuing-packages/)
+- [Retracting a Version](/guides/retracting-versions/)

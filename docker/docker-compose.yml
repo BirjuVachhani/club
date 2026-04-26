@@ -1,0 +1,53 @@
+# =============================================================================
+# club — default Docker Compose stack (SQLite)
+# =============================================================================
+# Usage:
+#   cp .env.example .env   # then edit .env
+#   docker compose up -d --build
+#
+# Data persistence
+# ────────────────
+# The `club_data` volume is declared with an explicit `name:` so its Docker
+# identity is stable regardless of which directory you run compose from and
+# regardless of rebuilds. Your SQLite DB and package tarballs live inside
+# this volume.
+#
+# To intentionally wipe all data:
+#     docker volume rm club_data
+#
+# A plain `docker compose down` (or `docker compose up -d --build`) will
+# NEVER delete this volume.
+# =============================================================================
+
+# Explicit project name so volumes never get prefixed by the working
+# directory. This is what makes the data survive when you rebuild or move
+# the repo.
+name: club
+
+services:
+  club:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: club:latest
+    container_name: club
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - club_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  club_data:
+    # Explicit name prevents docker-compose from prefixing with the project
+    # or directory name. This volume is "club_data" everywhere.
+    name: club_data
+    driver: local

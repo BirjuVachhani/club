@@ -1,0 +1,337 @@
+---
+title: Installation
+description: Install the club CLI from a prebuilt binary, via the install script, or from source. Covers Linux, macOS, and Windows.
+sidebar:
+  order: 2
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+The `club` CLI is a single native binary built for every major
+platform. There are four ways to get it:
+
+1. **Install script** — one-liner that fetches the right archive for
+   your OS + CPU, verifies the checksum, and drops the binary on your
+   PATH. `install.sh` for Linux/macOS, `install.ps1` for Windows.
+2. **Homebrew** — on macOS (and Linux with Homebrew installed), tap
+   this repo and `brew install club`. Upgrades and uninstall flow
+   through `brew` like any other formula.
+3. **Manual download** — grab the archive from the
+   [releases page](https://github.com/BirjuVachhani/club/releases) and
+   extract it wherever you want. Use this in locked-down environments
+   or when you want to pin a specific version by hand.
+4. **From source** — activate the CLI via `dart pub global activate`
+   from a cloned repo. Best for local development on the CLI itself.
+
+For CI/CD, see the [CI/CD Integration guide](/guides/ci-cd/) — there's
+a one-liner GitHub Action that installs the CLI and configures `dart pub`
+in a single step.
+
+## Install script (Linux and macOS)
+
+```bash
+curl -fsSL https://club.birju.dev/install.sh | bash
+```
+
+The script detects your OS (`linux` / `macos`) and CPU (`x64` /
+`arm64`), downloads the matching release archive, verifies its SHA-256
+against the release's `SHA256SUMS.txt`, and installs the binary to
+`~/.local/bin/club`.
+
+<Aside>
+  Piping a script into `bash` is something to think about every time.
+  If you'd rather read it first, download and inspect it before
+  running: `curl -fsSLO https://club.birju.dev/install.sh && less install.sh && bash install.sh`.
+</Aside>
+
+### Options
+
+| Flag | Env var | Description |
+|---|---|---|
+| `--version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest tag. |
+| `--install-dir <path>` | — | Install to a different directory. Default `~/.local/bin`. |
+| `--repo <owner/name>` | `CLUB_REPO` | Pull from a fork or mirror. Default `BirjuVachhani/club`. |
+
+Examples:
+
+```bash
+# Pin to a specific version
+curl -fsSL https://club.birju.dev/install.sh \
+  | bash -s -- --version 0.1.0
+
+# Install into /usr/local/bin instead of ~/.local/bin
+curl -fsSL https://club.birju.dev/install.sh \
+  | sudo bash -s -- --install-dir /usr/local/bin
+```
+
+### PATH
+
+If the chosen install directory is not on your `PATH`, the script
+prints the exact line to add to your shell's rc file. For the default
+`~/.local/bin`:
+
+<Tabs>
+  <TabItem label="zsh">
+    ```bash
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+    ```
+  </TabItem>
+  <TabItem label="bash">
+    ```bash
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    ```
+  </TabItem>
+  <TabItem label="fish">
+    ```fish
+    fish_add_path "$HOME/.local/bin"
+    ```
+  </TabItem>
+</Tabs>
+
+## Install script (Windows)
+
+```powershell
+iwr -useb https://club.birju.dev/install.ps1 | iex
+```
+
+The script detects the architecture, downloads the matching `.zip`
+from the release, verifies its SHA-256 against `SHA256SUMS.txt`, and
+copies `club.exe` into `%USERPROFILE%\.club\bin`.
+
+<Aside>
+  Same caveat as the Unix version — pipe-to-`iex` runs whatever the
+  endpoint returns. To inspect first:
+  `iwr -useb https://club.birju.dev/install.ps1 -OutFile install.ps1; notepad install.ps1; .\install.ps1`.
+</Aside>
+
+### Options
+
+| Parameter | Env var | Description |
+|---|---|---|
+| `-Version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest tag. |
+| `-InstallDir <path>` | `CLUB_INSTALL_DIR` | Install to a different directory. Default `%USERPROFILE%\.club\bin`. |
+| `-Repo <owner/name>` | `CLUB_REPO` | Pull from a fork or mirror. Default `BirjuVachhani/club`. |
+
+Parameters require direct invocation. When piping to `iex`, set the
+matching env var first:
+
+```powershell
+# Pin a version
+$env:CLUB_VERSION = '0.1.0'
+iwr -useb https://club.birju.dev/install.ps1 | iex
+
+# Or, with the script saved to disk:
+iwr -useb https://club.birju.dev/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version 0.1.0 -InstallDir "$env:LOCALAPPDATA\Programs\club\bin"
+```
+
+### PATH
+
+If the install directory isn't on `PATH` yet, the script prints the
+exact PowerShell line to add it persistently for your user. The
+default location, `%USERPROFILE%\.club\bin`, isn't on `PATH` out of
+the box — add it with:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  'Path',
+  "$env:USERPROFILE\.club\bin;" + [Environment]::GetEnvironmentVariable('Path','User'),
+  'User'
+)
+```
+
+Then open a new terminal.
+
+## Homebrew (macOS and Linux)
+
+The club repo doubles as a Homebrew tap. Because the repo is named
+`club` (not `homebrew-club`), the tap URL has to be passed explicitly
+the first time:
+
+```bash
+brew tap birjuvachhani/club https://github.com/BirjuVachhani/club.git
+brew install club
+```
+
+The formula pulls the prebuilt binary for your platform (macOS
+arm64/x64, Linux arm64/x64) from the matching GitHub release and
+verifies its SHA-256.
+
+Upgrade and uninstall with the usual `brew` commands:
+
+```bash
+brew update && brew upgrade club
+brew uninstall club
+brew untap birjuvachhani/club   # if you want to drop the tap too
+```
+
+<Aside>
+  Credentials written by `club login` live at `~/.config/club` and are
+  not touched by `brew uninstall`. Delete that directory by hand if
+  you want a clean slate.
+</Aside>
+
+## Manual download
+
+Every tagged release attaches one archive per supported target plus a
+single `SHA256SUMS.txt`:
+
+| Target | Archive |
+|---|---|
+| Linux x86_64 | `club-cli-<version>-linux-x64.tar.gz` |
+| Linux arm64 | `club-cli-<version>-linux-arm64.tar.gz` |
+| macOS Intel | `club-cli-<version>-macos-x64.tar.gz` |
+| macOS Apple silicon | `club-cli-<version>-macos-arm64.tar.gz` |
+| Windows x86_64 | `club-cli-<version>-windows-x64.zip` |
+
+<Tabs>
+  <TabItem label="Linux / macOS">
+    <Steps>
+      1. Grab the archive and the checksums file from the
+         [latest release](https://github.com/BirjuVachhani/club/releases/latest):
+
+         ```bash
+         VERSION=0.1.0
+         TARGET=linux-x64   # or macos-arm64, etc.
+
+         curl -fLO "https://github.com/BirjuVachhani/club/releases/download/${VERSION}/club-cli-${VERSION}-${TARGET}.tar.gz"
+         curl -fLO "https://github.com/BirjuVachhani/club/releases/download/${VERSION}/SHA256SUMS.txt"
+         ```
+
+      2. Verify the archive:
+
+         ```bash
+         shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+         ```
+
+         You should see `club-cli-${VERSION}-${TARGET}.tar.gz: OK`.
+
+      3. Extract and install:
+
+         ```bash
+         tar -xzf "club-cli-${VERSION}-${TARGET}.tar.gz"
+         install -m 0755 "club-cli-${VERSION}-${TARGET}/bin/club" ~/.local/bin/club
+         ```
+    </Steps>
+  </TabItem>
+  <TabItem label="Windows">
+    <Steps>
+      1. Download the `.zip` and `SHA256SUMS.txt` from the
+         [latest release page](https://github.com/BirjuVachhani/club/releases/latest).
+
+      2. Verify the archive in PowerShell:
+
+         ```powershell
+         Get-FileHash .\club-cli-0.1.0-windows-x64.zip -Algorithm SHA256
+         ```
+
+         Compare the hash against the line for your file in
+         `SHA256SUMS.txt`.
+
+      3. Extract the zip. Move `club-cli-<version>-windows-x64\bin\club.exe`
+         somewhere on your `PATH` (for example,
+         `%USERPROFILE%\bin`), or add the extracted `bin` directory to
+         `PATH` directly.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## From source
+
+Useful when you're hacking on the CLI itself or want to run an
+unreleased build. Requires the [Dart SDK](https://dart.dev/get-dart)
+3.11 or newer.
+
+```bash
+git clone https://github.com/BirjuVachhani/club.git
+cd club
+dart pub get
+dart pub global activate --source path packages/club_cli
+```
+
+Make sure `$HOME/.pub-cache/bin` is on your `PATH`:
+
+```bash
+export PATH="$PATH:$HOME/.pub-cache/bin"
+```
+
+<Aside>
+  The repo also ships [`scripts/build-cli.sh`](https://github.com/BirjuVachhani/club/blob/main/scripts/build-cli.sh)
+  which uses `dart build cli` to produce a native binary and drops it
+  into `~/.local/bin/club`. It's what the release workflow runs on
+  CI.
+</Aside>
+
+## Verifying the install
+
+```bash
+club --version
+```
+
+If you see the version printed, you're done. Continue to
+[Login & Setup](/cli/login-setup/) to authenticate against your club
+server.
+
+## Upgrading
+
+Re-running the install script replaces the existing binary:
+
+```bash
+curl -fsSL https://club.birju.dev/install.sh | bash
+```
+
+For manual installs, repeat the download step with the new version.
+
+## Uninstalling
+
+Use the uninstall script that matches how you installed:
+
+```bash
+curl -fsSL https://club.birju.dev/uninstall.sh | bash
+```
+
+This removes the binary at `~/.local/bin/club` and, if present, the
+bundle directory at `~/.local/share/club`. Stored credentials at
+`~/.config/club` are kept by default — pass `--purge` to delete them too.
+
+### Options
+
+| Flag | Description |
+|---|---|
+| `--purge` | Also delete `~/.config/club` (credentials + config). |
+| `--install-dir <path>` | Look for the binary here instead of `~/.local/bin`. Must match the value you passed to `install.sh`. |
+| `--dry-run` | Print what would be removed without deleting anything. |
+
+Examples:
+
+```bash
+# Preview the removal
+curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --dry-run
+
+# Remove binary + credentials
+curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --purge
+
+# Uninstall from a custom location
+curl -fsSL https://club.birju.dev/uninstall.sh \
+  | sudo bash -s -- --install-dir /usr/local/bin
+```
+
+### Homebrew
+
+If you installed via Homebrew, uninstall with brew instead — the script
+only knows about install.sh layouts:
+
+```bash
+brew uninstall club
+brew untap birjuvachhani/club
+```
+
+### Manual
+
+If you'd rather do it by hand:
+
+```bash
+rm -f ~/.local/bin/club
+rm -rf ~/.local/share/club   # only if the bundle layout was used
+rm -rf ~/.config/club        # credentials — only if you want a clean slate
+```

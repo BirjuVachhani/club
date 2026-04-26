@@ -1,0 +1,171 @@
+---
+// Footer variant F — "Sitemap Rich"
+// Expanded 5-column sitemap with categories for Product, Docs,
+// Community, Resources, and Legal. A small "Stay in the loop" block on
+// the left. For teams that want every entry point visible.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Product",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Pub scoring", href: "/#f-scoring" },
+      { label: "Admin controls", href: "/#f-control" },
+      { label: "Backends", href: "/#f-backends" },
+      { label: "Changelog", href: docsUrl("/changelog/") },
+    ],
+  },
+  {
+    title: "Docs",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Beginner's guide", href: docsUrl("/getting-started/tutorial/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "Reverse proxy", href: docsUrl("/self-hosting/reverse-proxy/") },
+      { label: "Migration", href: docsUrl("/guides/migration/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "Client SDK", href: docsUrl("/sdk/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+      { label: "GitHub Action", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Community",
+    links: [
+      { label: "GitHub", href: GITHUB_URL },
+      { label: "Discussions", href: `${GITHUB_URL}/discussions` },
+      { label: "Issues", href: `${GITHUB_URL}/issues` },
+      { label: "Contributing", href: `${GITHUB_URL}/blob/main/CONTRIBUTING.md` },
+      { label: "Security", href: `${GITHUB_URL}/security` },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms & trademark", href: "/terms" },
+      { label: "License (Apache 2.0)", href: `${GITHUB_URL}/blob/main/LICENSE` },
+      { label: "Code of Conduct", href: `${GITHUB_URL}/blob/main/CODE_OF_CONDUCT.md` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="top">
+      <!-- Brand + small blurb -->
+      <div class="brand">
+        <Mark height={32} />
+        <p class="tag">
+          A self-hosted, open-source package repository for Dart and
+          Flutter teams. Drop-in compatible with pub.dev.
+        </p>
+
+        <div class="meta mono">
+          <span><span class="dot"></span>operational</span>
+          <a href={`${GITHUB_URL}/releases`} class="ver">v0.1 — latest</a>
+        </div>
+
+        <div class="chips">
+          <a class="chip" href={GITHUB_URL}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
+          <a class="chip" href={docsUrl("/rss.xml")}>⎯ RSS</a>
+          <a class="chip" href={`${GITHUB_URL}/releases`}>↗ Releases</a>
+        </div>
+      </div>
+
+      <!-- 5-col sitemap -->
+      <nav class="cols">
+        {cols.map((col) => (
+          <div>
+            <div class="col-k mono">{col.title}</div>
+            <ul>
+              {col.links.map((l) => (
+                <li><a href={l.href}>{l.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+
+    <div class="rail">
+      <span class="mono">© {year} CLUB contributors · Apache License 2.0</span>
+      <span class="rail-r mono">
+        <span>No cookies. No telemetry. No ads.</span>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr { background: var(--color-ink-dark); color: #EDEDED; }
+  .wrap { max-width: 86rem; margin: 0 auto; padding: 4rem 2rem 1.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 3rem 1.25rem 1.25rem; } }
+
+  .mono { font-family: var(--font-mono); }
+
+  .top {
+    display: grid; gap: 3rem;
+    grid-template-columns: minmax(0, 0.3fr) minmax(0, 0.7fr);
+  }
+  @media (max-width: 1050px) { .top { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+  .brand { display: flex; flex-direction: column; gap: 1rem; }
+  .tag { margin: 0; max-width: 34ch; font-size: 0.92rem; line-height: 1.55; color: var(--color-mute-dark); }
+
+  .meta {
+    display: inline-flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;
+    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600;
+    color: var(--color-mute-dark);
+  }
+  .meta .dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--color-stamp); margin-right: 0.4rem; box-shadow: 0 0 8px color-mix(in oklab, var(--color-stamp) 55%, transparent); vertical-align: middle; }
+  .meta .ver { color: var(--color-stamp); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.65rem; border-radius: 999px;
+    background: color-mix(in oklab, #EDEDED 5%, transparent);
+    border: 1px solid var(--color-border-dark);
+    color: #EDEDED; font-size: 0.75rem; font-weight: 600;
+  }
+  .chip:hover { border-color: var(--color-stamp); color: var(--color-stamp); }
+
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  @media (max-width: 1050px) { .cols { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px)  { .cols { grid-template-columns: repeat(2, 1fr); } }
+
+  .col-k {
+    font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 700; color: var(--color-mute-dark);
+  }
+  .cols ul { list-style: none; padding: 0; margin: 0.85rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+
+  .rail {
+    margin-top: 3rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border-dark);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 1.5rem;
+    font-size: 0.72rem; letter-spacing: 0.1em;
+    color: var(--color-mute-dark);
+  }
+  .rail-r { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+</style>

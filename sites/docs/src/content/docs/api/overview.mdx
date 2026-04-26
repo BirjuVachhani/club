@@ -1,0 +1,102 @@
+---
+title: API Overview
+description: Base URL, authentication, content types, and global conventions for the club API.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The club API implements the [Dart Pub Repository Specification v2](https://github.com/dart-lang/pub/blob/master/doc/repository-spec-v2.md) and extends it with endpoints for authentication, administration, publishing management, scoring, and discovery. This page covers the conventions shared across all endpoints.
+
+## Base URL
+
+All endpoints are relative to your club server URL (configured via `SERVER_URL`):
+
+```
+https://club.example.com
+```
+
+## Authentication
+
+club supports two authentication mechanisms:
+
+| Mechanism | Used by | How it's sent |
+|-----------|---------|---------------|
+| Session cookies | Web UI | HttpOnly cookies set by `POST /api/auth/login` |
+| Personal Access Tokens (PATs) | CLI, CI, scripts | `Authorization: Bearer club_pat_<...>` |
+
+PATs are created via `POST /api/auth/keys` or through the OAuth flow used by the `club` CLI. Tokens carry scopes (`read`, `write`, `admin`) that are clamped to the user's role at creation time.
+
+```http
+Authorization: Bearer club_pat_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+```
+
+Some endpoints are public and require no auth. These include health, the setup flow, public package metadata, archive downloads, search, user avatars, documentation, login/signup, invite acceptance, and the OAuth flow.
+
+### Token Scopes
+
+| Scope | Allows |
+|-------|--------|
+| `read` | Download packages, search, list versions |
+| `write` | Publish packages, manage package options |
+| `admin` | User management, package/version deletion, server administration |
+
+### User Roles
+
+`owner` (one per server) > `admin` > `member` > `viewer`. A token's scopes cannot exceed the user's role. (Legacy: the role previously named `editor` is now `member`; old clients sending `editor` are normalised on parse.)
+
+## Content Types
+
+Most endpoints accept and return `application/json`. Pub Spec v2 endpoints respond with `application/vnd.pub.v2+json` and the `dart pub` client sends matching `Accept` headers.
+
+Archive downloads return `application/gzip`. The publish upload endpoint accepts either `multipart/form-data` or a raw `application/octet-stream` tarball body.
+
+## Error Format
+
+All errors use a consistent envelope:
+
+```json
+{
+  "error": {
+    "code": "NotFound",
+    "message": "Package 'nonexistent' was not found."
+  }
+}
+```
+
+See [Error Codes](/api/errors/) for the full list.
+
+## Rate Limits
+
+Certain sensitive endpoints are rate-limited per client IP:
+
+| Endpoint | Limit |
+|----------|-------|
+| `POST /api/auth/login` | 10 / 15 min |
+| `POST /api/auth/signup` | 10 / 15 min |
+| `POST /api/setup/verify`, `POST /api/setup/complete` | 5 / 15 min |
+| `GET /api/invites/<token>`, `POST /api/invites/<token>/accept` | 10 / 15 min |
+
+Rate-limited responses return `429 RateLimited`.
+
+## Security Headers
+
+A security headers middleware is applied globally (including `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and a content security policy).
+
+## 401 Response Headers
+
+Per the Pub Repository Specification, all `401 Unauthorized` responses include a `WWW-Authenticate` header so the `dart pub` client can trigger its authentication flow:
+
+```http
+WWW-Authenticate: Bearer realm="pub", message="Authentication required."
+```
+
+## API Sections
+
+| Section | Description |
+|---------|-------------|
+| [Package Endpoints](/api/packages/) | Pub Spec v2 reads, archives, package admin, likes, scoring, downloads |
+| [Publishing Endpoints](/api/publishing/) | The 3-step publish flow used by `dart pub publish` |
+| [Auth Endpoints](/api/auth/) | Login, account, PATs, sessions, invites, OAuth |
+| [Search & Discovery](/api/search/) | Full-text search, package listing, name completion |
+| [Admin Endpoints](/api/admin/) | User management, ownership, package/version deletion, SDK management, health |
+| [Error Codes](/api/errors/) | Error envelope, status codes, and common codes |

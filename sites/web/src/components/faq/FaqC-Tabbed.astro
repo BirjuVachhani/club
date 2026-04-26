@@ -1,0 +1,178 @@
+---
+// FAQ — Variant C · Categorized + accordion
+// Sticky category sidebar (jump-links) on the left, grouped accordion
+// on the right. JS-free — categories scroll-link to grouped sections.
+import { FAQS, FAQ_CATEGORIES, type FaqCategory } from "../../lib/landing-copy";
+
+const grouped = (Object.keys(FAQ_CATEGORIES) as FaqCategory[]).map((cat) => ({
+  cat,
+  meta: FAQ_CATEGORIES[cat],
+  items: FAQS.filter((f) => f.cat === cat),
+})).filter((g) => g.items.length > 0);
+---
+
+<section id="faq" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ FAQ</div>
+      <h2 class="h2">Find your category, open the question.</h2>
+      <p class="lede">
+        Sorted into the five lanes most people fall into. Use the rail
+        to jump, or just scroll — every section is open by default.
+      </p>
+    </header>
+
+    <div class="layout">
+      <aside class="rail">
+        <div class="rail-label">Categories</div>
+        <nav class="rail-nav">
+          {grouped.map((g, i) => (
+            <a href={`#faq-${g.cat}`} class="rail-link">
+              <span class="rail-num">{String(i + 1).padStart(2, "0")}</span>
+              <span class="rail-name">{g.meta.label}</span>
+              <span class="rail-count">{g.items.length}</span>
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <div class="col">
+        {grouped.map((g) => (
+          <section id={`faq-${g.cat}`} class="grp">
+            <div class="grp-head">
+              <span class="grp-eyebrow">{g.meta.eyebrow}</span>
+              <h3 class="grp-title">{g.meta.label}</h3>
+            </div>
+            <ul class="qs">
+              {g.items.map((f) => (
+                <li>
+                  <details>
+                    <summary>
+                      <span class="q">{f.q}</span>
+                      <span class="chev" aria-hidden="true">+</span>
+                    </summary>
+                    <div class="a">{f.a}</div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 4.5rem 0; } }
+
+  .head { max-width: 50rem; margin-bottom: 3.5rem; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 1rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 1rem; line-height: 1.6; color: var(--color-mute);
+    margin: 1.25rem 0 0; max-width: 36rem;
+  }
+
+  .layout {
+    display: grid; gap: 3rem;
+    grid-template-columns: minmax(0, 0.28fr) minmax(0, 0.72fr);
+    align-items: start;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; gap: 2rem; } }
+
+  .rail {
+    position: sticky; top: 2rem;
+    padding: 1.5rem 1.25rem;
+    background: var(--color-paper-mute);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+  }
+  @media (max-width: 900px) { .rail { position: static; } }
+  .rail-label {
+    font-family: var(--font-mono); font-size: 0.62rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+    padding-bottom: 0.85rem; margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .rail-nav { display: flex; flex-direction: column; }
+  .rail-link {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 0.85rem;
+    align-items: center; padding: 0.7rem 0.5rem;
+    border-radius: 8px;
+    color: var(--color-ink); font-size: 0.92rem;
+    transition: background 150ms;
+  }
+  .rail-link:hover { background: var(--color-bg); color: var(--color-stamp); }
+  .rail-num {
+    font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.14em; color: var(--color-stamp); font-weight: 600;
+  }
+  .rail-name { font-weight: 580; }
+  .rail-count {
+    font-family: var(--font-mono); font-size: 0.62rem;
+    color: var(--color-mute);
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 999px; padding: 0.1rem 0.5rem;
+  }
+
+  .col { display: flex; flex-direction: column; gap: 3rem; }
+
+  .grp { scroll-margin-top: 1.5rem; }
+  .grp-head { margin-bottom: 1.25rem; }
+  .grp-eyebrow {
+    font-family: var(--font-mono); font-size: 0.62rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .grp-title {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: 1.4rem; letter-spacing: -0.018em;
+    margin: 0.4rem 0 0; color: var(--color-ink);
+  }
+
+  .qs { list-style: none; padding: 0; margin: 0; }
+  .qs li { border-top: 1px solid var(--color-border); }
+  .qs li:last-child { border-bottom: 1px solid var(--color-border); }
+
+  details { width: 100%; }
+  summary {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 1.1rem 0.25rem;
+    cursor: pointer; list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  .q {
+    font-family: var(--font-sans); font-weight: 600;
+    font-size: 1rem; color: var(--color-ink);
+  }
+  summary:hover .q { color: var(--color-stamp); }
+  .chev {
+    font-family: var(--font-mono); font-size: 1.15rem; color: var(--color-mute);
+    width: 1.25rem; height: 1.25rem; display: grid; place-items: center;
+    transition: transform 200ms ease, color 150ms;
+  }
+  details[open] .chev { transform: rotate(45deg); color: var(--color-stamp); }
+  details[open] .q { color: var(--color-stamp); }
+
+  .a {
+    padding: 0 0.25rem 1.25rem;
+    color: var(--color-mute); font-size: 0.95rem; line-height: 1.6;
+    max-width: 56ch;
+  }
+</style>

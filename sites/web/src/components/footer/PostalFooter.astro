@@ -1,0 +1,199 @@
+---
+// Footer variant E — "Postal"
+// Continues the brand's rubber-stamp / postal motif. Dashed rails,
+// perforated top edge, postal metadata, a rotated "issue" mark.
+// Distinctive, strongly branded close.
+import Mark from "../Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Documentation", href: DOCS_URL },
+      { label: "GitHub", href: GITHUB_URL },
+      { label: "Changelog", href: docsUrl("/changelog/") },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+      { label: "License", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer class="ftr">
+  <!-- Perforated top edge -->
+  <div class="perf" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <!-- Postal rail -->
+    <div class="rail top mono">
+      <span>No. 001</span>
+      <span class="sep">—</span>
+      <span>Cover closed</span>
+      <span class="sep">—</span>
+      <span>Est. {year}</span>
+    </div>
+
+    <!-- Brand + stamp -->
+    <div class="hero">
+      <div class="hero-left">
+        <Mark height={30} />
+        <p class="tag">
+          A private, self-hosted Dart &amp; Flutter package repository.
+          Open source · Apache 2.0 · no telemetry.
+        </p>
+      </div>
+
+      <div class="stamp" aria-hidden="true">
+        <div class="stamp-inner">
+          <div class="stamp-top mono">✦ CLUB ✦</div>
+          <div class="stamp-num">
+            <strong>0</strong><em>.1</em>
+          </div>
+          <div class="stamp-bot mono">shipped · 2026</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashed divider -->
+    <div class="cut"></div>
+
+    <!-- Nav columns -->
+    <nav class="cols">
+      {cols.map((col) => (
+        <div>
+          <div class="col-k mono">{col.title}</div>
+          <ul>
+            {col.links.map((l) => (
+              <li><a href={l.href}>{l.label}</a></li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+
+    <!-- Postal bottom rail -->
+    <div class="rail bot mono">
+      <span>© {year} CLUB contributors</span>
+      <span class="sep">·</span>
+      <span>Apache License 2.0</span>
+      <span class="spacer"></span>
+      <a href="/privacy">Privacy</a>
+      <span class="sep">·</span>
+      <a href="/terms">Terms</a>
+    </div>
+  </div>
+
+  <!-- Perforated bottom edge -->
+  <div class="perf bottom" aria-hidden="true"></div>
+</footer>
+
+<style>
+  .ftr {
+    position: relative;
+    background: var(--color-ink-dark); color: #EDEDED;
+  }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 1.75rem 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 1.5rem 1.25rem; } }
+
+  .mono { font-family: var(--font-mono); }
+
+  /* Perforated top/bottom — dots cut out of the dark with bg color */
+  .perf {
+    position: absolute; left: 0; right: 0; top: 0;
+    height: 12px;
+    background-image: radial-gradient(circle at 8px 6px, var(--color-bg) 4px, transparent 4.5px);
+    background-size: 16px 12px;
+    pointer-events: none;
+  }
+  .perf.bottom { top: auto; bottom: 0; transform: scaleY(-1); }
+
+  /* Postal rails */
+  .rail {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
+    font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--color-mute-dark); font-weight: 700;
+  }
+  .rail.top { padding-top: 1rem; padding-bottom: 0.85rem; border-bottom: 1px dashed var(--color-border-dark); justify-content: center; }
+  .rail.bot { margin-top: 2rem; padding-top: 1rem; border-top: 1px dashed var(--color-border-dark); }
+  .rail .sep { color: var(--color-stamp); }
+  .rail .spacer { flex: 1; }
+  .rail a { color: var(--color-mute-dark); }
+  .rail a:hover { color: var(--color-stamp); }
+
+  /* Brand + stamp block */
+  .hero {
+    margin-top: 1.5rem;
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 1.5rem; } }
+
+  .hero-left { display: flex; flex-direction: column; gap: 0.9rem; }
+  .tag { margin: 0; max-width: 34ch; font-size: 0.9rem; line-height: 1.55; color: var(--color-mute-dark); }
+
+  /* Stamp graphic */
+  .stamp {
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-3deg);
+  }
+  .stamp-inner {
+    width: 8rem; height: 8rem; border-radius: 999px;
+    border: 2.5px solid var(--color-stamp);
+    box-shadow: 0 0 0 4px transparent, 0 0 0 5px color-mix(in oklab, var(--color-stamp) 22%, transparent);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--color-stamp);
+    gap: 0.15rem;
+  }
+  .stamp-top, .stamp-bot { font-size: 0.6rem; letter-spacing: 0.2em; font-weight: 700; text-transform: uppercase; }
+  .stamp-num { font-family: var(--font-sans); font-weight: 700; font-size: 2.5rem; letter-spacing: -0.05em; line-height: 1; color: var(--color-stamp); }
+  .stamp-num em { font-style: normal; font-weight: 500; }
+
+  /* Dashed cut */
+  .cut {
+    margin: 2rem 0;
+    height: 0; border-top: 1px dashed var(--color-border-dark);
+    position: relative;
+  }
+  .cut::before {
+    content: "✂"; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    padding: 0 0.5rem 0 0; background: var(--color-ink-dark);
+    color: var(--color-mute-dark); font-size: 0.8rem;
+  }
+
+  /* Nav cols */
+  .cols {
+    display: grid; gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 700px) { .cols { grid-template-columns: repeat(2, 1fr); } }
+  .col-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; color: var(--color-stamp); }
+  .cols ul { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cols a { font-size: 0.88rem; color: #EDEDED; opacity: 0.85; transition: opacity 150ms, color 150ms; }
+  .cols a:hover { opacity: 1; color: var(--color-stamp); }
+</style>

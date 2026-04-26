@@ -1,0 +1,129 @@
+---
+import Base from "./Base.astro";
+import FloatingPillHeader from "../components/header/HeaderC-FloatingPill.astro";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  heading: string;
+  eyebrow: string;
+  updated: string;
+  ogImage?: string;
+}
+
+const { title, description, path, heading, eyebrow, updated, ogImage } = Astro.props;
+---
+
+<Base title={title} description={description} path={path} ogImage={ogImage}>
+  <FloatingPillHeader />
+
+  <section
+    class="relative overflow-hidden"
+    style="background: var(--color-ink-dark); color: #EDEDED;"
+  >
+    <div
+      class="pointer-events-none absolute -right-32 -top-40 h-[28rem] w-[28rem] rounded-full opacity-[0.10] blur-3xl"
+      style="background: radial-gradient(circle, #FF4F18 0%, transparent 70%);"
+    />
+
+    <div class="relative mx-auto w-full max-w-[80rem] px-5 pb-10 pt-28 sm:px-6 sm:pt-32 sm:pb-14 md:px-10 md:pb-16 md:pt-40">
+      <div
+        class="font-mono text-[0.66rem] tracking-[0.14em] uppercase"
+        style="color: var(--color-mute-dark);"
+      >
+        {eyebrow}
+      </div>
+      <h1 class="h1 mt-4 max-w-[24ch]">{heading}</h1>
+      <p class="prose-body mt-5 max-w-xl" style="color: var(--color-mute-dark);">
+        Last updated {updated}.
+      </p>
+    </div>
+  </section>
+
+  <main class="relative" style="background: var(--color-bg); color: var(--color-ink);">
+    <div class="mx-auto w-full max-w-[48rem] px-5 py-10 sm:px-6 sm:py-14 md:px-10 md:py-20">
+      <article class="legal-prose">
+        <slot />
+      </article>
+    </div>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .legal-prose {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-ink);
+  }
+  .legal-prose :global(h2) {
+    font-family: var(--font-sans);
+    font-size: clamp(1.2rem, 1.4vw + 0.95rem, 1.35rem);
+    font-weight: 640;
+    letter-spacing: -0.018em;
+    line-height: 1.25;
+    margin: 2.5rem 0 0.8rem;
+    color: var(--color-ink);
+  }
+  .legal-prose :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .legal-prose :global(h3) {
+    font-family: var(--font-sans);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    margin: 2rem 0 0.6rem;
+    color: var(--color-ink);
+  }
+  .legal-prose :global(p) {
+    margin: 0 0 1rem;
+  }
+  .legal-prose :global(ul),
+  .legal-prose :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+  }
+  .legal-prose :global(li) {
+    margin: 0.35rem 0;
+  }
+  .legal-prose :global(li::marker) {
+    color: var(--color-stamp);
+  }
+  .legal-prose :global(a) {
+    color: var(--color-stamp-hover);
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+  .legal-prose :global(a:hover) {
+    color: var(--color-stamp);
+  }
+  .legal-prose :global(strong) {
+    font-weight: 640;
+    color: var(--color-ink);
+  }
+  .legal-prose :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--color-paper-mute);
+    color: var(--color-ink);
+  }
+  .legal-prose :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin: 2.25rem 0;
+  }
+  .legal-prose :global(.eyebrow-inline) {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-mute);
+  }
+</style>

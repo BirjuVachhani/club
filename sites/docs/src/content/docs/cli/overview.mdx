@@ -1,0 +1,82 @@
+---
+title: CLI Overview
+description: Install and use the club command-line tool for authenticating, managing tokens, and publishing packages to your club server.
+sidebar:
+  order: 1
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+
+The `club` CLI is a Dart command-line tool for interacting with a club server. It handles authentication, `dart pub` integration, and publishing.
+
+## Installation
+
+The fastest path on Linux and macOS:
+
+```bash
+curl -fsSL https://club.birju.dev/install.sh | bash
+```
+
+Windows users, air-gapped environments, and anyone who wants to pin a specific version: see the full [Installation](/cli/installation/) guide, which covers the install script, manual archive downloads, and building from source.
+
+Verify:
+
+```bash
+club --version
+```
+
+## Command Tree
+
+```
+club
+├── login <server-url>              Authenticate via browser OAuth (default), --no-browser, or --key
+├── logout [--server <url>] [--all] Remove stored credentials
+├── setup [--env-var <NAME>]        Register the stored token with dart pub
+├── publish                         Publish a package (native flow; resolves server automatically)
+└── config                          Show or change default server
+    ├── show                        Alias for: club config
+    └── set-server <url>            Set default server URL
+```
+
+Token management (creating, listing, and revoking personal access tokens) and all administrative actions are done from the **web UI** -- they are not exposed as CLI subcommands. See [Administration](/cli/admin/) for how to drive admin workflows via the web UI or the HTTP API.
+
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--help` | Show help for a command |
+| `--version`, `-v` | Show the CLI version |
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLUB_TOKEN` | Bearer token override. Shadows stored credentials -- useful in CI. |
+| `NO_COLOR` | Disable ANSI colors (honours [no-color.org](https://no-color.org/)). |
+| `TERM=dumb` | Disable ANSI colors. |
+
+## Quick Start
+
+```bash
+# 1. Log in to your club server
+club login https://club.example.com
+
+# 2. Configure dart pub to use your server
+club setup
+
+# 3. Publish a package
+cd my_package/
+club publish
+```
+
+## How the CLI Works Internally
+
+The `club` CLI uses the [`club_api`](/sdk/overview/) client SDK for all server communication. It does not make raw HTTP calls. This means:
+
+- All HTTP logic is centralized in the `club_api` package
+- Bug fixes in the SDK benefit both the CLI and any custom tooling
+- The CLI and your scripts share the same client code
+
+<Aside>
+See the [Client SDK](/sdk/overview/) docs if you want to build your own tooling on top of `club_api`.
+</Aside>

@@ -1,0 +1,20 @@
+{
+  "name": "club-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 5412",
+    "build": "npm run render:og && astro build",
+    "preview": "astro preview --port 5412",
+    "astro": "astro",
+    "render:og": "node scripts/render-og.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "@fontsource-variable/fira-code": "^5.2.7",
+    "@fontsource-variable/inter": "^5.2.8",
+    "astro": "^5.7.0",
+    "sharp": "^0.33.0",
+    "zod": "^3.25.76"
+  }
+}

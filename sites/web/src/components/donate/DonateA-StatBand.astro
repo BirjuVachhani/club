@@ -1,0 +1,125 @@
+---
+// Donate — A · Stat band
+// Dark band with an orange bleed. Three supporting stats carry the "why",
+// two prominent CTAs close it out. Mirrors PrivateByDefault's voice so it
+// sits naturally late in the landing page.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+---
+
+<section id="f-donate" class="sec">
+  <div class="bleed" aria-hidden="true"></div>
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Support CLUB</div>
+      <h2 class="h2">Open source with a <span class="orange">person</span> behind it.</h2>
+      <p class="lede">
+        CLUB is built and maintained out in the open — no VC, no subscription,
+        no telemetry. If your team depends on it at work, a small recurring
+        sponsorship keeps releases shipping and issues answered.
+      </p>
+    </header>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Goes to maintenance</div>
+        <div class="stat-sub">Server bills, releases, reviews, docs — no middle layer.</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Paywalled features, ever</div>
+        <div class="stat-sub">Sponsors don't unlock anything. Everyone gets the full product.</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Self-hosted, forever</div>
+        <div class="stat-sub">Apache 2.0. Fork it, ship it, keep it. No rug pulls.</div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a href={SPONSORS_URL} class="btn btn-primary" target="_blank" rel="noopener">
+        Sponsor on GitHub
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={BMC_URL} class="btn btn-ghost" target="_blank" rel="noopener">
+        Buy me a coffee
+      </a>
+    </div>
+
+    <div class="proof">
+      <span class="pp"><span class="pp-mark">✓</span>Recurring via GitHub Sponsors</span>
+      <span class="pp"><span class="pp-mark">✓</span>One-time via Buy Me a Coffee</span>
+      <span class="pp"><span class="pp-mark">✓</span>No backer perks, no tiers — just thanks</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-ink-dark); color: #EDEDED;
+    position: relative; overflow: hidden;
+  }
+  .bleed {
+    position: absolute; pointer-events: none;
+    left: -8rem; bottom: -10rem;
+    width: 28rem; height: 28rem; border-radius: 999px;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.10; filter: blur(48px);
+  }
+  .wrap { position: relative; max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 52rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute-dark); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: #EDEDED; }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute-dark); margin: 1.5rem 0 0; max-width: 42rem; }
+
+  .stats {
+    margin-top: 3.5rem;
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .stats { grid-template-columns: 1fr; } }
+
+  .stat {
+    position: relative; padding: 2rem 1.75rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px solid var(--color-border-dark);
+    border-radius: 18px; overflow: hidden;
+  }
+  .stat::before {
+    content: ""; position: absolute; left: -2px; top: 50%;
+    width: 4px; height: 3rem; transform: translateY(-50%);
+    background: var(--color-stamp); border-radius: 0 3px 3px 0;
+  }
+  .stat-num {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(3.5rem, 7vw, 5.5rem);
+    line-height: 0.9; letter-spacing: -0.04em;
+    color: var(--color-stamp);
+  }
+  .stat-label {
+    margin-top: 0.35rem;
+    font-family: var(--font-sans); font-weight: 640;
+    font-size: 1rem; color: #EDEDED; letter-spacing: -0.01em;
+  }
+  .stat-sub { margin-top: 0.35rem; font-size: 0.88rem; color: var(--color-mute-dark); line-height: 1.5; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.5rem; }
+
+  .proof {
+    margin-top: 2rem; padding-top: 2rem;
+    border-top: 1px dashed var(--color-border-dark);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem;
+  }
+  .pp {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--color-mute-dark);
+  }
+  .pp-mark { color: var(--color-stamp); font-weight: 700; }
+</style>

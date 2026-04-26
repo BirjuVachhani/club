@@ -1,0 +1,21 @@
+---
+interface Props {
+  class?: string;
+  height?: number;
+  /** Accepted for API compatibility. */
+  size?: number;
+  color?: string;
+}
+const { class: cls = "", height = 32, size } = Astro.props;
+const h = size ?? height;
+---
+
+<img
+  src="/club_full_logo.svg"
+  alt="CLUB"
+  height={h}
+  class={cls}
+  style={`display: block; height: ${h}px; width: auto;`}
+  loading="eager"
+  decoding="async"
+/>

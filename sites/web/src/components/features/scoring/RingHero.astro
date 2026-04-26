@@ -1,0 +1,170 @@
+---
+// Scoring variant C — "Ring hero"
+// A big SVG ring chart showing the total pub points as the centerpiece,
+// with the 5 rubric categories listed alongside. Most graphic of the
+// four variants.
+const rubric = [
+  { key: "Conventions",   pts: 30, desc: "pubspec · readme · changelog · license" },
+  { key: "Documentation", pts: 20, desc: "dartdoc on public API · example" },
+  { key: "Platforms",     pts: 20, desc: "Android · iOS · web · desktop" },
+  { key: "Analysis",      pts: 50, desc: "no errors, warnings, or hints" },
+  { key: "Dependencies",  pts: 40, desc: "up-to-date · no deprecated" },
+];
+const total = rubric.reduce((s, r) => s + r.pts, 0);
+const earned = 140;
+const pct = (earned / total) * 100;
+// Ring geometry
+const R = 74;
+const C = 2 * Math.PI * R;
+const dash = (pct / 100) * C;
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Quality</div>
+      <h2 class="h2">
+        Pub scoring, <span class="accent">intact</span>.
+      </h2>
+      <p class="lede">
+        The exact same <span class="ink">pana</span> engine pub.dev runs,
+        scoring your packages against the same five criteria, stored on
+        your server. {total} points possible, recalculated on every publish.
+      </p>
+    </header>
+
+    <div class="hero">
+      <!-- Ring -->
+      <div class="ring-wrap">
+        <svg viewBox="0 0 180 180" class="ring" aria-hidden="true">
+          <defs>
+            <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF8A5C"/>
+              <stop offset="100%" stop-color="#FF4F18"/>
+            </linearGradient>
+          </defs>
+          <!-- track -->
+          <circle cx="90" cy="90" r={R} fill="none" stroke="var(--color-paper-mute-2)" stroke-width="14"/>
+          <!-- progress -->
+          <circle
+            cx="90" cy="90" r={R} fill="none"
+            stroke="url(#ring-grad)"
+            stroke-width="14" stroke-linecap="round"
+            stroke-dasharray={`${dash} ${C - dash}`}
+            transform="rotate(-90 90 90)"
+          />
+        </svg>
+
+        <div class="ring-center">
+          <div class="ring-num"><strong>{earned}</strong><em>/ {total}</em></div>
+          <div class="ring-label mono">Pub Points</div>
+        </div>
+
+        <div class="ring-foot mono">
+          <span class="dot"></span>
+          ↻ recalculated on every publish
+        </div>
+      </div>
+
+      <!-- Rubric list -->
+      <div class="rubric">
+        <div class="rubric-head">
+          <span class="mono tiny">Scored across</span>
+          <span class="rubric-count">5 criteria</span>
+        </div>
+        <ul>
+          {rubric.map((r, i) => (
+            <li>
+              <span class="r-num mono">{String(i + 1).padStart(2, "0")}</span>
+              <div class="r-body">
+                <div class="r-top">
+                  <strong>{r.key}</strong>
+                  <span class="r-pts mono">{r.pts}<em> pts</em></span>
+                </div>
+                <div class="r-desc">{r.desc}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag">Also</span>
+      Users can <strong>like</strong> a package. Not load-bearing — it's just there if your team finds it useful.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-paper-mute); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+  .tiny { font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-mute); font-weight: 600; }
+
+  .head { max-width: 50rem; margin: 0 auto 3rem; text-align: center; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(2rem, 2.5vw + 0.75rem, 3rem); letter-spacing: -0.028em; line-height: 1.05; margin: 1rem auto 0; max-width: 16ch; color: var(--color-ink); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.25rem auto 0; max-width: 44rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  .hero {
+    display: grid; gap: 3rem; align-items: center;
+    grid-template-columns: minmax(0, 0.45fr) minmax(0, 0.55fr);
+    padding: 2.5rem;
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 22px; box-shadow: 0 30px 60px -30px rgba(5,5,5,0.18);
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding: 1.75rem; gap: 2rem; } }
+
+  .ring-wrap { display: flex; flex-direction: column; align-items: center; gap: 1rem; position: relative; }
+  .ring { width: clamp(14rem, 22vw, 20rem); height: clamp(14rem, 22vw, 20rem); }
+  .ring-center {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: clamp(14rem, 22vw, 20rem); height: clamp(14rem, 22vw, 20rem);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+    pointer-events: none;
+  }
+  .ring-num strong { font-family: var(--font-sans); font-weight: 700; font-size: clamp(3rem, 5vw + 0.5rem, 4.5rem); letter-spacing: -0.04em; color: var(--color-ink); line-height: 1; }
+  .ring-num em { font-style: normal; font-family: var(--font-mono); font-size: 0.95rem; color: var(--color-mute); margin-left: 0.3rem; font-weight: 500; }
+  .ring-label { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-top: 0.3rem; }
+
+  .ring-foot {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: var(--color-stamp-soft); border: 1px solid var(--color-stamp-tint);
+    color: var(--color-stamp-hover); border-radius: 999px;
+    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+  }
+  .ring-foot .dot { width: 6px; height: 6px; background: var(--color-stamp); border-radius: 999px; }
+
+  /* Rubric list */
+  .rubric-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding-bottom: 1rem; border-bottom: 1px dashed var(--color-border); margin-bottom: 0.5rem;
+  }
+  .rubric-count { font-family: var(--font-sans); font-weight: 680; font-size: 1.05rem; color: var(--color-ink); letter-spacing: -0.01em; }
+
+  .rubric ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+  .rubric li { display: grid; grid-template-columns: 2.25rem 1fr; gap: 1rem; padding: 0.8rem 0; border-bottom: 1px solid var(--color-border); align-items: baseline; }
+  .rubric li:last-child { border-bottom: 0; }
+  .r-num { font-size: 0.72rem; letter-spacing: 0.12em; color: var(--color-stamp); font-weight: 700; }
+  .r-top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  .r-body strong { font-family: var(--font-sans); font-weight: 640; color: var(--color-ink); font-size: 0.98rem; letter-spacing: -0.01em; }
+  .r-pts { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700; color: var(--color-stamp); }
+  .r-pts em { font-style: normal; color: var(--color-mute); font-weight: 500; opacity: 0.8; }
+  .r-desc { margin-top: 0.2rem; font-size: 0.85rem; color: var(--color-mute); line-height: 1.4; }
+
+  .footnote {
+    margin-top: 1.5rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border); background: var(--color-bg);
+    border-radius: 8px;
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+</style>

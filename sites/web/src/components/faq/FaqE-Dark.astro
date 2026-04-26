@@ -1,0 +1,153 @@
+---
+// FAQ — Variant E · Dark band
+// Pairs with the dark hero / deploy band. Headline left, accordion
+// right. Orange numerals carry the brand on a dark slab.
+import { FAQS } from "../../lib/landing-copy";
+---
+
+<section id="faq" class="sec">
+  <!-- bleed glow, top-left to mirror hero -->
+  <div class="bleed" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <div class="grid">
+      <header class="head">
+        <div class="eyebrow orange">§ FAQ</div>
+        <h2 class="h2">Quick answers to the questions <br />we hear over and over.</h2>
+        <p class="lede">
+          Picked from the issue tracker, the Discord, and the
+          questions that walk in over email. If yours isn't here,
+          <a href="#" class="ink">open a discussion</a>.
+        </p>
+        <div class="meta">
+          <span><strong>{FAQS.length}</strong> questions</span>
+          <span class="dot">●</span>
+          <span>Updated April 2026</span>
+        </div>
+      </header>
+
+      <ul class="qs">
+        {FAQS.map((f, i) => (
+          <li>
+            <details>
+              <summary>
+                <span class="num">{String(i + 1).padStart(2, "0")}</span>
+                <span class="q">{f.q}</span>
+                <span class="chev" aria-hidden="true"></span>
+              </summary>
+              <div class="a">{f.a}</div>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    position: relative; overflow: hidden;
+    padding: 6.5rem 0;
+    background: var(--color-ink-dark); color: #EDEDED;
+  }
+  .bleed {
+    position: absolute; pointer-events: none;
+    left: -8rem; top: -10rem;
+    width: 28rem; height: 28rem; border-radius: 999px;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.10; filter: blur(48px);
+  }
+  .wrap {
+    position: relative;
+    max-width: 84rem; margin: 0 auto; padding: 0 2.5rem;
+  }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 5rem 0; } }
+
+  .grid {
+    display: grid; gap: 4rem;
+    grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+    align-items: start;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+  .head { position: sticky; top: 2rem; }
+  @media (max-width: 900px) { .head { position: static; } }
+
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.024em; line-height: 1.1;
+    margin: 1rem 0 0; color: #EDEDED;
+  }
+  .lede {
+    font-size: 1rem; line-height: 1.6;
+    color: var(--color-mute-dark);
+    margin: 1.5rem 0 0; max-width: 30rem;
+  }
+  .ink { color: var(--color-stamp); border-bottom: 1px solid color-mix(in oklab, var(--color-stamp) 35%, transparent); }
+  .ink:hover { border-color: var(--color-stamp); }
+
+  .meta {
+    margin-top: 1.75rem; display: flex; align-items: center; gap: 0.65rem;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-mute-dark);
+  }
+  .meta strong { color: var(--color-stamp); font-weight: 700; }
+  .meta .dot { color: var(--color-stamp); font-size: 0.55rem; }
+
+  .qs { list-style: none; padding: 0; margin: 0; }
+  .qs li {
+    border-top: 1px solid var(--color-border-dark);
+  }
+  .qs li:last-child { border-bottom: 1px solid var(--color-border-dark); }
+
+  details { width: 100%; }
+  summary {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 1.25rem;
+    padding: 1.35rem 0.25rem;
+    cursor: pointer; list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+
+  .num {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    letter-spacing: 0.16em; color: var(--color-stamp);
+    font-weight: 700; min-width: 2.5rem;
+  }
+  .q {
+    font-family: var(--font-sans); font-weight: 580;
+    font-size: 1.02rem; color: #EDEDED; letter-spacing: -0.012em;
+    transition: color 150ms;
+  }
+  summary:hover .q { color: var(--color-stamp); }
+
+  .chev {
+    width: 14px; height: 14px; position: relative;
+    transition: transform 220ms ease;
+  }
+  .chev::before, .chev::after {
+    content: ""; position: absolute; background: var(--color-stamp);
+    border-radius: 1px;
+  }
+  .chev::before { left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); }
+  .chev::after  { top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); }
+  details[open] .chev { transform: rotate(45deg); }
+  details[open] .q { color: var(--color-stamp); }
+
+  .a {
+    padding: 0 0.25rem 1.5rem 4rem;
+    color: var(--color-mute-dark); font-size: 0.96rem; line-height: 1.65;
+    max-width: 56ch;
+  }
+  @media (max-width: 600px) {
+    summary { gap: 0.85rem; }
+    .num { min-width: 2rem; }
+    .a { padding-left: 2.85rem; }
+  }
+</style>

@@ -1,0 +1,116 @@
+---
+import Mark from "./Mark.astro";
+import { DOCS_URL, GITHUB_URL, docsUrl } from "../lib/config";
+
+const year = new Date().getFullYear();
+
+const cols = [
+  {
+    title: "Project",
+    links: [
+      { label: "Features", href: "/#f-private" },
+      { label: "FAQ", href: "/#faq" },
+      { label: "Support the project", href: "/#f-donate" },
+      { label: "Docs", href: docsUrl() },
+    ],
+  },
+  {
+    title: "Use",
+    links: [
+      { label: "Quick start", href: docsUrl("/getting-started/quick-start/") },
+      { label: "Beginner's guide", href: docsUrl("/getting-started/tutorial/") },
+      { label: "Self-hosting", href: docsUrl("/self-hosting/docker/") },
+      { label: "CI / CD", href: docsUrl("/guides/ci-cd/") },
+    ],
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "CLI", href: docsUrl("/cli/overview/") },
+      { label: "Client SDK", href: docsUrl("/sdk/overview/") },
+      { label: "HTTP API", href: docsUrl("/api/overview/") },
+      { label: "Configuration", href: docsUrl("/configuration/") },
+      { label: "GitHub", href: GITHUB_URL },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms & trademark", href: "/terms" },
+      { label: "License (Apache 2.0)", href: `${GITHUB_URL}/blob/main/LICENSE` },
+    ],
+  },
+];
+---
+
+<footer
+  class="relative"
+  style="background: var(--color-ink-dark); color: #EDEDED;"
+>
+  <div class="mx-auto w-full max-w-[80rem] px-6 pt-16 md:px-10 md:pt-20">
+    <div class="grid gap-10 md:grid-cols-[minmax(0,0.45fr)_minmax(0,0.55fr)] md:gap-16">
+      <div>
+        <div class="flex items-center">
+          <Mark height={34} />
+        </div>
+        <p class="prose-body mt-5 max-w-sm" style="color: var(--color-mute-dark);">
+          A self-hosted, open-source package repository for <a href="https://dart.dev">Dart</a> and <a href="https://flutter.dev">Flutter</a> teams.
+          Drop-in compatible with <a href="https://pub.dev">pub.dev</a>.
+        </p>
+      </div>
+
+      <nav class="grid grid-cols-2 gap-8 md:grid-cols-4">
+        {
+          cols.map((col) => (
+            <div>
+              <div
+                class="font-mono text-[0.66rem] tracking-[0.14em] uppercase"
+                style="color: var(--color-mute-dark);"
+              >
+                {col.title}
+              </div>
+              <ul class="mt-3 flex flex-col gap-2">
+                {col.links.map((l) => (
+                  <li>
+                    <a
+                      href={l.href}
+                      class="text-[0.9rem] transition hover:text-[color:var(--color-stamp)]"
+                    >
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+    </div>
+
+    <!-- Oversized wordmark as closing visual -->
+    <div class="mt-20 md:mt-28" aria-hidden="true">
+      <img
+        src="/club_logo_text.svg"
+        alt=""
+        class="block h-auto w-full select-none"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+
+    <div
+      class="mt-8 flex flex-col gap-3 border-t pb-8 pt-6 text-xs md:mt-10 md:flex-row md:items-center md:justify-between"
+      style="border-color: var(--color-border-dark); color: var(--color-mute-dark);"
+    >
+      <span class="font-mono tracking-[0.08em]">
+        © {year} CLUB contributors · Apache License 2.0
+      </span>
+      <span class="flex flex-wrap items-center gap-4 font-mono tracking-[0.08em]">
+        <a href="/privacy" class="transition hover:text-[color:var(--color-stamp)]">Privacy</a>
+        <a href="/terms" class="transition hover:text-[color:var(--color-stamp)]">Terms</a>
+        <span>No cookies. No telemetry.</span>
+      </span>
+    </div>
+  </div>
+</footer>
