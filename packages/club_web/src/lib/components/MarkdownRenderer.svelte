@@ -8,57 +8,9 @@
   let { content }: Props = $props();
 
   let html = $derived(renderMarkdown(content));
-  let container: HTMLDivElement;
-
-  const copyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
-  const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-
-  function createIcon(svgString: string): SVGElement {
-    const template = document.createElement('template');
-    template.innerHTML = svgString.trim();
-    return template.content.firstChild as SVGElement;
-  }
-
-  $effect(() => {
-    // Re-run when html changes
-    void html;
-    if (!container) return;
-
-    // Wrap each <pre> in a .code-wrap so the copy button can anchor to
-    // the wrapper instead of the scrolling <pre>. Absolute children of
-    // a horizontally-scrolling container scroll with the content, which
-    // is why the button used to drift left when the code overflowed.
-    for (const pre of container.querySelectorAll<HTMLPreElement>('pre')) {
-      if (pre.parentElement?.classList.contains('code-wrap')) continue;
-
-      pre.style.position = '';
-
-      const wrap = document.createElement('div');
-      wrap.className = 'code-wrap';
-      pre.parentNode?.insertBefore(wrap, pre);
-      wrap.appendChild(pre);
-
-      const btn = document.createElement('button');
-      btn.className = 'code-copy-btn';
-      btn.title = 'Copy code';
-      btn.appendChild(createIcon(copyIcon));
-
-      btn.addEventListener('click', () => {
-        const code = pre.querySelector('code');
-        const text = code?.textContent ?? pre.textContent ?? '';
-        navigator.clipboard.writeText(text);
-        btn.replaceChildren(createIcon(checkIcon));
-        setTimeout(() => {
-          btn.replaceChildren(createIcon(copyIcon));
-        }, 1500);
-      });
-
-      wrap.appendChild(btn);
-    }
-  });
 </script>
 
-<div class="markdown-body" bind:this={container}>
+<div class="markdown-body">
   {@html html}
 </div>
 
@@ -97,6 +49,16 @@
   .markdown-body :global(ul),
   .markdown-body :global(ol) {
     padding-left: 1.4rem;
+  }
+
+  /* Tailwind preflight zeroes out list-style on ul/ol; restore the
+     bullets/numbers for prose. Nested ul re-overrides to `none` below
+     to render the tree-style branches instead. */
+  .markdown-body :global(ul) {
+    list-style: disc outside;
+  }
+  .markdown-body :global(ol) {
+    list-style: decimal outside;
   }
 
   .markdown-body :global(li + li) {
@@ -394,40 +356,6 @@
 
   .markdown-body :global(blockquote > :last-child) {
     margin-bottom: 0;
-  }
-
-  /* Code block copy button */
-  .markdown-body :global(.code-copy-btn) {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--pub-code-border);
-    border-radius: 6px;
-    background: var(--pub-code-background);
-    color: var(--pub-code-muted-color);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .markdown-body :global(.code-wrap:hover .code-copy-btn),
-  .markdown-body :global(.code-wrap:focus-within .code-copy-btn) {
-    opacity: 1;
-  }
-  .markdown-body :global(.code-copy-btn:hover) {
-    color: var(--foreground);
-    border-color: var(--pub-muted-text-color);
-  }
-  /* Touch/coarse pointers (phones, tablets) can't hover — keep the
-     button visible so it's actually reachable. */
-  @media (hover: none), (pointer: coarse) {
-    .markdown-body :global(.code-copy-btn) {
-      opacity: 1;
-    }
   }
 
   /* Details/summary (pana issue reports) */

@@ -10,6 +10,7 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { highlightCodeAction } from '$lib/actions/highlightCodeBlocks';
+  import { codeBlockCopyAction } from '$lib/actions/codeBlockCopy';
   import { api } from '$lib/api/client';
   import { auth, isAuthenticated, isAdmin } from '$lib/stores/auth';
   import { theme } from '$lib/stores/theme';
@@ -149,7 +150,7 @@
 <ConfirmHost />
 
 {#if isBare}
-  <div use:highlightCodeAction>
+  <div use:highlightCodeAction use:codeBlockCopyAction>
     {@render children()}
   </div>
 {:else}
@@ -322,7 +323,7 @@
       onClose={() => (integrityDialogOpen = false)}
     />
 
-    <main class="flex w-full flex-1 {isHome ? '' : 'mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-6 md:px-6'}" use:highlightCodeAction>
+    <main class="flex w-full flex-1 {isHome ? '' : 'mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-6 md:px-6'}" use:highlightCodeAction use:codeBlockCopyAction>
       {@render children()}
     </main>
 

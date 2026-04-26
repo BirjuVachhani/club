@@ -599,3 +599,43 @@ pre code {
 .brand-wordmark {
   display: block;
 }
+
+/* ── Code block copy button ──────────────────────────────────
+   The button is injected by the codeBlockCopyAction Svelte action,
+   applied at the layout level so every <pre> on every page gets it. */
+.code-wrap {
+  position: relative;
+}
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--pub-code-border);
+  border-radius: 6px;
+  background: var(--pub-code-background);
+  color: var(--pub-code-muted-color);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 1;
+}
+.code-wrap:hover .code-copy-btn,
+.code-wrap:focus-within .code-copy-btn {
+  opacity: 1;
+}
+.code-copy-btn:hover {
+  color: var(--foreground);
+  border-color: var(--pub-muted-text-color);
+}
+/* Touch/coarse pointers (phones, tablets) can't hover — keep the
+   button visible so it's actually reachable. */
+@media (hover: none), (pointer: coarse) {
+  .code-copy-btn {
+    opacity: 1;
+  }
+}
