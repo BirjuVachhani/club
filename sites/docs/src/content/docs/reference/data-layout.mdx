@@ -1,0 +1,245 @@
+---
+title: Data Directory Layout Specifications
+description: The authoritative reference for every path club writes to under /data — primary state, caches, logs, ephemeral tiers — and the env vars that control each of them.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everything club persists at runtime lives under a single directory (`/data` in Docker, configurable elsewhere). The tree is organised into four durability tiers so backups, restores, and disk-cleanup scripts can target exactly the right slice.
+
+This is the authoritative layout reference. Every other operational doc (backups, upgrades, self-hosting) links here.
+
+---
+
+## The whole tree at a glance
+
+```
+/data/
+├── db/                              🔒 PRIMARY  — back up
+│   ├── club.db                      SQLite database
+│   ├── club.db-shm                  SQLite shared-memory file (auto)
+│   └── club.db-wal                  SQLite write-ahead log (auto)
+│
+├── blobs/                           🔒 PRIMARY  — back up
+│   └── <package>/
+│       ├── <version>/
+│       │   ├── artifacts/
+│       │   │   ├── package.tar.gz       the archive
+│       │   │   └── package.json         sidecar metadata (S3/GCS only)
+│       │   └── screenshots/
+│       │       ├── 0                    raw bytes, mime type in DB
+│       │       ├── 1
+│       │       └── …
+│       └── dartdoc/                 only when DARTDOC_BACKEND=blob
+│           └── latest/
+│               ├── blob                 concatenated, per-file gzipped
+│               └── index.json           BlobIndex: path → {start,end}
+│
+├── cache/                           🟡 REGENERABLE  — skip from backups
+│   ├── dartdoc/                     only when DARTDOC_BACKEND=filesystem
+│   │   └── <package>/
+│   │       └── latest/
+│   │           ├── index.html
+│   │           ├── __404error.html
+│   │           └── …
+│   ├── sdks/                        Dart/Flutter SDK installs
+│   │   ├── flutter-3.24.0/
+│   │   └── flutter-3.27.0/
+│   └── pub-cache/                   pana's PUB_CACHE
+│       └── hosted/pub.dev/<pkg>-<ver>/
+│
+├── logs/                            🟢 OBSERVABILITY  — optional
+│   └── scoring.log                  pana run log (append-only)
+│
+└── tmp/                             🟢 EPHEMERAL  — never restore
+    └── uploads/
+        └── <upload-id>.tar.gz       in-flight publish tarball
+```
+
+---
+
+## Tier semantics
+
+Each top-level directory has one job. The tiers exist specifically so operators can reason about what to back up, what to wipe, and what to ignore.
+
+| Tier | Dir | Survives container restart? | Back up? | Safe to `rm -rf`? |
+|---|---|---|---|---|
+| Primary (DB) | `db/` | **Yes, must** | **Yes** | No — loses all metadata |
+| Primary (blobs) | `blobs/` | **Yes, must** | **Yes** | No — loses tarballs + screenshots + blob-mode dartdoc |
+| Regenerable | `cache/` | Preferred | No | **Yes** — regenerates on demand |
+| Observability | `logs/` | Preferred | Only if you care about history | **Yes** |
+| Ephemeral | `tmp/` | No matter either way | No | **Yes** |
+
+A correctly-configured backup is **just two directories**: `db/` + `blobs/`. Everything else rebuilds itself:
+
+- `cache/dartdoc/` regenerates on the next scoring pass per package.
+- `cache/sdks/` re-downloads on first boot when pana scheduling kicks in.
+- `cache/pub-cache/` populates as scoring fetches dependencies.
+- `logs/scoring.log` is append-only observability.
+- `tmp/uploads/` is per-request scratch that expires along with the DB session.
+
+---
+
+## Path controls (env vars)
+
+Every path is overridable. Defaults listed assume `DATA_DIR=/data`.
+
+| Path | Env var | YAML key | Default |
+|---|---|---|---|
+| SQLite DB file | `SQLITE_PATH` | `db.sqlite_path` | `/data/db/club.db` |
+| Blob store root | `BLOB_PATH` | `blob.path` | `/data/blobs` |
+| Dartdoc (filesystem mode) | `DARTDOC_PATH` | `dartdoc_path` | `/data/cache/dartdoc` |
+| Flutter/Dart SDKs | `SDK_BASE_DIR` | — | `/data/cache/sdks` |
+| Pana pub-cache | — | — | `/data/cache/pub-cache` (hardcoded today) |
+| Logs directory | `LOGS_DIR` | — | `/data/logs` |
+| Temp uploads | `TEMP_DIR` | `temp_dir` | `/data/tmp/uploads` |
+
+<Aside type="note">
+  Only `BLOB_PATH` is consulted by the dartdoc serve path. When `DARTDOC_BACKEND=blob`, the indexed-blob files sit under `<BLOB_PATH>/<pkg>/dartdoc/latest/` — **inside** `blobs/`, not under `cache/`. See [Dartdoc Serving Specifications](/reference/dartdoc-serving/) for the full behavioural spec.
+</Aside>
+
+---
+
+## `db/` — SQLite database
+
+Three files managed together:
+
+| File | Role | Lock ownership |
+|---|---|---|
+| `club.db` | The primary database — all tables, FTS5 index, triggers, pragmas | SQLite main process |
+| `club.db-shm` | WAL shared memory, mmap-mapped by readers | SQLite runtime |
+| `club.db-wal` | Write-ahead log; readers see a consistent snapshot up to the last checkpoint | SQLite runtime |
+
+**Back all three up together or none at all.** The `sqlite3 .backup` command handles this correctly; `cp` while the server is running is unsafe.
+
+<Aside type="caution">
+  Backup via `sqlite3 /data/db/club.db ".backup …"` (safe online hot-backup) or stop the server first. Never `cp` the three files while writes are in flight — you can get a backup with WAL pointing at missing pages.
+</Aside>
+
+---
+
+## `blobs/` — Blob store root
+
+Everything addressable through the `BlobStore` interface lives here. The layout is identical whether the backend is filesystem or S3/GCS (in the latter case, the prefix becomes the bucket's key structure).
+
+### Per-version layout
+
+```
+blobs/<package>/<version>/
+├── artifacts/
+│   ├── package.tar.gz          ← the archive
+│   └── package.json            ← {size, sha256, createdAt}; S3/GCS only
+└── screenshots/
+    ├── 0                       ← raw bytes, MIME type stored in DB
+    ├── 1
+    └── …
+```
+
+- `package.tar.gz` is the literal archive the `club publish` / `dart pub publish` client uploaded, atomically renamed into place after SHA-256 verification.
+- `package.json` is a tiny sidecar that exists **only** on the S3 and GCS backends, holding the fields object-storage metadata can't cheaply return (SHA-256 of upload-time bytes + pinned createdAt). The filesystem backend uses `stat(2)` and on-the-fly hashing instead.
+- Screenshots are referenced by their zero-based index in the pubspec's `screenshots:` declaration, not by filename. MIME types are stored in the DB rather than inferred from the filesystem.
+
+### Per-package dartdoc (blob mode only)
+
+When `DARTDOC_BACKEND=blob` (see [Dartdoc Serving Specifications](/reference/dartdoc-serving/)), an additional subtree sits under the package root:
+
+```
+blobs/<package>/dartdoc/latest/
+├── blob          ← concatenated, gzipped-per-file contents
+└── index.json    ← BlobIndex mapping path → {start, end} within blob
+```
+
+Only `latest/` exists — older versions' dartdoc is discarded on regeneration. The `blobId` inside `index.json` embeds a millisecond timestamp so cache entries keyed on it expire naturally without explicit invalidation.
+
+<Aside type="tip">
+  This is why `blobs/` is a backup target even when you're not using `BLOB_BACKEND=s3` and only using filesystem mode for dartdoc. Restoring just `db/` after a full wipe leaves you with a server whose package metadata points at tarballs that no longer exist.
+</Aside>
+
+---
+
+## `cache/` — Re-derivable state
+
+### `cache/dartdoc/` (filesystem mode only)
+
+Full HTML tree as emitted by `dart doc`:
+
+```
+cache/dartdoc/<package>/latest/
+├── index.html
+├── __404error.html
+├── <library_name>/…                 one directory per top-level library
+├── static-assets/                   CSS, JS, fonts
+└── …
+```
+
+Regenerated on every successful scoring pass for the current latest version. If deleted, `/documentation/<pkg>/latest/` returns 404 until the next scoring run. The latest-only policy means older versions never leave a directory here.
+
+### `cache/sdks/`
+
+Dart/Flutter SDK installations managed by the admin-settings SDK page. Each directory is a full SDK install (~1–3 GB). The admin UI knows how to discover these on startup and re-index them; you can safely delete the whole directory and the admin UI will report "no SDK available" until you reinstall.
+
+### `cache/pub-cache/`
+
+Shared PUB_CACHE directory used by pana when it resolves a package's dependencies during scoring. Grows with the union of all transitive deps seen so far. Bounded only by the set of scored packages; self-hosted registries with a small package count stay under ~1 GB.
+
+---
+
+## `logs/` — Observability
+
+Append-only log files. Currently just one:
+
+| File | What it holds |
+|---|---|
+| `scoring.log` | Every pana run: start, finish, exit code, truncated stderr on failure |
+
+Rotate externally if you care about size bounds (logrotate, fluent-bit, etc.). The server never rotates on its own because pana's cadence is low enough that unbounded growth takes many months.
+
+---
+
+## `tmp/` — Ephemeral
+
+Per-request scratch only.
+
+### `tmp/uploads/`
+
+The `dart pub publish` upload protocol is three-step (reserve → upload bytes → finalize). The tarball lives here between step 2 and step 3. Entries older than the DB's upload-session TTL (default 10 min) can be safely deleted at any time; the finalize path will reject their session IDs anyway.
+
+<Aside type="caution">
+  Never restore `tmp/` from a backup. Its state correlates with DB upload-session rows that will have already expired; at best restoration is a no-op, at worst it resurrects stale uploads that never completed.
+</Aside>
+
+---
+
+## Back-up matrix
+
+This is what goes in your cron job. Everything else is derived or ephemeral.
+
+```bash
+# Primary state — covers everything the registry needs to serve.
+tar czf /backups/club-$(date +%Y%m%d).tar.gz \
+  -C /data db blobs
+
+# Optional: include logs for historical observability.
+tar czf /backups/club-logs-$(date +%Y%m%d).tar.gz \
+  -C /data logs
+```
+
+Everything under `cache/` and `tmp/` is intentionally excluded. For the full restore procedure including PostgreSQL and S3/GCS variants, see [Backup & Restore](/operations/backup/).
+
+---
+
+## Switching `DARTDOC_BACKEND` between modes
+
+- `filesystem → blob`: on the next scoring run per package, output starts landing under `blobs/<pkg>/dartdoc/latest/`. The stale `cache/dartdoc/<pkg>/` tree becomes unused — safe to `rm -rf /data/cache/dartdoc` once every package has re-scored.
+- `blob → filesystem`: on the next scoring run per package, output lands under `cache/dartdoc/<pkg>/latest/`. The stale `blobs/<pkg>/dartdoc/` subtree is unused — safe to delete via `DELETE <pkg>/dartdoc/*` (S3/GCS) or `rm -rf /data/blobs/<pkg>/dartdoc` (filesystem) once every package has re-scored.
+
+In both cases, until a package's dartdoc is regenerated, its `/documentation/<pkg>/latest/` endpoint returns a 404 in the new backend. This is expected; clients will retry once the next scoring pass completes.
+
+---
+
+## Related specs
+
+- [Dartdoc Serving Specifications](/reference/dartdoc-serving/) — request routing, cache mechanics, MIME safelist.
+- [Validation & Scoring Specifications](/reference/validation-and-scoring/) — what runs before anything lands in `blobs/` or `cache/`.
+- [Environment Variables](/configuration/env-vars/) — every path's env-var override.
+- [Backup & Restore](/operations/backup/) — script templates and restore procedure.

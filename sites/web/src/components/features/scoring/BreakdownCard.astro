@@ -1,0 +1,147 @@
+---
+// Scoring variant A — "Detailed breakdown card"
+// Two columns. Copy on the left emphasizing the same engine as pub.dev.
+// Right: a single scorecard with 5 rows — one per pub-points category —
+// showing points earned, a progress bar, and a one-line description.
+const rubric = [
+  { key: "Conventions",   earned: 30, total: 30, desc: "pubspec · readme · changelog · license" },
+  { key: "Documentation", earned: 20, total: 20, desc: "20% of public API · an example file" },
+  { key: "Platforms",     earned: 20, total: 20, desc: "Android · iOS · web · desktop" },
+  { key: "Analysis",      earned: 40, total: 50, desc: "no errors · no warnings · no hints" },
+  { key: "Dependencies",  earned: 30, total: 40, desc: "deps on latest · no deprecated" },
+];
+const earned = rubric.reduce((s, r) => s + r.earned, 0);
+const total = rubric.reduce((s, r) => s + r.total, 0);
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <div class="grid">
+      <div class="copy">
+        <div class="eyebrow orange">§ Quality</div>
+        <h2 class="h2">
+          The same pub scoring,<br class="md-only" />
+          <span class="accent">on your server</span>.
+        </h2>
+        <p class="lede">
+          Every package gets graded against the same rubric pub.dev uses —
+          <span class="ink">160 pub points</span> across five categories,
+          recalculated on every publish. No data leaves your walls.
+        </p>
+
+        <ul class="bullets">
+          <li><strong>Same rubric</strong> — byte-for-byte match with pub.dev's scoring criteria.</li>
+          <li><strong>Same engine</strong> — built on Dart's <span class="mono">pana</span> toolkit.</li>
+          <li><strong>Your data</strong> — scores are computed inside your infra and stay there.</li>
+        </ul>
+
+        <div class="footnote">
+          <span class="mono tag">Also</span>
+          Users can <strong>like</strong> a package too — it's there if your team finds it useful.
+        </div>
+      </div>
+
+      <figure class="card">
+        <header class="card-head">
+          <div>
+            <div class="card-k mono">Pub Points</div>
+            <div class="card-sub mono">package · acme_ui@2.4.1</div>
+          </div>
+          <div class="card-score">
+            <strong>{earned}</strong>
+            <em>/ {total}</em>
+          </div>
+        </header>
+
+        <ul class="rubric">
+          {rubric.map((r) => {
+            const pct = Math.round((r.earned / r.total) * 100);
+            const full = r.earned === r.total;
+            return (
+              <li>
+                <div class="row-top">
+                  <span class="row-name">{r.key}</span>
+                  <span class={`row-pts ${full ? "full" : ""}`}>{r.earned} <em>/ {r.total}</em></span>
+                </div>
+                <div class="bar"><i style={`width: ${pct}%`}></i></div>
+                <div class="row-desc">{r.desc}</div>
+              </li>
+            );
+          })}
+        </ul>
+
+        <footer class="card-foot">
+          <span class="mono">↻ Recalculated on every publish</span>
+        </footer>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .grid { display: grid; gap: 3rem; grid-template-columns: minmax(0, 0.48fr) minmax(0, 0.52fr); align-items: center; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.4rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 18ch; color: var(--color-ink); }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 38rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  .bullets { list-style: none; padding: 0; margin: 1.75rem 0 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .bullets li { position: relative; padding-left: 1.3rem; font-size: 0.95rem; line-height: 1.55; color: var(--color-mute); }
+  .bullets li::before { content: "·"; position: absolute; left: 0.35rem; top: -0.05em; color: var(--color-stamp); font-weight: 700; font-family: var(--font-mono); font-size: 1.1em; }
+  .bullets strong { color: var(--color-ink); font-weight: 640; }
+  .bullets .mono { background: var(--color-paper-mute); padding: 0 0.3em; border-radius: 4px; font-size: 0.9em; }
+
+  .footnote {
+    margin-top: 1.75rem; padding: 0.8rem 1rem;
+    border: 1px dashed var(--color-border); border-radius: 8px;
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+
+  /* Card */
+  .card {
+    margin: 0; background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 18px; overflow: hidden;
+    box-shadow: 0 24px 60px -30px rgba(5,5,5,0.2);
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1.25rem 1.5rem; background: var(--color-paper-mute);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .card-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .card-sub { font-size: 0.72rem; letter-spacing: 0.1em; color: var(--color-mute); margin-top: 0.15rem; }
+  .card-score { text-align: right; font-family: var(--font-sans); }
+  .card-score strong { font-weight: 700; font-size: 2.5rem; letter-spacing: -0.035em; color: var(--color-ink); line-height: 1; }
+  .card-score em { font-style: normal; color: var(--color-mute); font-size: 1rem; font-weight: 580; margin-left: 0.15rem; }
+
+  .rubric { list-style: none; padding: 1.25rem 1.5rem; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .row-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .row-name { font-family: var(--font-sans); font-weight: 640; color: var(--color-ink); font-size: 0.98rem; letter-spacing: -0.01em; }
+  .row-pts { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-mute); font-weight: 600; }
+  .row-pts em { font-style: normal; opacity: 0.6; font-weight: 500; }
+  .row-pts.full { color: var(--color-stamp); }
+  .bar { margin-top: 0.35rem; height: 5px; background: var(--color-paper-mute-2); border-radius: 999px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--color-stamp); border-radius: 999px; }
+  .row-desc { margin-top: 0.3rem; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.04em; color: var(--color-mute); }
+
+  .card-foot {
+    padding: 0.85rem 1.5rem; border-top: 1px solid var(--color-border);
+    background: var(--color-paper-mute); color: var(--color-mute);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+</style>

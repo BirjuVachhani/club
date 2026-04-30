@@ -1,0 +1,138 @@
+---
+// Feature — Private by default
+// Dark band. Three big "0" stats carry the argument (no telemetry,
+// no trackers, no ads). Supporting chips reinforce the proof.
+---
+
+<section id="f-private" class="sec">
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow orange">§ Private by default</div>
+      <h2 class="h2">Nothing leaves your walls. <br class="md-only" />Ever.</h2>
+      <p class="lede">
+        Your packages, your users, your download counts — all live on
+        infrastructure you control. CLUB has no telemetry, no analytics
+        pixel, no third-party SDK. It is open source, end to end.
+      </p>
+    </header>
+
+    <div class="zeros" data-reveal-children data-reveal-step="120">
+      <div class="zero">
+        <div class="zero-num">0</div>
+        <div class="zero-label">Telemetry requests</div>
+        <div class="zero-sub">Not on install, not in the UI, not ever.</div>
+      </div>
+      <div class="zero">
+        <div class="zero-num">0</div>
+        <div class="zero-label">Third-party trackers</div>
+        <div class="zero-sub">No cookies, no pixels, no SDKs you didn't invite.</div>
+      </div>
+      <div class="zero">
+        <div class="zero-num">0</div>
+        <div class="zero-label">Ads, forever</div>
+        <div class="zero-sub">There is no ad system to turn off.</div>
+      </div>
+    </div>
+
+    <div class="proof" data-reveal-children data-reveal-step="60" data-reveal-base="120">
+      <span class="pp"><span class="pp-mark">✓</span>Open source · Apache 2.0</span>
+      <span class="pp"><span class="pp-mark">✓</span>Configurable privacy &amp; terms pages</span>
+      <span class="pp"><span class="pp-mark">✓</span>Self-hosted · your TLS, your ingress</span>
+      <span class="pp"><span class="pp-mark">✓</span>Audit the code yourself</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-ink-dark); color: #EDEDED;
+    position: relative; overflow: hidden;
+  }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .sec::before {
+    content: ""; position: absolute; inset: -4rem -4rem auto auto;
+    width: 28rem; height: 28rem; border-radius: 999px; pointer-events: none;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.08; filter: blur(48px);
+  }
+  .wrap { position: relative; max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 52rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute-dark); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: #EDEDED; }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute-dark); margin: 1.5rem 0 0; max-width: 42rem; }
+  .md-only { display: none; }
+  @media (min-width: 768px) { .md-only { display: block; } }
+
+  .zeros {
+    margin-top: 3.5rem;
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .zeros { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .zeros { margin-top: 2.25rem; }
+    .zero { padding: 1.5rem 1.25rem; }
+    .zero-num { font-size: clamp(3.5rem, 14vw, 5rem); }
+  }
+
+  .zero {
+    position: relative; padding: 2rem 1.75rem;
+    background: color-mix(in oklab, #EDEDED 4%, transparent);
+    border: 1px solid var(--color-border-dark);
+    border-radius: 18px;
+    overflow: hidden;
+    transition:
+      transform 320ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      border-color 200ms ease-out;
+  }
+  .zero:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--color-stamp) 40%, var(--color-border-dark));
+  }
+  .zero:hover .zero-num { transform: rotate(-4deg) scale(1.04); }
+
+  .zero::before {
+    content: ""; position: absolute; left: -2px; top: 50%;
+    width: 4px; height: 3rem; transform: translateY(-50%) scaleY(0.4);
+    background: var(--color-stamp); border-radius: 0 3px 3px 0;
+    transition: transform 420ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  .zeros.is-visible .zero::before { transform: translateY(-50%) scaleY(1); }
+
+  .zero-num {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(4.5rem, 9vw, 7rem);
+    line-height: 0.88; letter-spacing: -0.06em;
+    color: var(--color-stamp);
+    display: inline-block;
+    transform-origin: center;
+    transition: transform 520ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .zero:hover { transform: none; }
+    .zero:hover .zero-num { transform: none; }
+    .zero::before { transform: translateY(-50%); }
+  }
+  .zero-label {
+    margin-top: 0.25rem;
+    font-family: var(--font-sans); font-weight: 640;
+    font-size: 1rem; color: #EDEDED; letter-spacing: -0.01em;
+  }
+  .zero-sub { margin-top: 0.35rem; font-size: 0.88rem; color: var(--color-mute-dark); line-height: 1.5; }
+
+  .proof {
+    margin-top: 2.5rem; padding-top: 2rem;
+    border-top: 1px dashed var(--color-border-dark);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem;
+  }
+  .pp {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--color-mute-dark); letter-spacing: -0.005em;
+  }
+  .pp-mark { color: var(--color-stamp); font-weight: 700; }
+</style>

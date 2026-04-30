@@ -1,0 +1,175 @@
+---
+title: Package Scoring
+description: Enable pana-based scoring on your club server — the same analysis model as pub.dev.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+club can automatically analyze each published package version using [pana](https://pub.dev/packages/pana) — the same tool that powers pub.dev scoring. When enabled, every version receives a score out of 160 points across five categories:
+
+| Category | Max Points | What it checks |
+|----------|-----------|----------------|
+| Follow Dart file conventions | 30 | Valid pubspec, README, CHANGELOG, OSI license |
+| Provide documentation | 20 | Dartdoc coverage, example, screenshots |
+| Platform support | 20 | Supported platforms (iOS, Android, Web, Windows, macOS, Linux) |
+| Pass static analysis | 50 | `dart analyze` + `dart format` — zero errors/warnings/lints |
+| Support up-to-date dependencies | 40 | Up-to-date deps, latest SDK support, `pub downgrade` compatibility |
+
+## How It Works
+
+<Steps>
+
+1. A version is published via `dart pub publish` or `club publish`.
+2. The server enqueues a **scoring job** for that version.
+3. A background worker extracts the tarball, runs pana with the configured SDK, and stores the report.
+4. If this version is the current **latest stable**, the worker also generates and persists API-reference HTML via `dart doc`. See [Dartdoc generation](#dartdoc-generation) below.
+5. The **Scores** tab on the package page surfaces the pana results. The **API reference** link appears whenever dartdoc is available for the latest version.
+
+</Steps>
+
+Each job moves through these states:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Queued, waiting for a worker |
+| `running` | pana is analyzing right now |
+| `completed` | Report stored and visible on the package page |
+| `failed` | Analysis failed; the error is recorded and visible to admins |
+| `disabled` | Scoring is globally disabled on this server |
+
+## Dartdoc generation
+
+club generates dartdoc **only for the latest stable version** of each package. Older versions and re-scores of non-latest versions skip the dartdoc step entirely — the pana score is still computed, but no HTML is emitted or persisted.
+
+When a newer version is published, its scoring job regenerates dartdoc and overwrites `/documentation/<pkg>/latest/` in place. A built-in race guard re-checks `latest_version` just before persisting so an older re-score can't stomp on a newer version's docs.
+
+Two serve paths are available via `DARTDOC_BACKEND`:
+
+- `filesystem` (default) — local HTML tree, served by `shelf_static`.
+- `blob` — indexed blob in the `BlobStore`, served via byte-range reads with an in-process LRU.
+
+The full behavioural contract (URL routing, storage layout, cache, MIME safelist, response headers) is in [Dartdoc Serving Specifications](/reference/dartdoc-serving/).
+
+## Setup
+
+Scoring is managed entirely from the admin UI at **`/admin/settings/sdk`**. No environment variables are required.
+
+<Steps>
+
+1. **Open Admin > Settings > SDK**
+
+   Sign in as an admin and navigate to the SDK settings page. The public API for this surface lives under `/api/admin/sdk/*`.
+
+2. **Install a Dart/Flutter SDK**
+
+   Choose a channel (stable, beta, or dev), pick a version, and click **Download**. The server downloads the SDK archive for its platform and extracts it locally. You can navigate away and come back — progress is reported live.
+
+   <Aside type="note">
+     The Flutter SDK includes the Dart SDK, so both plain Dart and Flutter packages can be scored. Plan for ~1.5 GB download and ~3 GB extracted per version.
+   </Aside>
+
+3. **Set a default**
+
+   Click **Set default** on the version you want pana to use.
+
+4. **Enable scoring**
+
+   Toggle **Package scoring** on (`PUT /api/admin/sdk/settings` with `{"scoringEnabled": true}`). Subsequent publishes are automatically enqueued for analysis.
+
+</Steps>
+
+### Managing SDKs
+
+From `/admin/settings/sdk` you can:
+
+- **Install multiple SDK versions** side-by-side.
+- **Switch the default** without re-downloading.
+- **Delete versions** to reclaim disk space.
+- **Monitor in-flight downloads** in real time.
+
+### Disabling scoring globally
+
+To pause all scoring (for example during maintenance):
+
+```http
+PUT /api/admin/sdk/settings
+Content-Type: application/json
+
+{ "scoringEnabled": false }
+```
+
+New publishes are still accepted; their scoring status simply stays `disabled` until you turn it back on.
+
+## Viewing Scores
+
+The **Scores** tab is visible to all authenticated users on every package page. It shows:
+
+- A summary line with the total and the analysis timestamp.
+- Five collapsible sections matching pub.dev's categories.
+- Detailed markdown findings per section.
+- A footer with the pana, Dart, and Flutter versions used.
+
+### Public API
+
+Anyone who can read the package can also fetch the raw report:
+
+```http
+GET /api/packages/<pkg>/versions/<v>/scoring-report
+GET /api/packages/<pkg>/score
+```
+
+`score` returns the current "headline" summary; `scoring-report` returns the full pana output.
+
+## Re-analyzing a Version
+
+Admins can trigger a re-analysis — useful after upgrading the default SDK or after a failed run.
+
+From the package page:
+
+1. Open the version.
+2. Go to the **Admin** tab.
+3. Under **Scoring**, click **Re-analyze**.
+
+Or via the API:
+
+```http
+POST /api/admin/packages/<pkg>/versions/<v>/rescore
+```
+
+The job is queued immediately; refresh the page once it completes.
+
+## Network Requirements
+
+The server needs outbound network access for:
+
+- **Flutter/Dart SDK distribution** — to download SDK archives.
+- **pub.dev** — pana resolves transitive dependencies via `dart pub get`.
+- **Package repository URLs** — pana verifies repository links (e.g. GitHub).
+
+In fully air-gapped networks, SDK downloads and scoring will not work out of the box.
+
+## Performance Considerations
+
+- **SDK download**: ~1.5 GB down, ~3 GB extracted. First install takes a few minutes.
+- **Analysis time**: 30–120 seconds per version depending on size and dependencies.
+- **Disk**: keep at least 5 GB free for one SDK plus working space.
+- **Pub cache** is reused across jobs, so later analyses run noticeably faster than the first.
+
+## Troubleshooting
+
+**Scoring stays `pending` indefinitely**
+- Confirm a default SDK is set at `/admin/settings/sdk` and its status is `ready`.
+- Confirm `scoringEnabled` is `true`.
+- Check server logs for scoring errors.
+
+**SDK download fails**
+- Check available disk space on the admin page.
+- Confirm the server can reach the upstream SDK host.
+- Inspect server logs for the exact error.
+
+**`failed` on a specific version**
+- Open the version's **Admin** tab for the captured error output.
+- Re-run with `POST /api/admin/packages/<pkg>/versions/<v>/rescore` after fixing the cause.
+
+**Scores don't match pub.dev exactly**
+- Scores depend on the SDK version. Different SDK versions may give slightly different numbers. Keep the default SDK reasonably current.

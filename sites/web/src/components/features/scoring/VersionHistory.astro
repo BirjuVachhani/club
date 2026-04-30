@@ -1,0 +1,178 @@
+---
+// Scoring variant E — "Version history"
+// Emphasizes that scoring is tracked across versions. A table of
+// recent versions with their pub points makes the "quality regression
+// signal" angle visible.
+const versions = [
+  { v: "2.4.1", date: "2 days ago",   pts: 140, delta: "+5",  note: "dartdoc coverage improved" },
+  { v: "2.4.0", date: "3 weeks ago",  pts: 135, delta: "−2",  note: "new deprecated transitive dep" },
+  { v: "2.3.9", date: "2 months ago", pts: 137, delta: "+7",  note: "resolved analyzer warnings" },
+  { v: "2.3.8", date: "3 months ago", pts: 130, delta: "+0",  note: "—" },
+  { v: "2.3.7", date: "4 months ago", pts: 130, delta: "+10", note: "added example + README polish" },
+  { v: "2.3.6", date: "4 months ago", pts: 120, delta: null,  note: "initial scored release" },
+];
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Quality over time</div>
+      <h2 class="h2">
+        Every release, <span class="accent">scored and saved</span>.
+      </h2>
+      <p class="lede">
+        CLUB runs pub.dev's <span class="ink">pana</span> engine on every
+        publish and keeps the score forever — so your team can see how
+        a package's quality trends across versions.
+      </p>
+    </header>
+
+    <!-- Sparkline -->
+    <div class="sparkwrap">
+      <svg viewBox="0 0 600 120" class="spark" aria-hidden="true" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="sp-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="var(--color-stamp)" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="var(--color-stamp)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- axis -->
+        <line x1="0" y1="90" x2="600" y2="90" stroke="var(--color-border)" stroke-dasharray="2 4"/>
+        <line x1="0" y1="60" x2="600" y2="60" stroke="var(--color-border)" stroke-dasharray="2 4"/>
+        <line x1="0" y1="30" x2="600" y2="30" stroke="var(--color-border)" stroke-dasharray="2 4"/>
+        <!-- path: scores 120,130,130,137,135,140 → normalize into 120px chart (0-160 → 105-0px) -->
+        <path d="M 50 57 L 150 37 L 250 37 L 350 22 L 450 27 L 550 12 L 550 100 L 50 100 Z" fill="url(#sp-fill)"/>
+        <path d="M 50 57 L 150 37 L 250 37 L 350 22 L 450 27 L 550 12" fill="none" stroke="var(--color-stamp)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- points -->
+        <circle cx="50"  cy="57" r="4" fill="var(--color-stamp)"/>
+        <circle cx="150" cy="37" r="4" fill="var(--color-stamp)"/>
+        <circle cx="250" cy="37" r="4" fill="var(--color-stamp)"/>
+        <circle cx="350" cy="22" r="4" fill="var(--color-stamp)"/>
+        <circle cx="450" cy="27" r="4" fill="var(--color-stamp)"/>
+        <circle cx="550" cy="12" r="5" fill="var(--color-stamp)" stroke="#fff" stroke-width="2"/>
+      </svg>
+      <div class="spark-axis">
+        <span>120</span><span>130</span><span>140</span><span>160</span>
+      </div>
+      <div class="spark-meta">
+        <span class="mono">Pub points across versions</span>
+        <span class="mono o">↑ trending up</span>
+      </div>
+    </div>
+
+    <!-- Versions table -->
+    <div class="table">
+      <div class="row head">
+        <span>Version</span>
+        <span>Published</span>
+        <span>Pub points</span>
+        <span>Δ</span>
+        <span>Notes</span>
+      </div>
+      {versions.map((row, i) => (
+        <div class={`row ${i === 0 ? "latest" : ""}`}>
+          <span class="v mono">
+            {row.v}
+            {i === 0 && <span class="tag">latest</span>}
+          </span>
+          <span class="date">{row.date}</span>
+          <span class="pts">
+            <strong>{row.pts}</strong><em>/ 160</em>
+          </span>
+          <span class={`delta ${row.delta && row.delta.startsWith("+") ? "up" : row.delta && row.delta.startsWith("−") ? "down" : ""}`}>
+            {row.delta ?? "—"}
+          </span>
+          <span class="note">{row.note}</span>
+        </div>
+      ))}
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag-in">Also</span>
+      Users can <strong>like</strong> a package. Not load-bearing — it's there if your team finds it useful.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent, .o { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag-in { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .head { max-width: 54rem; margin: 0 0 2.5rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 18ch; color: var(--color-ink); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 42rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  /* Sparkline */
+  .sparkwrap {
+    position: relative; margin-top: 1rem; padding: 1.5rem 1.75rem;
+    background: var(--color-paper-mute); border: 1px solid var(--color-border);
+    border-radius: 14px;
+  }
+  .spark { width: 100%; height: 110px; display: block; }
+  .spark-axis {
+    position: absolute; right: 1.75rem; top: 1.25rem; bottom: 2.75rem;
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-family: var(--font-mono); font-size: 0.62rem; color: var(--color-mute);
+    text-align: right;
+  }
+  .spark-meta { margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: baseline; }
+  .spark-meta .mono { font-size: 0.68rem; letter-spacing: 0.16em; color: var(--color-mute); text-transform: uppercase; font-weight: 600; }
+  .spark-meta .mono.o { color: var(--color-stamp); font-weight: 700; }
+
+  /* Table */
+  .table {
+    margin-top: 1rem;
+    border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden;
+    background: var(--color-bg);
+  }
+  .row {
+    display: grid; grid-template-columns: 8rem 10rem 10rem 5rem 1fr;
+    gap: 1rem; padding: 0.85rem 1.25rem; align-items: center;
+    border-bottom: 1px solid var(--color-border); font-size: 0.92rem;
+  }
+  .row:last-child { border-bottom: 0; }
+  @media (max-width: 900px) {
+    .row { grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; padding: 1rem 1.1rem; }
+    .row > span.note { grid-column: span 2; color: var(--color-mute); }
+    .row.head { display: none; }
+  }
+
+  .row.head {
+    background: var(--color-ink); color: #fff;
+    font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.16em;
+    text-transform: uppercase; font-weight: 600;
+  }
+  .row.latest { background: var(--color-stamp-soft); }
+  .row.latest .pts strong { color: var(--color-stamp); }
+
+  .v { font-family: var(--font-mono); font-weight: 700; color: var(--color-ink); display: inline-flex; align-items: center; gap: 0.5rem; }
+  .v .tag {
+    font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+    background: var(--color-stamp); color: #fff;
+    padding: 0.15rem 0.4rem; border-radius: 3px; font-weight: 700;
+  }
+  .date { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-mute); }
+  .pts strong { font-family: var(--font-sans); font-weight: 700; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--color-ink); }
+  .pts em { font-style: normal; font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-mute); margin-left: 0.3rem; font-weight: 500; }
+
+  .delta { font-family: var(--font-mono); font-weight: 700; font-size: 0.9rem; color: var(--color-mute); }
+  .delta.up   { color: var(--color-stamp); }
+  .delta.down { color: #C68A00; }
+
+  .note { font-size: 0.88rem; color: var(--color-mute); }
+
+  .footnote {
+    margin-top: 1.5rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border); border-radius: 8px;
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+</style>

@@ -1,0 +1,278 @@
+---
+title: Docker with PostgreSQL
+description: When and how to use PostgreSQL instead of SQLite with club, including docker-compose configuration and migration instructions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+By default, club uses SQLite for metadata storage. This guide covers switching to PostgreSQL for deployments that need more concurrency or robustness.
+
+<Aside type="caution">
+  The PostgreSQL backend is still maturing — production parity with SQLite is not guaranteed on every release. Verify against the latest release notes before committing a production workload to it.
+</Aside>
+
+## When to Use PostgreSQL
+
+**Stick with SQLite when:**
+- You have a small team (fewer than ~50 developers)
+- You host fewer than ~10,000 packages
+- You run a single club instance
+- You want the simplest possible setup
+
+**Switch to PostgreSQL when:**
+- You have many concurrent users publishing or fetching packages
+- You experience SQLite "database locked" errors under load
+- You want to use your existing PostgreSQL infrastructure and backup tooling
+- You plan to run multiple club instances behind a load balancer
+- You need point-in-time recovery or streaming replication
+
+<Aside>
+  SQLite is not a limitation for most teams. It handles thousands of packages and dozens of concurrent readers without issue. Only switch to PostgreSQL if you have a specific reason.
+</Aside>
+
+## docker-compose Override
+
+club provides a compose override file that adds PostgreSQL alongside the main service. This layered approach keeps the base `docker-compose.yml` clean.
+
+Create `/opt/club/docker-compose.postgres.yml`:
+
+```yaml
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: club_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: club
+      POSTGRES_USER: club
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - club_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U club"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  club:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_BACKEND: postgres
+      POSTGRES_URL: "postgres://club:${POSTGRES_PASSWORD}@postgres:5432/club"
+
+volumes:
+  club_postgres:
+```
+
+### .env additions
+
+Add the PostgreSQL password to your existing `.env` file:
+
+```bash
+# Existing variables
+SERVER_URL=https://packages.example.com
+JWT_SECRET=<your-jwt-secret>
+TRUST_PROXY=true
+
+# PostgreSQL
+POSTGRES_PASSWORD=<generate-a-strong-password>
+```
+
+<Aside type="note">
+  There are no `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars. The first admin account is created via the `/setup` wizard using a one-time code printed to the logs on first boot — see [Docker deployment → First-boot admin setup](/self-hosting/docker/#first-boot-admin-setup).
+</Aside>
+
+Generate a strong password:
+
+```bash
+echo "POSTGRES_PASSWORD=$(openssl rand -base64 24)" >> .env
+```
+
+### Starting with the override
+
+Use both compose files together:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+```
+
+<Aside type="tip">
+  To avoid typing both file names every time, create a `COMPOSE_FILE` variable in your `.env`:
+  ```bash
+  COMPOSE_FILE=docker-compose.yml:docker-compose.postgres.yml
+  ```
+  Then `docker compose up -d` will automatically use both files.
+</Aside>
+
+## PostgreSQL Configuration
+
+### Connection URL format
+
+The `POSTGRES_URL` environment variable follows standard PostgreSQL connection string format:
+
+```
+postgres://user:password@host:port/database
+```
+
+Examples:
+
+```bash
+# Local Docker network (compose service name as hostname)
+POSTGRES_URL=postgres://club:secret@postgres:5432/club
+
+# External PostgreSQL server
+POSTGRES_URL=postgres://club:secret@db.example.com:5432/club
+
+# With SSL
+POSTGRES_URL=postgres://club:secret@db.example.com:5432/club?sslmode=require
+```
+
+### Using an external PostgreSQL server
+
+If you already have a PostgreSQL server (e.g., AWS RDS, Cloud SQL, or a shared instance), you do not need the `postgres` service in your compose file. Set the connection URL directly:
+
+```bash
+# .env
+DB_BACKEND=postgres
+POSTGRES_URL=postgres://club:secret@your-db-host.example.com:5432/club
+```
+
+And in `docker-compose.yml`, add the environment variables:
+
+```yaml
+services:
+  club:
+    # ... existing configuration ...
+    environment:
+      DB_BACKEND: postgres
+      POSTGRES_URL: ${POSTGRES_URL}
+```
+
+### PostgreSQL tuning
+
+For a dedicated club PostgreSQL instance, these settings work well in `postgresql.conf` or as Docker environment variables:
+
+```yaml
+postgres:
+  image: postgres:16-alpine
+  environment:
+    POSTGRES_DB: club
+    POSTGRES_USER: club
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  command:
+    - "postgres"
+    - "-c" 
+    - "shared_buffers=256MB"
+    - "-c"
+    - "effective_cache_size=512MB"
+    - "-c"
+    - "work_mem=4MB"
+    - "-c"
+    - "max_connections=50"
+```
+
+### Backing up PostgreSQL
+
+```bash
+# Dump the database
+docker exec club_postgres pg_dump -U club club > club-backup-$(date +%Y%m%d).sql
+
+# Restore
+docker exec -i club_postgres psql -U club club < club-backup.sql
+```
+
+## Migration from SQLite to PostgreSQL
+
+<Aside type="caution">
+  There is no built-in migration tool to transfer data from SQLite to PostgreSQL. The recommended approach is to export and reimport, or to start fresh with PostgreSQL if your instance is new.
+</Aside>
+
+### Option A: Start fresh (recommended for new instances)
+
+If you have not published any packages yet, or if you can republish them:
+
+1. Stop club
+2. Switch the `.env` to PostgreSQL (add `DB_BACKEND=postgres` and `POSTGRES_URL`)
+3. Start club with the postgres override
+4. club creates the schema automatically on startup
+5. Republish your packages
+
+### Option B: Export and reimport (for existing data)
+
+1. **Back up your SQLite database:**
+
+   ```bash
+   docker exec club sqlite3 /data/db/club.db ".backup /tmp/club-backup.db"
+   docker cp club:/tmp/club-backup.db ./club-backup.db
+   ```
+
+2. **Start PostgreSQL alongside club:**
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+   ```
+
+3. **Export data from SQLite and import into PostgreSQL** using a tool like [pgloader](https://pgloader.io/) or a custom script. The table schemas are identical between backends.
+
+4. **Verify the data** by checking the web UI and running a `dart pub get` against a known package.
+
+## Full docker-compose Example
+
+Here is a complete single-file compose configuration with PostgreSQL, for reference:
+
+```yaml
+version: "3.9"
+
+services:
+  club:
+    image: ghcr.io/birjuvachhani/club:latest
+    container_name: club
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SERVER_URL: https://packages.example.com
+      JWT_SECRET: ${JWT_SECRET}
+      TRUST_PROXY: "true"
+      DB_BACKEND: postgres
+      POSTGRES_URL: postgres://club:${POSTGRES_PASSWORD}@postgres:5432/club
+    volumes:
+      - club_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: club_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: club
+      POSTGRES_USER: club
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - club_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U club"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  club_data:
+  club_postgres:
+```
+
+<Aside>
+  Even with PostgreSQL as the metadata store, the `/data` volume still holds package tarballs and per-version assets (`/data/blobs/`), rendered dartdoc (`/data/cache/dartdoc/` in filesystem mode, or inside `/data/blobs/` in blob mode), and the pana-managed Flutter/Dart SDK caches (`/data/cache/sdks/`, `/data/cache/pub-cache/`). Keep it mounted.
+</Aside>

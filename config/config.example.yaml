@@ -1,0 +1,120 @@
+# =============================================================================
+# club — configuration file
+# =============================================================================
+# Place this file at /etc/club/config.yaml (default) or set the
+# CONFIG environment variable to point to a custom path.
+#
+# Environment variables always take precedence over values in this file.
+# You can use {{ENV_VAR}} syntax for substitution — the value of the named
+# environment variable will be interpolated at load time.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------------
+
+# Bind address. Use 0.0.0.0 to listen on all interfaces.
+host: "0.0.0.0"
+
+# Port the HTTP server listens on.
+port: 8080
+
+# Public URL where club is reachable (no trailing slash).
+# This is used to generate download URLs in the pub API responses.
+server_url: "https://pub.example.com"
+
+# Log verbosity: debug, info, warning, error
+log_level: "info"
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+# Secret used to sign JWT tokens. MUST be at least 32 characters.
+# Generate one with: openssl rand -base64 48
+jwt_secret: "{{JWT_SECRET}}"
+
+# How long interactive sessions last (hours).
+session_ttl_hours: 1
+
+# How long long-lived API tokens last (days).
+token_expiry_days: 365
+
+# bcrypt cost factor for password hashing (10-14 recommended).
+bcrypt_cost: 12
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+db:
+  # Backend: "sqlite" or "postgres"
+  backend: "sqlite"
+
+  # Path to the SQLite database file (only used when backend is "sqlite").
+  sqlite_path: "/data/club.db"
+
+  # PostgreSQL connection URL (required when backend is "postgres").
+  # postgres_url: "postgres://club:{{POSTGRES_PASSWORD}}@localhost:5432/club?sslmode=disable"
+
+# ---------------------------------------------------------------------------
+# Blob / package storage
+# ---------------------------------------------------------------------------
+blob:
+  # Backend: "filesystem", "s3", or "gcs" ("firebase" is accepted as an alias for gcs).
+  backend: "filesystem"
+
+  # Local filesystem path for package tarballs (only when backend is "filesystem").
+  path: "/data/packages"
+
+  # S3-compatible storage settings (required when backend is "s3").
+  # Works with AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2,
+  # and Firebase Storage / GCS via the S3 interop endpoint.
+  # s3:
+  #   bucket: "club-packages"
+  #   region: "us-east-1"                         # use "auto" for R2 (and for GCS interop)
+  #   access_key: "{{S3_ACCESS_KEY}}"
+  #   secret_key: "{{S3_SECRET_KEY}}"
+  #   # endpoint: required for non-AWS; omit for AWS S3.
+  #   # AWS:           (omit)
+  #   # Cloudflare R2: "https://<account-id>.r2.cloudflarestorage.com"
+  #   # MinIO:         "http://minio:9000"  (http allowed only for localhost/minio)
+  #   # GCS interop:   "https://storage.googleapis.com"
+  #   endpoint: ""
+
+  # Firebase Storage / GCS (native) settings (required when backend is "gcs").
+  # Auth priority: credentials_file > credentials_json > Application Default Credentials.
+  # gcs:
+  #   bucket: "<project-id>.appspot.com"
+  #   credentials_file: "/secrets/sa.json"        # service-account JSON path
+  #   credentials_json: "{{GCS_CREDENTIALS_JSON}}"  # …or inline JSON
+
+# ---------------------------------------------------------------------------
+# Search
+# ---------------------------------------------------------------------------
+search:
+  # Backend: "sqlite" (built-in FTS5) or "meilisearch"
+  backend: "sqlite"
+
+  # Meilisearch settings (required when backend is "meilisearch").
+  # meilisearch:
+  #   url: "http://meilisearch:7700"
+  #   key: "{{MEILISEARCH_KEY}}"
+
+# ---------------------------------------------------------------------------
+# Upload
+# ---------------------------------------------------------------------------
+
+# Temporary directory for in-flight uploads.
+temp_dir: "/tmp/club-uploads"
+
+# Maximum upload size in bytes (default: 100 MB).
+max_upload_bytes: 104857600
+
+# ---------------------------------------------------------------------------
+# Admin bootstrap (optional)
+# ---------------------------------------------------------------------------
+# If set, an admin account will be created on first start when no users exist.
+# Remove these after initial setup.
+
+# admin_email: "admin@example.com"
+# admin_password: "{{ADMIN_PASSWORD}}"

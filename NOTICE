@@ -1,0 +1,25 @@
+club
+Copyright 2026 Birju Vachhani
+
+This product includes software developed at
+https://github.com/BirjuVachhani/club.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this software except in compliance with the License. A copy of the
+License is distributed with this software in the LICENSE file, and is also
+available at http://www.apache.org/licenses/LICENSE-2.0.
+
+Trademarks
+----------
+
+The "club" name, the club logo, and associated marks are not covered by the
+Apache License and are not granted to you by this License. Forks and
+derivative works must use a different name and mark.
+
+Third-Party Software
+--------------------
+
+This product uses third-party libraries. Each library is the property of its
+respective owners and is distributed under its own license. The licenses of
+these dependencies are available through the Dart and Node package managers
+used to build this project.

@@ -1,0 +1,93 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+
+const paths = [
+  {
+    k: "Read",
+    t: "The documentation",
+    b: "Full reference for the server, CLI, SDK, and the HTTP API. Start with the overview, then pick your path.",
+    href: docsUrl(),
+    cta: "Browse docs",
+  },
+  {
+    k: "Run",
+    t: "Quick start with Docker",
+    b: "One command to start a server on your laptop. Works with the bundled admin account; production notes included.",
+    href: docsUrl("/getting-started/quick-start/"),
+    cta: "Read the quick start",
+  },
+  {
+    k: "Publish",
+    t: "Your first package",
+    b: "A step-by-step walkthrough — point dart pub at your CLUB server, tag a version, publish, consume from CI.",
+    href: docsUrl("/getting-started/tutorial/"),
+    cta: "Open the tutorial",
+  },
+];
+---
+
+<section
+  class="relative"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <div class="mx-auto w-full max-w-[80rem] px-6 py-20 md:px-10 md:py-28">
+    <div class="eyebrow" style="color: var(--color-mute);">
+      03 — Getting started
+    </div>
+
+    <h2 class="h2 mt-4 max-w-[22ch]">
+      <span style="color: var(--color-stamp);">Read.</span> Run. Publish.
+    </h2>
+
+    <p class="prose-body mt-5 max-w-xl">
+      Three entry points into CLUB. Pick whichever matches where you are —
+      the docs cover the rest.
+    </p>
+
+    <ol class="mt-12 grid gap-6 md:mt-14 md:grid-cols-3">
+      {
+        paths.map((p) => (
+          <li
+            class="flex flex-col gap-3 rounded-xl border p-6 transition hover:border-[color:var(--color-stamp)]"
+            style="border-color: var(--color-border); background: var(--color-bg);"
+          >
+            <div
+              class="font-mono text-[0.64rem] tracking-[0.16em] uppercase"
+              style="color: var(--color-stamp);"
+            >
+              {p.k}
+            </div>
+            <h3 class="h3">{p.t}</h3>
+            <p class="text-[0.92rem] leading-relaxed" style="color: var(--color-mute);">
+              {p.b}
+            </p>
+            <a
+              href={p.href}
+              class="mt-auto inline-flex items-center gap-1.5 pt-3 text-[0.875rem] font-semibold transition"
+              style="color: var(--color-ink);"
+            >
+              {p.cta}
+              <span aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+
+    <div class="mt-10 flex flex-wrap items-center gap-3">
+      <a href={GITHUB_URL} class="btn btn-ghost" style="color: var(--color-ink);">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        View source on GitHub
+      </a>
+      <a
+        href={docsUrl("/configuration/")}
+        class="text-[0.875rem] font-semibold underline underline-offset-4 decoration-[1.5px]"
+        style="color: var(--color-mute);"
+      >
+        Configuration reference ↗
+      </a>
+    </div>
+  </div>
+</section>

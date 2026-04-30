@@ -1,0 +1,26 @@
+name: club_core
+description: Core domain models, interfaces, services, and validation for club.
+version: 0.1.0
+homepage: https://club.birju.dev
+repository: https://github.com/BirjuVachhani/club
+issue_tracker: https://github.com/BirjuVachhani/club/issues
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  pub_semver: ^2.2.0
+  crypto: ^3.0.7
+  json_annotation: ^4.11.0
+  equatable: ^2.0.8
+  meta: ^1.17.0
+  clock: ^1.1.2
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.0
+  build_runner: ^2.13.1
+  json_serializable: ^6.13.1

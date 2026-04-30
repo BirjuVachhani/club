@@ -1,0 +1,107 @@
+---
+// CTA variant E — "Orange inverted"
+// Full-bleed stamp-orange background. Maximum brand saturation, most
+// aggressive finish. Buttons invert to dark-on-white so the primary
+// still pops off the orange.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <!-- faint diagonal hatch -->
+  <div class="hatch" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <div class="rail"><span>CLUB</span><span>· open source ·</span><span>Apache 2.0</span></div>
+
+    <h2 class="h2">
+      Host your own <em>pub</em>.
+    </h2>
+    <p class="lede">
+      One container. Your cloud. Your rules. Five minutes to see it running;
+      an afternoon to roll it out for the team.
+    </p>
+
+    <div class="cta-row">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn-ink">
+        Read the quick start
+        <span class="arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn-on-orange">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub
+      </a>
+    </div>
+
+    <div class="rail small">
+      <span>No tracking</span><span>·</span><span>multi-arch Docker</span><span>·</span><span>your storage</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative; overflow: hidden;
+    padding: 7rem 0;
+    background: var(--color-stamp);
+    color: #fff; text-align: center;
+  }
+  .hatch {
+    position: absolute; inset: 0; pointer-events: none;
+    opacity: 0.18;
+    background-image: repeating-linear-gradient(-20deg, #fff 0 1px, transparent 1px 16px);
+  }
+  .wrap { position: relative; max-width: 60rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .rail {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1rem;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: #FFE4DA; font-weight: 700;
+  }
+  .rail.small { margin-top: 2.25rem; opacity: 0.85; }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.5rem, 5vw + 0.5rem, 4.5rem);
+    letter-spacing: -0.03em; line-height: 1.02;
+    margin: 1.5rem auto 0; max-width: 14ch; color: #fff;
+  }
+  .h2 em { font-style: italic; font-weight: 560; color: #fff; }
+
+  .lede {
+    font-size: 1.1rem; line-height: 1.55; color: #FFE4DA;
+    margin: 1.5rem auto 0; max-width: 38rem;
+  }
+
+  .cta-row {
+    display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;
+    margin-top: 2rem;
+  }
+
+  /* Ink button (primary): dark on the orange — pops */
+  .btn-ink {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.75em 1.25em; border-radius: 0.625rem;
+    background: var(--color-ink); color: #fff;
+    font-family: var(--font-sans); font-size: 0.9rem; font-weight: 600;
+    letter-spacing: -0.005em; border: 1px solid var(--color-ink);
+    transition: background 150ms;
+  }
+  .btn-ink:hover { background: #000; }
+  .btn-ink .arrow { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+  .btn-ink:hover .arrow { transform: translateX(2px); }
+
+  /* Secondary button: white outline */
+  .btn-on-orange {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.75em 1.25em; border-radius: 0.625rem;
+    background: transparent; color: #fff;
+    font-family: var(--font-sans); font-size: 0.9rem; font-weight: 600;
+    border: 1px solid color-mix(in oklab, #fff 45%, transparent);
+    transition: background 150ms, border-color 150ms;
+  }
+  .btn-on-orange:hover { background: color-mix(in oklab, #fff 10%, transparent); border-color: #fff; }
+</style>

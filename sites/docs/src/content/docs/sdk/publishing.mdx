@@ -1,0 +1,129 @@
+---
+title: SDK Publishing
+description: Publish Dart packages programmatically using the club_api client SDK.
+---
+
+import { Steps, Aside, Code } from '@astrojs/starlight/components';
+
+`ClubClient` exposes two publishing methods directly on the client. Both handle the multi-step upload flow internally and return the server's success message as a `String`.
+
+## publishFile and publish
+
+### Publish from a File Path
+
+The simplest approach — pass the path to a `.tar.gz` archive:
+
+```dart
+final message = await client.publishFile(
+  'build/my_package-1.0.0.tar.gz',
+);
+print(message); // "Successfully uploaded my_package version 1.0.0."
+```
+
+### Publish from a Byte Stream
+
+If you already have the archive as a byte stream (e.g., from an in-memory build):
+
+```dart
+import 'dart:io';
+
+final file = File('my_package-1.0.0.tar.gz');
+final stream = file.openRead();
+final length = await file.length();
+
+final message = await client.publish(stream, length: length);
+print(message);
+```
+
+<Aside type="tip">
+Providing the `length` parameter is recommended. It sets the `Content-Length` header on the upload request, which some servers require and which enables progress tracking.
+</Aside>
+
+<Aside type="note">
+The SDK does not expose the individual start/upload/finalize steps as public methods. If you need progress reporting or custom retry logic, wrap `publish` in your own byte-stream adapter that emits progress events as bytes are read.
+</Aside>
+
+## Complete CI/CD Example
+
+A script that publishes a package from environment variables:
+
+```dart
+import 'dart:io';
+import 'package:club_api/club_api.dart';
+
+Future<void> main() async {
+  final serverUrl = Platform.environment['SERVER_URL'];
+  final token = Platform.environment['CLUB_TOKEN'];
+  final archivePath = Platform.environment['ARCHIVE_PATH'];
+
+  if (serverUrl == null || token == null || archivePath == null) {
+    stderr.writeln(
+      'Set SERVER_URL, CLUB_TOKEN, and ARCHIVE_PATH',
+    );
+    exit(1);
+  }
+
+  final client = ClubClient(
+    serverUrl: Uri.parse(serverUrl),
+    token: token,
+  );
+
+  try {
+    final message = await client.publishFile(archivePath);
+    print(message);
+  } on ClubConflictException catch (e) {
+    stderr.writeln('Version already exists: ${e.message}');
+    exit(1);
+  } on ClubAuthException catch (e) {
+    stderr.writeln('Authentication failed: ${e.message}');
+    exit(1);
+  } on ClubForbiddenException catch (e) {
+    stderr.writeln('Insufficient permissions: ${e.message}');
+    exit(1);
+  } on ClubBadRequestException catch (e) {
+    stderr.writeln('Invalid package: ${e.message}');
+    exit(1);
+  } on ClubApiException catch (e) {
+    stderr.writeln('Publish failed (${e.code}): ${e.message}');
+    exit(1);
+  } finally {
+    client.close();
+  }
+}
+```
+
+## Error Handling
+
+Publishing can fail at each step. Here are the common errors:
+
+| Exception | HTTP Code | Cause |
+|-----------|-----------|-------|
+| `ClubAuthException` | 401 | Token missing, expired, or revoked |
+| `ClubForbiddenException` | 403 | Token lacks `write` scope, or user is not an uploader |
+| `ClubBadRequestException` | 400 | Invalid archive, missing pubspec fields, invalid version |
+| `ClubConflictException` | 409 | Version already exists with different content |
+| `ClubServerException` | 500 | Server-side error during processing |
+
+### Handling Duplicate Uploads
+
+If you upload the same version with identical content (matching SHA-256 hash), the server treats it as idempotent and returns success. If the content differs, you get a `409 Conflict`:
+
+```dart
+try {
+  await client.publishFile('my_package-1.0.0.tar.gz');
+} on ClubConflictException {
+  print('Version 1.0.0 already exists with different content.');
+  print('Bump the version number in pubspec.yaml and try again.');
+}
+```
+
+## Archive Requirements
+
+The uploaded archive must meet these requirements:
+
+- Valid `.tar.gz` format
+- Contains a valid `pubspec.yaml` at the root (nested `pubspec.yaml` files in subdirectories like `example/` are rejected)
+- `pubspec.yaml` has `name`, `version`, and `description`
+- Version is a canonical semantic version string
+- Package name is lowercase, alphanumeric with underscores, 1-64 characters
+- Archive size does not exceed the server's max upload size (default: 100 MB)

@@ -1,0 +1,80 @@
+---
+// CTA variant B — "Dark band"
+// Same structure as A but on ink-dark with a subtle orange bleed in
+// the top-right, echoing the hero. Louder, more confident finish.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <div class="bleed" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="eyebrow mono">§ Get started</div>
+    <h2 class="h2">
+      Ready to host<br/>your own <span class="accent">pub</span>?
+    </h2>
+    <p class="lede">
+      Run it in a container on your laptop in five minutes. Then scale
+      it to the storage and ingress you already operate.
+    </p>
+    <div class="cta-row">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+        Read the quick start
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn btn-ghost">GitHub</a>
+    </div>
+    <div class="foot mono">
+      <span>Apache 2.0</span>
+      <span class="sep">·</span>
+      <span>one container · multi-arch</span>
+      <span class="sep">·</span>
+      <span>no telemetry</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative; overflow: hidden;
+    padding: 7rem 0; background: var(--color-ink-dark); color: #EDEDED;
+    text-align: center;
+  }
+  .bleed {
+    position: absolute; pointer-events: none;
+    right: -8rem; top: -8rem;
+    width: 26rem; height: 26rem; border-radius: 999px;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.13; filter: blur(48px);
+  }
+  .wrap { position: relative; max-width: 52rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+
+  .eyebrow {
+    font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.25rem, 4vw + 0.5rem, 3.75rem);
+    letter-spacing: -0.032em; line-height: 1.02;
+    margin: 1.25rem auto 0; max-width: 16ch; color: #EDEDED;
+  }
+  .lede {
+    font-size: 1.05rem; line-height: 1.6; color: var(--color-mute-dark);
+    margin: 1.5rem auto 0; max-width: 34rem;
+  }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 2rem; }
+
+  .foot {
+    margin-top: 2rem;
+    display: inline-flex; flex-wrap: wrap; gap: 0.45rem 0.7rem; justify-content: center;
+    font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute-dark); font-weight: 600;
+    padding: 0.5rem 0.85rem;
+    border: 1px dashed var(--color-border-dark); border-radius: 999px;
+  }
+  .foot .sep { color: var(--color-stamp); }
+</style>

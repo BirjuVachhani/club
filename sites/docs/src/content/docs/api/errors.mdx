@@ -1,0 +1,198 @@
+---
+title: Error Codes
+description: Error envelope, HTTP status mappings, and common error codes.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+All club API errors follow a single JSON envelope. This page documents the shape, the codes that appear in it, and when each one occurs.
+
+## Error Envelope
+
+Every error response contains an `error` object with a `code` and a human-readable `message`:
+
+```json
+{
+  "error": {
+    "code": "NotFound",
+    "message": "Package 'nonexistent' was not found."
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error.code` | string | Machine-readable error code (PascalCase) |
+| `error.message` | string | Human-readable description |
+
+The `code` field is stable and safe for programmatic error handling. Messages may change between versions — use them for display only.
+
+---
+
+## Common Error Codes
+
+| Code | HTTP Status | When |
+|------|-------------|------|
+| `MissingAuthentication` | 401 | No credentials provided |
+| `InvalidCredentials` | 401 | Bad email/password, or invalid/expired/revoked token |
+| `Forbidden` | 403 | Authenticated but lacking the required role or scope |
+| `NotFound` | 404 | Resource does not exist |
+| `BadRequest` | 400 | Malformed input, validation failure, or rejected package |
+| `Conflict` | 409 | Resource already exists, or conflicting state (e.g. duplicate version with different content) |
+| `RateLimited` | 429 | Too many requests from this IP |
+| `InternalError` | 500 | Unexpected server error |
+
+---
+
+## Examples
+
+### MissingAuthentication (401)
+
+Sent when an endpoint requires authentication but none was provided.
+
+```json
+{
+  "error": {
+    "code": "MissingAuthentication",
+    "message": "Authentication required. Provide a valid Bearer token."
+  }
+}
+```
+
+Response headers include:
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer realm="pub", message="Authentication required."
+```
+
+<Aside type="note">
+  The `WWW-Authenticate` header is mandated by the Pub Repository Specification so the `dart pub` client can trigger its authentication flow.
+</Aside>
+
+### InvalidCredentials (401)
+
+Returned by `POST /api/auth/login` for bad passwords, and by any endpoint when the Bearer token is invalid, expired, or revoked.
+
+```json
+{
+  "error": {
+    "code": "InvalidCredentials",
+    "message": "Invalid email or password."
+  }
+}
+```
+
+### Forbidden (403)
+
+Returned when the caller is authenticated but the operation requires a higher role, scope, or relationship to the resource.
+
+```json
+{
+  "error": {
+    "code": "Forbidden",
+    "message": "Admin access required."
+  }
+}
+```
+
+Common causes: token lacks the `write` or `admin` scope; user is not an uploader of the package; user is not a publisher admin; only the server owner can transfer ownership.
+
+### NotFound (404)
+
+```json
+{
+  "error": {
+    "code": "NotFound",
+    "message": "Package 'nonexistent' was not found."
+  }
+}
+```
+
+### BadRequest (400)
+
+Used for validation errors across the entire API, including publish validation.
+
+```json
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Invalid package name 'My-Package'. Package names must be lowercase alphanumeric with underscores, 1-64 characters."
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Cannot remove the last uploader of a package."
+  }
+}
+```
+
+### Conflict (409)
+
+```json
+{
+  "error": {
+    "code": "Conflict",
+    "message": "A user with email 'jane@example.com' already exists."
+  }
+}
+```
+
+```json
+{
+  "error": {
+    "code": "Conflict",
+    "message": "Version 2.1.0 already exists with a different archive hash."
+  }
+}
+```
+
+### RateLimited (429)
+
+Returned from rate-limited endpoints (`/api/auth/login`, `/api/auth/signup`, `/api/setup/verify`, `/api/setup/complete`, `/api/invites/*`). See the [overview](/api/overview/#rate-limits) for per-endpoint limits.
+
+```json
+{
+  "error": {
+    "code": "RateLimited",
+    "message": "Too many requests. Try again later."
+  }
+}
+```
+
+### InternalError (500)
+
+Unexpected server error. Stack traces and internal details are never returned; check the server logs for diagnostics.
+
+```json
+{
+  "error": {
+    "code": "InternalError",
+    "message": "An unexpected error occurred. Please try again later."
+  }
+}
+```
+
+---
+
+## HTTP Status Summary
+
+| Status | Meaning | Typical cause |
+|--------|---------|---------------|
+| 200 | OK | Successful `GET`, `PUT`, `DELETE`, idempotent `POST` |
+| 201 | Created | Successful resource-creating `POST` |
+| 202 | Accepted | Async acceptance (e.g. signup) |
+| 302 | Found | Upload-flow redirect; public archive served via external storage |
+| 303 | See Other | Legacy archive URL redirect |
+| 400 | Bad Request | `BadRequest` |
+| 401 | Unauthorized | `MissingAuthentication` or `InvalidCredentials` |
+| 403 | Forbidden | `Forbidden` |
+| 404 | Not Found | `NotFound` |
+| 409 | Conflict | `Conflict` |
+| 429 | Too Many Requests | `RateLimited` |
+| 500 | Internal Server Error | `InternalError` |
+| 503 | Service Unavailable | Health check reports degraded status |

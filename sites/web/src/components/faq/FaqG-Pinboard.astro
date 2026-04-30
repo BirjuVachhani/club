@@ -1,0 +1,223 @@
+---
+// FAQ — Variant G · Pinboard
+// Sticky-note cards on a corkboard. Slight per-card rotation for
+// hand-pinned feel, colored push-pins by category. Compact 3-column
+// grid, every answer visible. Playful but still legible.
+import { FAQS, FAQ_CATEGORIES, type FaqCategory } from "../../lib/landing-copy";
+
+// Category → pin color tokens (kept on-brand: orange dominant, others tonal)
+const PIN: Record<FaqCategory, string> = {
+  basics:   "var(--color-stamp)",
+  workflow: "#3B82F6",
+  control:  "#A855F7",
+  deploy:   "#10B981",
+  trust:    "#EAB308",
+};
+
+// Deterministic per-card jitter — repeating cycle so the layout
+// stays stable across renders but feels hand-placed.
+const TILT  = [-1.4, 0.9, -0.5, 1.6, -1.1, 0.4, -1.8, 1.2, -0.7, 0.6, -1.3, 1.5, -0.4, 1.0];
+const SHIFT = [ 0,   2,   -1,   3,   -2,    1,  0,    -3,  2,    -1,  3,   -2,   0,   1];
+---
+
+<section id="faq" class="sec">
+  <!-- subtle paper grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow">§ FAQ</div>
+      <h2 class="h2">Pinned to the board, in case you missed them.</h2>
+      <p class="lede">
+        Every question we get asked, with a colored tack so you can
+        skim by topic. No accordions, no clicking — just read.
+      </p>
+
+      <!-- Pin legend -->
+      <ul class="legend">
+        {(Object.keys(FAQ_CATEGORIES) as FaqCategory[]).map((c) => (
+          <li>
+            <span class="pin-sm" style={`--pin: ${PIN[c]}`}></span>
+            <span class="lg-label">{FAQ_CATEGORIES[c].label}</span>
+          </li>
+        ))}
+      </ul>
+    </header>
+
+    <ul class="board" data-reveal-children data-reveal-step="65">
+      {FAQS.map((f, i) => (
+        <li
+          class="note"
+          style={`--tilt: ${TILT[i % TILT.length]}deg; --shift: ${SHIFT[i % SHIFT.length]}px;`}
+        >
+          <span class="pin" style={`--pin: ${PIN[f.cat]}`} aria-hidden="true"></span>
+          <span class="num">№ {String(i + 1).padStart(2, "0")}</span>
+          <h3 class="q" set:html={f.q}></h3>
+          <p class="a" set:html={f.a}></p>
+          <span class="cat-tag">{FAQ_CATEGORIES[f.cat].label}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .sec {
+    position: relative; overflow: hidden;
+    padding: 6rem 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 80% 10%, var(--color-stamp-soft) 0%, transparent 55%),
+      var(--color-paper-mute);
+    border-top: 1px solid var(--color-border);
+  }
+  /* Faint cross-hatch grain so the board reads as paper, not flat fill */
+  .grain {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
+    background-image:
+      linear-gradient(rgba(20,21,23,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(20,21,23,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 90%);
+  }
+  .wrap { position: relative; max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 3.5rem 0; } }
+
+  .head { max-width: 50rem; margin-bottom: 3.5rem; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 1rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 1rem; line-height: 1.6; color: var(--color-mute);
+    margin: 1.25rem 0 0; max-width: 36rem;
+  }
+
+  .legend {
+    list-style: none; padding: 0; margin: 1.5rem 0 0;
+    display: flex; flex-wrap: wrap; gap: 1rem 1.5rem;
+  }
+  .legend li {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .pin-sm {
+    width: 9px; height: 9px; border-radius: 999px;
+    background: var(--pin);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,0.45),
+      inset 0 -1px 1px rgba(0,0,0,0.25),
+      0 1px 1.5px rgba(0,0,0,0.18);
+  }
+
+  .board {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; gap: 1.25rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 1000px) { .board { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 768px)  { .board { grid-template-columns: 1fr; gap: 1rem; } .note { padding: 1.75rem 1.15rem 1.25rem; } }
+
+  .note {
+    position: relative;
+    padding: 2.25rem 1.4rem 1.5rem;
+    background:
+      linear-gradient(180deg, #FEFCF6 0%, #FAF6EA 100%);
+    border: 1px solid color-mix(in oklab, var(--color-ink) 8%, transparent);
+    border-radius: 6px;
+    transform: rotate(var(--tilt)) translateY(var(--shift));
+    box-shadow:
+      0 10px 18px -10px rgba(20,21,23,0.18),
+      0 2px 4px rgba(20,21,23,0.06);
+    transition: transform 260ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)), box-shadow 200ms ease;
+    display: flex; flex-direction: column;
+  }
+  .note:hover {
+    transform: rotate(0deg) translateY(-4px);
+    box-shadow:
+      0 22px 32px -16px rgba(20,21,23,0.28),
+      0 4px 8px rgba(20,21,23,0.08);
+    z-index: 2;
+  }
+  /* Override the global [data-reveal-children] default so the resting tilt
+     remains intact. Notes enter rotated further + offset, then settle. */
+  .board > .note {
+    opacity: 0;
+    transform: rotate(calc(var(--tilt) * 2)) translateY(calc(var(--shift) + 32px));
+    transition:
+      opacity 650ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+      transform 720ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+    transition-delay: calc(var(--reveal-index, 0) * 65ms);
+    will-change: transform, opacity;
+  }
+  .board.is-visible > .note {
+    opacity: 1;
+    transform: rotate(var(--tilt)) translateY(var(--shift));
+  }
+  /* Once revealed, hand control back to .note's own transition for hover. */
+  .board.is-visible > .note:hover {
+    transform: rotate(0deg) translateY(-4px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .board > .note,
+    .board.is-visible > .note,
+    .board.is-visible > .note:hover {
+      opacity: 1 !important;
+      transform: rotate(var(--tilt)) translateY(var(--shift)) !important;
+      transition: none !important;
+    }
+  }
+
+  .pin {
+    position: absolute; top: -10px; left: 50%;
+    transform: translateX(-50%) scale(0);
+    width: 18px; height: 18px; border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 30%, color-mix(in oklab, var(--pin) 55%, white) 0%, var(--pin) 60%, color-mix(in oklab, var(--pin) 55%, black) 100%);
+    box-shadow:
+      inset 0 1px 2px rgba(255,255,255,0.5),
+      0 4px 6px rgba(20,21,23,0.35);
+    transition: transform 420ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+    transition-delay: calc(var(--reveal-index, 0) * 65ms + 220ms);
+  }
+  .board.is-visible > .note .pin { transform: translateX(-50%) scale(1); }
+  .note:hover .pin { transform: translateX(-50%) scale(1.12); }
+  @media (prefers-reduced-motion: reduce) {
+    .pin { transform: translateX(-50%) scale(1) !important; transition: none; }
+  }
+  .pin::after {
+    content: ""; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 6px; background: color-mix(in oklab, var(--pin) 55%, black);
+    border-radius: 0 0 1px 1px;
+  }
+
+  .num {
+    font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .q {
+    font-family: var(--font-sans); font-weight: 660;
+    font-size: 1.02rem; line-height: 1.3; letter-spacing: -0.014em;
+    margin: 0.4rem 0 0; color: var(--color-ink);
+  }
+  .a {
+    margin: 0.6rem 0 0;
+    font-size: 0.88rem; line-height: 1.55; color: var(--color-mute);
+  }
+  .cat-tag {
+    margin-top: 0.85rem; align-self: flex-start;
+    font-family: var(--font-mono); font-size: 0.58rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-ink); font-weight: 700;
+    background: color-mix(in oklab, var(--color-stamp) 8%, transparent);
+    padding: 0.18rem 0.5rem; border-radius: 3px;
+  }
+</style>

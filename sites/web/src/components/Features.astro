@@ -1,0 +1,117 @@
+---
+const features = [
+  {
+    k: "Protocol",
+    t: "Full Pub Spec v2",
+    b: "Every endpoint pub.dev exposes, implemented byte-for-byte. Your existing tooling, unchanged.",
+  },
+  {
+    k: "Auth",
+    t: "Private by default",
+    b: "Bcrypt passwords, SHA-256 hashed API tokens, JWT sessions. No anonymous endpoints except /health.",
+  },
+  {
+    k: "Teams",
+    t: "Publishers & roles",
+    b: "Org-level publishers with admin/member roles, per-package uploaders, invite links.",
+  },
+  {
+    k: "Search",
+    t: "Instant search",
+    b: "Find packages by name or description as you type. Works out of the box and scales as your registry grows.",
+  },
+  {
+    k: "Storage",
+    t: "Pluggable backends",
+    b: "SQLite for metadata. Filesystem or S3-compatible for package tarballs.",
+  },
+  {
+    k: "Operations",
+    t: "One container",
+    b: "A single Docker image. No Node.js at runtime. Dart server serves the SvelteKit build as static files.",
+  },
+  {
+    k: "Interface",
+    t: "Familiar web UI",
+    b: "pub.dev-style browsing, package READMEs, version history, publisher pages. Dark + light theme.",
+  },
+  {
+    k: "Tooling",
+    t: "CLI + Dart SDK",
+    b: "club CLI for login, tokens, publishing, admin. club_api Dart package for programmatic access.",
+  },
+];
+---
+
+<section
+  id="features"
+  class="relative"
+  style="background: var(--color-ink-dark); color: #EDEDED;"
+>
+  <div class="mx-auto w-full max-w-[80rem] px-6 py-20 md:px-10 md:py-28">
+    <div class="grid gap-6 md:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)] md:items-end">
+      <div>
+        <div class="eyebrow" style="color: var(--color-mute-dark);">
+          02 — Features
+        </div>
+        <h2 class="h2 mt-4 max-w-[20ch]">
+          Everything you'd build yourself, <span style="color: var(--color-stamp);">already built</span>.
+        </h2>
+      </div>
+      <p class="prose-body md:justify-self-end md:text-right" style="color: var(--color-mute-dark);">
+        A complete, from-scratch implementation of the pub protocol —
+        not a wrapper around pub.dev.
+      </p>
+    </div>
+
+    <ul
+      class="mt-12 grid gap-px border md:mt-16 md:grid-cols-2 lg:grid-cols-4"
+      style="background: var(--color-border-dark); border-color: var(--color-border-dark);"
+    >
+      {
+        features.map((f) => (
+          <li
+            class="group flex flex-col gap-2 p-6 md:p-7"
+            style="background: var(--color-ink-dark);"
+          >
+            <div
+              class="font-mono text-[0.64rem] tracking-[0.16em] uppercase"
+              style="color: var(--color-stamp);"
+            >
+              {f.k}
+            </div>
+            <h3 class="h3 mt-1">{f.t}</h3>
+            <p class="text-[0.9rem] leading-relaxed" style="color: var(--color-mute-dark);">
+              {f.b}
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+
+    <dl
+      class="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-lg border md:mt-14 md:grid-cols-3"
+      style="border-color: var(--color-border-dark); background: var(--color-border-dark);"
+    >
+      {
+        [
+          { k: "Runtime", v: "Docker · Dart" },
+          { k: "Metadata", v: "SQLite" },
+          { k: "Artifacts", v: "FS · S3 · GCS" },
+        ].map((x) => (
+          <div class="flex flex-col gap-1.5 px-5 py-5" style="background: var(--color-ink-dark);">
+            <dt
+              class="font-mono text-[0.62rem] tracking-[0.14em] uppercase"
+              style="color: var(--color-mute-dark);"
+            >
+              {x.k}
+            </dt>
+            <dd class="font-mono text-[0.92rem]" style="color: #EDEDED;">
+              {x.v}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>

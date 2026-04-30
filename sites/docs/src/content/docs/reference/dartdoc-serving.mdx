@@ -1,0 +1,305 @@
+---
+title: Dartdoc Serving Specifications
+description: How club generates, stores, and serves per-package dartdoc HTML — the two backends, the single-version policy, limits, cache behaviour, and the exact format.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This page is the authoritative reference for club's `/documentation/<package>/latest/…` serve path. It covers what gets generated, where it's stored, how requests are resolved, and every knob that tunes the behaviour.
+
+<Aside type="note">
+club generates dartdoc only for the **latest** version of each package. Older versions have no generated documentation — see [Single-version policy](#single-version-policy) for the rationale.
+</Aside>
+
+---
+
+## Single-version policy
+
+- Dartdoc is generated exclusively for the **latest stable** version of each package, as tracked in the `packages.latest_version` column.
+- The scoring worker checks `latest_version == this_version` before persisting dartdoc output. Older re-scores skip the dartdoc step entirely.
+- Storage keys never include a version segment — everything lives under `dartdoc/latest/` relative to the package.
+- Re-publishing or publishing a newer version causes a full dartdoc regeneration; the new output overwrites `latest/` in place.
+- URL requests for any version other than `latest` get a `302 Found` redirect to `/documentation/<pkg>/latest/<rest>`.
+- A race guard inside the scoring service re-checks `latest_version` just before persisting. If a newer version landed while the current job ran, the upload is abandoned so stale docs don't overwrite fresher ones from the newer job.
+
+---
+
+## Backends
+
+`DARTDOC_BACKEND` selects the **serve strategy**, not the underlying storage backend. It is orthogonal to `BLOB_BACKEND`:
+
+| `DARTDOC_BACKEND` | `BLOB_BACKEND` | Where dartdoc ends up |
+|---|---|---|
+| `filesystem` | anything | Local tree at `<DARTDOC_PATH>/<pkg>/latest/…`. `BLOB_BACKEND` is never touched for dartdoc. |
+| `blob` | `filesystem` | Indexed blob written to `<BLOB_PATH>/<pkg>/dartdoc/latest/{blob, index.json}` on the local filesystem. **No S3 / GCS calls happen.** |
+| `blob` | `s3` | Indexed blob in the configured S3 bucket at `<pkg>/dartdoc/latest/{blob, index.json}`. |
+| `blob` | `gcs` | Same, but in the configured GCS bucket. |
+
+When `DARTDOC_BACKEND=blob` the server reuses whatever `BlobStore` is already configured for package tarballs — it never picks a storage provider of its own.
+
+<Aside type="tip">
+  A regression test (`backend_isolation_test.dart`) in the server package pins this behaviour: `DARTDOC_BACKEND=blob` with a filesystem `BlobStore` must round-trip end-to-end with zero network calls.
+</Aside>
+
+Exactly one serve path is active per server, chosen by `DARTDOC_BACKEND`:
+
+<Tabs>
+<TabItem label="filesystem (default)">
+
+```bash
+DARTDOC_BACKEND=filesystem   # (default, can be omitted)
+DARTDOC_PATH=/data/cache/dartdoc   # default
+```
+
+- Scoring worker writes the rendered HTML tree to `<DARTDOC_PATH>/<pkg>/latest/` on the local filesystem.
+- Router serves it via `shelf_static` — one file read per request, served from the OS page cache on the hot path.
+- **Requires a persistent volume at `DARTDOC_PATH`** if you expect docs to survive container restarts.
+- **Incompatible** with `BLOB_BACKEND=s3` / `BLOB_BACKEND=gcs` for multi-replica or ephemeral-container deployments: every replica would maintain its own local disk copy and only the replica that generated the docs would have them.
+
+</TabItem>
+<TabItem label="blob">
+
+```bash
+DARTDOC_BACKEND=blob
+DARTDOC_CACHE_MAX_MEMORY_MB=64    # default, per-replica LRU cap
+```
+
+- Scoring worker writes HTML to a scratch directory, packs it into an **indexed blob** (single concatenated file + small JSON side-map), and uploads both pieces to the configured `BlobStore` under `<pkg>/dartdoc/latest/`.
+- Router looks up the index on first request, finds the byte range for the requested file, issues a range read on the blob, and returns the bytes. An in-process LRU holds the index and hot byte ranges.
+- Works with any blob backend — **filesystem, S3, GCS, or Firebase Storage**.
+- Required for multi-replica and ephemeral-container deployments (e.g. Cloud Run, any auto-scaling setup).
+
+</TabItem>
+</Tabs>
+
+### Picking a backend
+
+| Deployment shape | Recommended `DARTDOC_BACKEND` | Notes |
+|---|---|---|
+| Single container, persistent `/data` volume | `filesystem` | Default. Works with any `BLOB_BACKEND`. |
+| Single container, **ephemeral** disk | `blob` | Serves from whatever `BlobStore` you already configured. |
+| Multiple replicas | `blob` | Only way all replicas can see the same docs. |
+| Auto-scaling (Cloud Run, scale-to-zero) | `blob` | Same reason — new replicas pull on demand. |
+| You want dartdoc on S3/GCS for backup coupling | `blob` + `BLOB_BACKEND=s3` or `gcs` | Dartdoc rides along with tarballs. |
+
+Crucially: `DARTDOC_BACKEND=blob` does **not** require S3 or GCS. With `BLOB_BACKEND=filesystem` (the default) the indexed blob lives at `<BLOB_PATH>/<pkg>/dartdoc/latest/…` on local disk, just like package tarballs do. The only difference vs. `filesystem` mode is the serve path (byte-range reads through `BlobStore` with an LRU, instead of `shelf_static`).
+
+Switching modes is a runtime choice: nothing migrates automatically. Flip the variable, redeploy, and the next scoring run persists to the new location. Old filesystem trees become stale harmlessly; operators can `rm -rf $DARTDOC_PATH` afterwards.
+
+---
+
+## URL routing
+
+```
+GET /documentation/<package>/<version>/<path…>
+```
+
+| `<version>` | Behaviour |
+|---|---|
+| `latest` | Resolved against the active backend and served. |
+| any other (e.g. `1.2.3`) | `302 Found` → `/documentation/<package>/latest/<path…>`. |
+
+| `<path…>` | Served from |
+|---|---|
+| empty or `/` | `index.html` |
+| ending in `/` | appends `index.html` |
+| explicit file | that file |
+| unknown file but `__404error.html` present | dartdoc's own 404 page, with HTTP status `404` |
+| no matching entry and no `__404error.html` | `404 Not Found` with `Documentation is not available for <pkg> yet.` |
+
+---
+
+## Storage layout
+
+### `DARTDOC_BACKEND=filesystem`
+
+```
+<DARTDOC_PATH>/
+└── <package>/
+    └── latest/
+        ├── index.html
+        ├── __404error.html
+        ├── <library>/…
+        └── static-assets/…
+```
+
+One directory per package. The `latest/` segment is literal on disk; it leaves room for future per-version layouts without another migration. Sits at `/data/cache/dartdoc/` by default — see [Data Directory Layout](/reference/data-layout/#cachedartdoc-filesystem-mode-only) for context.
+
+### `DARTDOC_BACKEND=blob`
+
+```
+<BlobStore>/
+└── <package>/
+    └── dartdoc/
+        └── latest/
+            ├── index.json   — BlobIndex pointing into blob
+            └── blob         — concatenated, gzipped files
+```
+
+Sits under `BLOB_PATH` (default `/data/blobs/`), alongside the package's tarball and screenshot assets. See [Data Directory Layout](/reference/data-layout/#per-package-dartdoc-blob-mode-only) for the per-package blob-mode tree.
+
+- **`blob`** — a single object. Every dartdoc-produced file is **gzip-compressed individually** (not the whole archive at once) and their compressed bytes are concatenated. This lets the server serve a file's compressed bytes directly with `Content-Encoding: gzip` when the client accepts it, skipping re-compression at request time.
+- **`index.json`** — maps every relative file path to a `{start, end}` byte range within `blob`, plus a free-form `blobId`. Format is version-1 of [pub-dev's `indexed_blob`](https://github.com/dart-lang/pub-dev/tree/master/pkg/indexed_blob) library, vendored into `packages/club_indexed_blob/`.
+
+The `blobId` inside `index.json` embeds a millisecond timestamp of the scoring run. Any cache entry keyed on it (see [Cache](#cache)) is automatically evicted when docs regenerate, without explicit invalidation.
+
+#### Indexed-blob size expectations
+
+For a typical Flutter/Dart package (a few hundred source files):
+
+| | Rough size |
+|---|---|
+| Raw `dart doc` output | 30–150 MB |
+| Compressed blob (gzip per file) | 5–30 MB |
+| `index.json` | 10–500 KB |
+
+A scoring run that yields an oversized output (e.g. 1 GB of generated HTML) is allowed to complete, but operators should prefer `DARTDOC_BACKEND=filesystem` if the hot set is expected to be that large — per-request latency stays bounded in blob mode, but the aggregate blob-store object size matters for cost accounting on S3/GCS.
+
+---
+
+## Cache
+
+Blob mode uses an in-process LRU cache for two key classes. There is no cross-replica shared cache at this tier; see [`docs/FUTURE_REDIS_CACHE.md`](https://github.com/BirjuVachhani/club/blob/main/docs/FUTURE_REDIS_CACHE.md) in the repo for the planned Redis extension.
+
+| Key | Payload | Typical size | Invalidation |
+|---|---|---|---|
+| `dartdoc:index:<pkg>` | Raw `index.json` bytes for a package | 10–500 KB | Explicit on re-score (prefix wipe) |
+| `dartdoc:range:<blobId>:<path>` | A single file's compressed bytes within the blob | ≤ 1 MiB | LRU; new `blobId` after regeneration naturally bypasses stale entries |
+
+### Caps and thresholds
+
+| Knob | Default | Meaning |
+|---|---|---|
+| `DARTDOC_CACHE_MAX_MEMORY_MB` | `64` | Hard cap on the LRU's summed payload bytes. |
+| Per-entry cache size threshold | `1 MiB` | Files larger than this stream straight through on every request without populating the LRU, so a single fat asset doesn't evict the entire hot set. |
+
+### Eviction behaviour
+
+- When a new entry would push the cache over its cap, the least-recently-used entries are evicted until the new entry fits.
+- A single entry larger than `DARTDOC_CACHE_MAX_MEMORY_MB` is **refused** rather than evicting the whole cache. The file still gets served (as a direct range read on every request) — just not cached.
+- The cache starts empty on every process boot. The first request per package per replica pays a cold-read cost of one `GET` on `index.json` plus one range `GET` per rendered asset on the page.
+
+---
+
+## Response headers
+
+Every successful response sets:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | Derived from the file extension (see [MIME safelist](#mime-safelist)). |
+| `Content-Length` | Exact body length sent on the wire. |
+| `Cache-Control` | `public, max-age=300` — five minutes, so a re-score propagates without manual purge. |
+| `Vary` | `Accept-Encoding` — body shape depends on whether the client accepted gzip. |
+| `Content-Encoding` | `gzip` when the client's `Accept-Encoding` header contains `gzip`; omitted otherwise (body is decompressed server-side). |
+| `Content-Security-Policy` | Dartdoc-specific strict CSP (see below). |
+
+Requests that 404 return `content-type: text/plain; charset=utf-8` with a short body; the `__404error.html` fallback path returns `text/html; charset=utf-8` with the page rendered by dartdoc.
+
+### Content Security Policy
+
+Because dartdoc HTML is rendered from uploader-supplied doc comments, it is treated as **partly untrusted** input. Every response under `/documentation/` ships a dedicated CSP that is strictly tighter than the SPA's:
+
+```
+default-src 'self';
+base-uri 'self';
+frame-ancestors 'none';
+form-action 'self';
+object-src 'none';
+script-src 'self';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' data: https://fonts.gstatic.com;
+img-src 'self' https: data:;
+connect-src 'self'
+```
+
+The critical directive is `script-src 'self'` with **no `'unsafe-inline'`** — any inline `<script>` body or `on*` event handler that survived the sanitizer (see below) is refused by the browser. `base-uri 'self'` blocks `<base href="evil://">` redirect tricks, and `object-src 'none'` blocks legacy `<object>` / `<embed>` / Flash execution. `frame-ancestors 'none'` prevents the docs from being clickjacked inside an attacker-controlled page.
+
+`style-src` retains `'unsafe-inline'` because dartdoc emits small inline style blocks for highlighting and the sidebar resizer; an inline-style XSS cannot read cookies or exfiltrate data, so this is an accepted trade-off.
+
+### HTML / SVG sanitization at ingest
+
+As a defense-in-depth layer that runs regardless of CSP support, every `.html`, `.htm`, and `.svg` file produced by `dart doc` is rewritten by the scoring worker before it is persisted to filesystem or packed into an indexed blob:
+
+- Inline `<script>` **bodies** are removed. External `<script src="static-assets/…">` references are kept so dartdoc's own bundle still loads.
+- Every `on*` attribute (e.g. `onclick`, `onerror`, `onmouseover`) is stripped.
+- URL attributes (`href`, `src`, `action`, `formaction`, `background`, `poster`, `cite`, `xlink:href`) whose value resolves to `javascript:`, `vbscript:`, `data:text/html`, or a `data:` JavaScript variant are removed.
+- `<iframe>`, `<object>`, `<embed>`, and `<applet>` elements are removed entirely — dartdoc never emits them, so any appearance is attacker-controlled.
+- Whitespace and control characters before the scheme are normalised, so `java\tscript:` and `javascript\n:` are detected and stripped.
+
+Sanitizer statistics (files rewritten, inline scripts removed, event handlers removed, javascript: URIs removed) are logged by the scoring worker for every job so operators can see whether packages are embedding active content.
+
+<Aside type="caution">
+club serves raw HTML and SVG directly from dartdoc output (no JSON → HTML re-render). That is safe because of the two defenses above: a strict CSP and an ingest-time sanitizer. The operator still controls which packages can be published, so a careless `allowDangerouslyRaw` option would be redundant.
+</Aside>
+
+---
+
+## MIME safelist
+
+Only these file extensions are proxied. Any other extension returns `404 Not Found` to prevent arbitrary-type data from leaking through if a package ever injected unusual files into its doc tree:
+
+| Extension | Content-Type |
+|---|---|
+| `html` | `text/html; charset=utf-8` |
+| `css` | `text/css; charset=utf-8` |
+| `js` | `application/javascript; charset=utf-8` |
+| `json`, `map` | `application/json; charset=utf-8` |
+| `svg` | `image/svg+xml` |
+| `png` | `image/png` |
+| `jpg`, `jpeg` | `image/jpeg` |
+| `gif` | `image/gif` |
+| `webp` | `image/webp` |
+| `ico` | `image/vnd.microsoft.icon` |
+| `woff`, `woff2`, `ttf`, `otf`, `eot` | matching font MIME types |
+| `txt` | `text/plain; charset=utf-8` |
+
+<Aside type="caution">
+Files outside this safelist are not served, even if present in the dartdoc tree. See also the CSP and sanitizer defenses under [Response headers](#response-headers).
+</Aside>
+
+---
+
+## Environment variables
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `DARTDOC_BACKEND` | No | `filesystem` | Serve path: `filesystem` or `blob`. |
+| `DARTDOC_PATH` | No | `/data/cache/dartdoc` | Filesystem root used by `DARTDOC_BACKEND=filesystem`. Unused in blob mode. |
+| `DARTDOC_CACHE_MAX_MEMORY_MB` | No | `64` | In-process LRU cap when `DARTDOC_BACKEND=blob`. |
+
+All three are also accepted in the YAML config file as `dartdoc_backend`, `dartdoc_path`, `dartdoc_cache_max_memory_mb`. Environment variables take precedence over YAML. See [Environment Variables](/configuration/env-vars/) for the full table.
+
+---
+
+## Operational notes
+
+### Multi-replica deployments
+
+Each replica keeps its own LRU. When N replicas start cold, each independently fetches `index.json` and the initial page ranges for the first request that hits it. At steady state, per-replica cold-start traffic is usually negligible relative to regular dartdoc serving. If it becomes a bottleneck, the next upgrade is a shared Redis cache — see the future plan in the repo.
+
+### Disk planning (filesystem mode)
+
+Total disk consumed by `<DARTDOC_PATH>` grows roughly linearly with the number of packages. Rough budget: **~100 MB per Flutter package**, **~20 MB per pure-Dart package**. Small registries sit under 1 GB; a hundred published packages can easily pass 10 GB. Plan the volume size accordingly.
+
+### Disk planning (blob mode)
+
+The in-process cache never writes to disk. Blob storage costs scale with the `blob` size (see [Indexed-blob size expectations](#indexed-blob-size-expectations)), which is **~5× smaller** than the raw tree thanks to per-file gzip. Expect ~10 MB per package stored.
+
+### Switching backends on a live server
+
+1. Flip `DARTDOC_BACKEND`.
+2. Redeploy the server.
+3. On the next scoring run for each package, dartdoc gets persisted to the new location.
+4. Wait for scoring to cycle through your packages — or trigger re-scores via the admin API — then clean up the stale location (`rm -rf $DARTDOC_PATH/*` or `DELETE` the old `<pkg>/dartdoc/latest/*` blob assets).
+
+Until a package's dartdoc is regenerated, its `/documentation/<pkg>/latest/` requests return a 404 in the new backend.
+
+---
+
+## Related
+
+- [Data Directory Layout Specifications](/reference/data-layout/) — the full `/data` tree with every dartdoc path (both modes) in context.
+- [Environment Variables](/configuration/env-vars/) — full list of env-var defaults.
+- [Storage Backends](/configuration/storage/) — how `BLOB_BACKEND` interacts with dartdoc in blob mode.
+- [Validation & Scoring Specifications](/reference/validation-and-scoring/) — what runs before dartdoc is generated.

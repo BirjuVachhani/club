@@ -1,0 +1,27 @@
+name: club_db
+description: SQLite/drift database implementation for club.
+version: 0.1.0
+homepage: https://club.birju.dev
+repository: https://github.com/BirjuVachhani/club
+issue_tracker: https://github.com/BirjuVachhani/club/issues
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+resolution: workspace
+
+dependencies:
+  club_core:
+    path: ../club_core
+  drift: ^2.32.1
+  sqlite3: ^3.3.1
+  path: ^1.9.1
+  logging: ^1.3.0
+  crypto: ^3.0.7
+
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.31.0
+  drift_dev: ^2.32.1
+  build_runner: ^2.13.1

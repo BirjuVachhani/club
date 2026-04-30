@@ -1,0 +1,86 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+---
+
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-ink-dark); color: #EDEDED;"
+>
+  <!-- subtle orange bleed top-right -->
+  <div
+    class="pointer-events-none absolute -right-32 -top-40 h-[28rem] w-[28rem] rounded-full opacity-[0.10] blur-3xl"
+    style="background: radial-gradient(circle, #FF4F18 0%, transparent 70%);"
+  />
+
+  <div class="relative mx-auto w-full max-w-[80rem] px-6 pb-24 pt-36 md:px-10 md:pb-28 md:pt-40">
+    <!-- Badge -->
+    <div class="flex flex-wrap items-center gap-3 pb-8">
+      <span class="chip">
+        <span class="chip-dot"></span>
+        Dart package repository
+      </span>
+      <span class="font-mono text-[0.7rem] tracking-[0.14em] uppercase" style="color: var(--color-mute-dark);">
+        Open source · Self-hosted · Pub Spec v2
+      </span>
+    </div>
+
+    <!-- Headline -->
+    <h1 class="h1 max-w-[20ch]">
+      Your private <span style="color: var(--color-stamp);">pub.dev</span>,
+      <br class="hidden md:block" />
+      self-hosted in one container.
+    </h1>
+
+    <!-- Sub-copy -->
+    <p class="prose-body mt-6 max-w-2xl" style="color: var(--color-mute-dark);">
+      <span style="color: #EDEDED;">
+        CLUB is a self-hosted package repository for Dart and Flutter teams.
+      </span>
+      It speaks the same protocol as pub.dev, so the commands your team already
+      knows work unchanged — only the packages stay inside your infrastructure.
+    </p>
+
+    <!-- CTAs -->
+    <div class="mt-8 flex flex-wrap items-center gap-3">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+        Get started
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn btn-ghost" style="color: #EDEDED;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        View on GitHub
+      </a>
+    </div>
+  </div>
+
+  <!-- Marquee — tech tags -->
+  <div
+    class="relative border-y py-3.5 overflow-hidden"
+    style="border-color: var(--color-border-dark); color: var(--color-mute-dark);"
+  >
+    <div class="marquee-track font-mono text-[0.72rem] tracking-[0.12em] uppercase">
+      {
+        [...Array(2)].map(() => (
+          <div class="flex items-center gap-10 pr-10">
+            <span>Pub Spec v2</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>Dart ≥ 3.0</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>SQLite</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>Filesystem / S3</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>FTS5 search</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>Bcrypt + SHA-256 tokens</span>
+            <span style="color: var(--color-stamp);">·</span>
+            <span>Docker</span>
+            <span style="color: var(--color-stamp);">·</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

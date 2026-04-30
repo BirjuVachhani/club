@@ -1,0 +1,17 @@
+name: club_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - packages/club_core
+  - packages/club_db
+  - packages/club_indexed_blob
+  - packages/club_storage
+  - packages/club_storage_s3
+  - packages/club_storage_firebase
+  - packages/club_server
+  - packages/club_api
+  - packages/club_cli
+  - packages/club_package_reader

@@ -1,0 +1,111 @@
+---
+title: Administration
+description: How to administer a club server. Administrative actions are performed through the web UI or directly against the HTTP API -- there is no `club admin` CLI.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="caution">
+There is **no `club admin` CLI command**. All user management, package moderation, and publisher management happen through the **web UI** or by calling the HTTP API directly with a personal access token that has the `admin` scope. This page is a pointer to both.
+</Aside>
+
+## Who can administer a club server?
+
+club uses a role hierarchy (highest first):
+
+| Role | Can do |
+|------|--------|
+| `owner` | Everything, including promoting and demoting admins. Exactly one per server (created during the [setup wizard](/getting-started/quick-start/#create-the-owner-account)). |
+| `admin` | Manage users (except owners), moderate packages, manage publishers. |
+| `member` | Publish their own packages; manage packages they own. This is the default for self-signup accounts when `SIGNUP_ENABLED=true`. (Legacy name: `editor` — accepted as an alias on parse.) |
+| `viewer` | Read-only. |
+
+Administrative API endpoints require both an authenticated user whose role is `admin` or higher, and (for programmatic access) a personal access token whose scope includes `admin`.
+
+## Administering through the web UI
+
+The web UI is the supported way to administer a club server. Sign in as a user with the `owner` or `admin` role and you will see the **Admin** section in the main navigation.
+
+Common tasks:
+
+- **Users**: invite new users, change roles, disable accounts.
+- **Packages**: discontinue, undiscontinue, or delete packages; reassign ownership.
+- **Publishers**: create publishers (organizations), add members, assign packages to a publisher.
+- **Audit log**: review a per-event log of user/package/publisher actions.
+- **Server settings**: toggle package scoring on or off and pick the default Dart/Flutter SDK install used for analysis. Everything else (`SIGNUP_ENABLED`, `TRUST_PROXY`, storage backends, etc.) is controlled by environment variables and requires a restart.
+
+## Calling the HTTP API directly
+
+If you need to script an administrative action, call the HTTP API directly with `curl` (or any HTTP client) and a personal access token that includes the `admin` scope.
+
+### Creating an admin token
+
+<Aside type="tip">
+A token's scopes are clamped to the issuing user's role. You can only mint an `admin`-scoped token from an `admin` or `owner` account.
+</Aside>
+
+1. Sign in to the web UI as an `admin` or `owner`.
+2. Go to **Settings → API keys → Create**.
+3. Select the `admin` scope and submit.
+4. Copy the `club_pat_...` secret on the confirmation screen -- it is shown **only once**.
+
+### Using the token with curl
+
+```bash
+export CLUB_TOKEN=club_pat_yourSecretHere
+export SERVER=https://club.example.com
+
+# List users
+curl -H "Authorization: Bearer $CLUB_TOKEN" "$SERVER/api/admin/users"
+
+# Disable a user (admin endpoint — PUT with isActive:false)
+curl -X PUT \
+     -H "Authorization: Bearer $CLUB_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"isActive": false}' \
+     "$SERVER/api/admin/users/<user-id>"
+
+# Discontinue a package (package-admin endpoint, not /api/admin/*)
+curl -X PUT \
+     -H "Authorization: Bearer $CLUB_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"isDiscontinued": true}' \
+     "$SERVER/api/packages/<name>/options"
+
+# Delete a package (admin only)
+curl -X DELETE \
+     -H "Authorization: Bearer $CLUB_TOKEN" \
+     "$SERVER/api/admin/packages/<name>"
+```
+
+See the [Admin API reference](/api/admin/) for the full endpoint catalogue.
+
+Refer to the server's OpenAPI schema (or the `packages/club_server/lib/src/api/admin_api.dart` source) for the complete endpoint list. All administrative endpoints live under `/api/admin/` and are logged to the audit log.
+
+## Using the client SDK
+
+For non-trivial scripting, the [`club_api`](/sdk/overview/) Dart SDK wraps the HTTP API with typed methods, including admin endpoints. This is usually easier than hand-rolled `curl`, and re-uses the same client code the web UI and CLI depend on.
+
+```dart
+import 'package:club_api/club_api.dart';
+
+final client = ClubClient(
+  serverUrl: Uri.parse('https://club.example.com'),
+  token: Platform.environment['CLUB_TOKEN']!,
+);
+
+// All admin methods live directly on ClubClient (no sub-clients) and
+// return Map<String, dynamic> — extract fields by key.
+final response = await client.listUsers();
+final users = response['users'] as List;
+for (final u in users) {
+  print('${u['email']} (${u['role']})');
+}
+```
+
+## Related
+
+- [Managing users](/guides/managing-users/)
+- [Publishers](/guides/publishers/)
+- [Admin API reference](/api/admin/)
+- [Configuration reference](/configuration/env-vars/)

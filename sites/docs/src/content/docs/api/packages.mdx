@@ -1,0 +1,363 @@
+---
+title: Package Endpoints
+description: Public package metadata and archives, plus per-package admin endpoints for options, uploaders, publishers, activity log, likes, scoring, and downloads.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These endpoints cover the Pub Spec v2 read surface (metadata and archives) plus club's package-level administration, likes, scoring, and download stats.
+
+## Pub Spec v2 (public)
+
+### List All Versions of a Package
+
+```http
+GET /api/packages/<package>
+Accept: application/vnd.pub.v2+json
+```
+
+Primary endpoint used by `dart pub get` for dependency resolution.
+
+**Response: `200 OK`**
+
+```json
+{
+  "name": "my_package",
+  "isDiscontinued": false,
+  "replacedBy": null,
+  "latest": {
+    "version": "2.1.0",
+    "retracted": false,
+    "archive_url": "https://club.example.com/api/archives/my_package-2.1.0.tar.gz",
+    "archive_sha256": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    "pubspec": { "name": "my_package", "version": "2.1.0" },
+    "published": "2026-04-01T10:00:00.000Z"
+  },
+  "versions": [ "..." ]
+}
+```
+
+**Errors:** `404 NotFound`.
+
+---
+
+### Inspect a Specific Version
+
+```http
+GET /api/packages/<package>/versions/<version>
+```
+
+Returns metadata for a single version (same shape as an entry in the `versions` array above).
+
+**Errors:** `404 NotFound`.
+
+---
+
+### Content (README / CHANGELOG / Example)
+
+```http
+GET /api/packages/<package>/versions/<version>/content
+GET /api/packages/<package>/content
+```
+
+Returns the rendered README, CHANGELOG, and example text for a version. The `/<package>/content` alias resolves to the latest non-retracted version.
+
+```json
+{
+  "package": "my_package",
+  "version": "2.1.0",
+  "readme": "# my_package ...",
+  "changelog": "## 2.1.0 ...",
+  "example": "import ..."
+}
+```
+
+---
+
+### Download an Archive
+
+```http
+GET /api/archives/<package>-<version>.tar.gz
+```
+
+Streams the `.tar.gz` tarball. Records a download stat. Response `Content-Type: application/gzip`.
+
+Legacy URLs (`/packages/<pkg>/versions/<v>.tar.gz` and `/api/packages/<pkg>/versions/<v>/archive.tar.gz`) return `303 See Other` redirects to the canonical archive URL.
+
+---
+
+## Package Admin
+
+All endpoints in this section require authentication as a package uploader, a member of the package's publisher, or a server admin.
+
+### Get/Set Package Options
+
+```http
+GET  /api/packages/<package>/options
+PUT  /api/packages/<package>/options
+```
+
+```json
+{
+  "isDiscontinued": false,
+  "replacedBy": null,
+  "isUnlisted": false
+}
+```
+
+`PUT` accepts any subset of the three fields. `isUnlisted` hides the package from search and listings.
+
+---
+
+### Get/Set Version Options (Retract)
+
+```http
+GET  /api/packages/<package>/versions/<version>/options
+PUT  /api/packages/<package>/versions/<version>/options
+```
+
+```json
+{ "isRetracted": true }
+```
+
+<Aside type="tip">
+  Retracting tells `dart pub get` to avoid a version during resolution. Retracted versions remain downloadable. Set `isRetracted` to `false` to unretract.
+</Aside>
+
+---
+
+### Uploaders
+
+```http
+GET    /api/packages/<package>/uploaders
+PUT    /api/packages/<package>/uploaders/<email>
+DELETE /api/packages/<package>/uploaders/<email>
+```
+
+Each endpoint returns the current uploaders list. The server refuses to remove the last uploader (`400 BadRequest`).
+
+```json
+{
+  "uploaders": [
+    { "userId": "...", "email": "jane@example.com", "displayName": "Jane Doe" }
+  ]
+}
+```
+
+**Errors:** `404 NotFound` (unknown email), `409 Conflict` (already an uploader), `400 BadRequest` (last uploader).
+
+---
+
+### Publisher Ownership
+
+```http
+GET /api/packages/<package>/publisher
+PUT /api/packages/<package>/publisher
+```
+
+```json
+{ "publisherId": "acme" }
+```
+
+`publisherId` may be `null` when the package is individually owned. Setting a publisher clears individual uploaders.
+
+---
+
+### Permissions Probe
+
+```http
+GET /api/packages/<package>/permissions
+Authorization: Bearer club_pat_...
+```
+
+```json
+{ "isAdmin": true }
+```
+
+Returns whether the caller can administer this package (as uploader, publisher admin, or server admin).
+
+---
+
+### Activity Log
+
+```http
+GET /api/packages/<package>/activity-log?before=<iso8601>
+```
+
+Returns up to 50 audit log entries for this package, newest first. Pass the `createdAt` of the oldest entry as `before=` to paginate.
+
+```json
+{
+  "entries": [
+    {
+      "id": "...",
+      "action": "publish",
+      "actor": { "userId": "...", "email": "..." },
+      "createdAt": "2026-04-01T10:00:00.000Z",
+      "details": { "version": "2.1.0" }
+    }
+  ]
+}
+```
+
+---
+
+### Delete Package (package-owner)
+
+```http
+DELETE /api/packages/<package>
+Authorization: Bearer club_pat_...
+```
+
+Deletes the package and all versions. Allowed for package owners (uploaders or publisher admins). Admins should prefer `/api/admin/packages/<package>`.
+
+---
+
+## Publishers
+
+Publishers group packages under a shared owner.
+
+### Create a Publisher (admin)
+
+```http
+POST /api/publishers
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "acme",
+  "displayName": "Acme Corp",
+  "description": "Packages by Acme Corp",
+  "websiteUrl": "https://acme.example.com",
+  "contactEmail": "packages@acme.example.com"
+}
+```
+
+### Get / Update a Publisher
+
+```http
+GET /api/publishers/<id>
+PUT /api/publishers/<id>
+```
+
+### List Members
+
+```http
+GET /api/publishers/<id>/members
+```
+
+### Add / Update / Remove a Member
+
+```http
+PUT    /api/publishers/<id>/members/<userId>
+DELETE /api/publishers/<id>/members/<userId>
+```
+
+```json
+{ "role": "admin" }
+```
+
+`role` is either `member` or `admin`.
+
+---
+
+## Likes
+
+### Get Package Like Count (public)
+
+```http
+GET /api/packages/<package>/likes
+```
+
+```json
+{ "package": "my_package", "likes": 42 }
+```
+
+### Like / Unlike (auth)
+
+```http
+PUT    /api/account/likes/<package>
+DELETE /api/account/likes/<package>
+```
+
+```json
+{ "package": "my_package", "liked": true }
+```
+
+### List Liked Packages
+
+```http
+GET /api/account/likes
+Authorization: Bearer club_pat_...
+```
+
+---
+
+## Scoring (pana)
+
+### Package Score
+
+```http
+GET /api/packages/<package>/score
+```
+
+Returns the aggregate score for the package's latest scored version.
+
+### Version Score
+
+```http
+GET /api/packages/<package>/versions/<version>/score
+```
+
+### Full Scoring Report
+
+```http
+GET /api/packages/<package>/versions/<version>/scoring-report
+```
+
+Returns the full pana report JSON. The report's `status` is one of:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Queued for analysis |
+| `running` | Pana is currently scoring this version |
+| `completed` | Report available |
+| `failed` | Pana exited with an error |
+| `disabled` | Scoring disabled for this server |
+
+---
+
+## Downloads
+
+```http
+GET /api/packages/<package>/downloads
+```
+
+Returns a 53-week rolling history of per-week download counts for a package.
+
+```json
+{
+  "package": "my_package",
+  "weeks": [
+    { "weekStart": "2025-04-14", "count": 120 }
+  ]
+}
+```
+
+---
+
+## Dartdoc
+
+```http
+GET /api/packages/<package>/dartdoc-status
+```
+
+Returns generation status for the latest version's dartdoc output.
+
+```http
+GET /documentation/<package>/latest/*
+```
+
+Serves the generated dartdoc HTML for the latest version. Requests to any non-`latest` version redirect to `/latest`.

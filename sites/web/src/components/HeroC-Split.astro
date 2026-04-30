@@ -1,0 +1,212 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+
+const packages = [
+  {
+    name: "acme_ui",
+    scope: "@acme",
+    ver: "2.4.0",
+    desc: "Shared design system for internal Flutter apps.",
+    likes: "148",
+    pub: "2 days ago",
+    tags: ["flutter", "private"],
+  },
+  {
+    name: "billing_client",
+    scope: "@acme",
+    ver: "0.9.3",
+    desc: "Typed client for the billing service — generated from OpenAPI.",
+    likes: "32",
+    pub: "5 hours ago",
+    tags: ["dart", "private"],
+  },
+  {
+    name: "otel_sink",
+    scope: "@platform",
+    ver: "1.1.0",
+    desc: "OpenTelemetry sink with batching, retries, and metrics.",
+    likes: "61",
+    pub: "1 week ago",
+    tags: ["dart", "private"],
+  },
+];
+---
+
+<!--
+  HeroC — "Split"
+  Asymmetric 2-column hero. Left: dark slab with headline + CTAs, the
+  slab "pokes into" the right side. Right: stacked package cards that
+  look like pub.dev result tiles, slightly tilted for depth. Strong
+  product-in-use feel.
+-->
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <div class="relative mx-auto w-full max-w-[84rem] px-6 pb-24 pt-36 md:px-10 md:pb-28 md:pt-40">
+    <div class="grid gap-8 md:grid-cols-[minmax(0,0.92fr)_minmax(0,1fr)] md:gap-10 md:items-stretch">
+      <!-- Left: dark slab -->
+      <div
+        class="relative overflow-hidden rounded-[22px] p-10 md:p-12"
+        style="background: var(--color-ink-dark); color: #EDEDED;"
+      >
+        <!-- corner mark -->
+        <div
+          class="pointer-events-none absolute right-0 top-0 h-24 w-24"
+          style="
+            background:
+              linear-gradient(225deg, var(--color-stamp) 0 46%, transparent 46%);
+          "
+        />
+        <div
+          class="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full opacity-[0.18] blur-3xl"
+          style="background: radial-gradient(circle, var(--color-stamp) 0%, transparent 70%);"
+        />
+
+        <div class="relative">
+          <div class="eyebrow" style="color: var(--color-mute-dark);">
+            — CLUB / v0.1
+          </div>
+          <h1 class="h1 mt-5 max-w-[14ch]">
+            A <span style="color: var(--color-stamp);">pub.dev</span> you
+            can lock inside your VPC.
+          </h1>
+
+          <p class="prose-body mt-6 max-w-md" style="color: var(--color-mute-dark);">
+            Pub Spec v2 on the wire. One Dart binary on disk. Pluggable
+            storage and search. Same `dart pub` your team already uses —
+            pointed at a host you own.
+          </p>
+
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+              Get started
+              <span class="btn-arrow">→</span>
+            </a>
+            <a href={GITHUB_URL} class="btn btn-ghost" style="color: #EDEDED;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              GitHub
+            </a>
+          </div>
+
+          <!-- stats rail -->
+          <div
+            class="mt-10 grid grid-cols-3 gap-4 border-t pt-6"
+            style="border-color: var(--color-border-dark);"
+          >
+            <div>
+              <div class="font-mono text-[0.64rem] tracking-[0.14em] uppercase" style="color: var(--color-mute-dark);">
+                Compatible
+              </div>
+              <div class="mt-1 font-mono text-[0.95rem]" style="color: #EDEDED;">
+                Pub Spec v2
+              </div>
+            </div>
+            <div>
+              <div class="font-mono text-[0.64rem] tracking-[0.14em] uppercase" style="color: var(--color-mute-dark);">
+                Storage
+              </div>
+              <div class="mt-1 font-mono text-[0.95rem]" style="color: #EDEDED;">
+                SQLite · S3
+              </div>
+            </div>
+            <div>
+              <div class="font-mono text-[0.64rem] tracking-[0.14em] uppercase" style="color: var(--color-mute-dark);">
+                Runtime
+              </div>
+              <div class="mt-1 font-mono text-[0.95rem]" style="color: #EDEDED;">
+                1× container
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: stack of package cards -->
+      <div class="relative flex items-center">
+        <div class="relative w-full">
+          <!-- subtle halo -->
+          <div
+            class="pointer-events-none absolute -inset-6 rounded-[2rem] opacity-80 blur-2xl"
+            style="background: radial-gradient(circle at 70% 30%, var(--color-stamp-soft) 0%, transparent 70%);"
+          />
+
+          <div class="relative flex flex-col gap-4">
+            {packages.map((p, i) => (
+              <article
+                class="group relative rounded-2xl border bg-white p-5 transition-transform"
+                style={`
+                  border-color: var(--color-border);
+                  transform: rotate(${i === 0 ? "-1.2deg" : i === 1 ? "0.6deg" : "-0.4deg"}) translateX(${i === 1 ? "18px" : "0"});
+                  box-shadow: 0 14px 40px -22px rgba(5,5,5,0.25);
+                `}
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <div class="font-mono text-[0.68rem] tracking-[0.12em] uppercase" style="color: var(--color-mute);">
+                      {p.scope}
+                    </div>
+                    <h3 class="h3 mt-1" style="letter-spacing: -0.015em;">
+                      {p.name}
+                    </h3>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <div
+                      class="font-mono text-[0.72rem] font-semibold"
+                      style="color: var(--color-stamp);"
+                    >
+                      v{p.ver}
+                    </div>
+                    <div class="mt-0.5 font-mono text-[0.65rem]" style="color: var(--color-mute);">
+                      {p.pub}
+                    </div>
+                  </div>
+                </div>
+
+                <p class="mt-2 text-[0.9rem] leading-relaxed" style="color: var(--color-mute);">
+                  {p.desc}
+                </p>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex gap-1.5">
+                    {p.tags.map((t) => (
+                      <span
+                        class="rounded-md px-2 py-0.5 font-mono text-[0.62rem] tracking-[0.12em] uppercase"
+                        style={
+                          t === "private"
+                            ? "background: var(--color-stamp-soft); color: var(--color-stamp-hover);"
+                            : "background: var(--color-paper-mute-2); color: var(--color-ink);"
+                        }
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                  <div
+                    class="flex items-center gap-1 font-mono text-[0.7rem]"
+                    style="color: var(--color-mute);"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                      <path d="M8 14.25l-1.1-1c-3.9-3.54-6.4-5.83-6.4-8.63A3.62 3.62 0 014.12 1C5.56 1 7 1.76 8 3c1-1.24 2.44-2 3.88-2A3.62 3.62 0 0115.5 4.62c0 2.8-2.5 5.09-6.4 8.63L8 14.25z"/>
+                    </svg>
+                    {p.likes}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <!-- floating caption -->
+          <div
+            class="pointer-events-none absolute -bottom-4 right-0 font-mono text-[0.66rem] tracking-[0.14em] uppercase"
+            style="color: var(--color-mute);"
+          >
+            · club.acme.com / search —
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

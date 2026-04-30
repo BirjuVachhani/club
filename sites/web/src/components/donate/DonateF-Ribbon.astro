@@ -1,0 +1,75 @@
+---
+// Donate — F · Ribbon
+// Minimal, single-row band. A quiet reminder that doesn't steal weight
+// from the CTA that follows. Great when the page already runs long.
+import { SPONSORS_URL, BMC_URL } from "../../lib/config";
+---
+
+<section id="f-donate" class="sec">
+  <div class="wrap">
+    <div class="row">
+      <div class="left">
+        <span class="mark" aria-hidden="true">♡</span>
+        <div class="text">
+          <div class="eyebrow mono">Support CLUB</div>
+          <div class="line">
+            Free, open, and kept that way by a handful of sponsors.
+            <span class="mute">Consider joining them?</span>
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <a href={SPONSORS_URL} class="btn btn-primary sm" target="_blank" rel="noopener">
+          Sponsor
+          <span class="btn-arrow">→</span>
+        </a>
+        <a href={BMC_URL} class="btn btn-ghost sm" target="_blank" rel="noopener">
+          ☕ Coffee
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 2.5rem 0;
+    background: var(--color-stamp-soft);
+    border-top: 1px solid var(--color-stamp-tint);
+    border-bottom: 1px solid var(--color-stamp-tint);
+  }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 2rem; flex-wrap: wrap;
+  }
+  .left { display: flex; align-items: center; gap: 1rem; }
+  .mark {
+    width: 2.75rem; height: 2.75rem; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--color-bg); color: var(--color-stamp);
+    border: 1px solid var(--color-stamp-tint);
+    font-size: 1.25rem; flex-shrink: 0;
+  }
+  .eyebrow { font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; color: var(--color-stamp); }
+  .line {
+    font-family: var(--font-sans); font-size: 1rem;
+    color: var(--color-ink); margin-top: 0.2rem; letter-spacing: -0.005em;
+    line-height: 1.4;
+  }
+  .mute { color: var(--color-mute); }
+  .mono { font-family: var(--font-mono); }
+
+  .right { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .btn.sm {
+    font-size: 0.88rem; padding: 0.55rem 1rem;
+  }
+
+  @media (max-width: 700px) {
+    .row { flex-direction: column; align-items: flex-start; }
+    .right { width: 100%; }
+    .right .btn { flex: 1; justify-content: center; }
+  }
+</style>

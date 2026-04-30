@@ -1,0 +1,210 @@
+---
+// Feature — Publishers (verified + unverified)
+// Light band. Two publisher cards side-by-side: one verified (domain
+// TXT proven), one unverified (plain). Visual emphasizes the badge
+// difference and the ownership benefits of each.
+---
+
+<section id="f-publishers" class="sec">
+  <div class="wrap">
+    <header class="head" data-reveal>
+      <div class="eyebrow orange">§ Publishers</div>
+      <h2 class="h2">
+        <span class="accent">Publishers</span>,
+        <br class="md-only" />
+        verified <em>and</em> unverified.
+      </h2>
+      <p class="lede">
+        Organize packages under publishers your team owns. Verify them
+        against a domain you control for the verified badge, or skip the
+        ceremony and use an unverified handle for internal-only work.
+      </p>
+    </header>
+
+    <div class="pair" data-reveal-children data-reveal-step="140">
+      <!-- Verified -->
+      <article class="pub verified">
+        <header class="p-head">
+          <div class="p-avatar">
+            <div class="p-mono">A</div>
+            <span class="p-badge" title="Verified">✓</span>
+          </div>
+          <div>
+            <div class="p-name">@acme <span class="p-check">✓</span></div>
+            <div class="p-meta mono">example.com · verified publisher</div>
+          </div>
+        </header>
+
+        <div class="p-proof">
+          <div class="mono p-proof-k">Proven via</div>
+          <div class="p-proof-code">
+            <span class="mono dim">dig TXT</span>
+            <span class="mono o">_club-challenge.example.com</span>
+          </div>
+        </div>
+
+        <ul class="p-perks">
+          <li><span class="tick o">✓</span>Verified badge across the UI</li>
+          <li><span class="tick o">✓</span>Domain-scoped ownership. The badge proves who runs it.</li>
+          <li><span class="tick o">✓</span>Great for partner / SDK-style packages</li>
+        </ul>
+
+        <div class="p-pkgs mono">
+          <span class="p-pkgs-k">12 packages</span>
+          <span class="p-pkgs-list">acme_ui · acme_theme · acme_motion · …</span>
+        </div>
+      </article>
+
+      <!-- Unverified -->
+      <article class="pub unverified">
+        <header class="p-head">
+          <div class="p-avatar plain">
+            <div class="p-mono">T</div>
+          </div>
+          <div>
+            <div class="p-name">@tools-team</div>
+            <div class="p-meta mono">unverified · internal use</div>
+          </div>
+        </header>
+
+        <div class="p-proof ghost">
+          <div class="mono p-proof-k">No ceremony</div>
+          <div class="p-proof-code">
+            <span class="mono dim">Claim a handle, publish, done.</span>
+          </div>
+        </div>
+
+        <ul class="p-perks">
+          <li><span class="tick">·</span>No DNS, no domain, no approval flow</li>
+          <li><span class="tick">·</span>Perfect for internal teams and short-lived orgs</li>
+          <li><span class="tick">·</span>Promote to verified later. Same handle, new badge.</li>
+        </ul>
+
+        <div class="p-pkgs mono">
+          <span class="p-pkgs-k">4 packages</span>
+          <span class="p-pkgs-list">feature_flags · log_sink · telemetry · …</span>
+        </div>
+      </article>
+    </div>
+
+    <div class="more">
+      <span class="mono more-k">Every publisher</span>
+      <span class="more-v">
+        <span>CRUD members</span>
+        <span class="sep">·</span>
+        <span>Promote / demote</span>
+        <span class="sep">·</span>
+        <span>Named uploaders per package</span>
+        <span class="sep">·</span>
+        <span>Transfer ownership</span>
+        <span class="sep">·</span>
+        <span>Invite links</span>
+      </span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  @media (max-width: 768px) { .sec { padding: 3.5rem 0; } }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .head { max-width: 54rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.022em; line-height: 1.08;
+    margin: 1rem 0 0; max-width: 24ch; color: var(--color-ink);
+  }
+  .h2 em { font-style: italic; color: var(--color-stamp); font-weight: 640; }
+  .h2 .d { color: var(--color-mute); margin: 0 0.2em; }
+  .accent { color: var(--color-stamp); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 44rem; }
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .pair {
+    margin-top: 3rem; display: grid; gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  @media (max-width: 900px) { .pair { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .pair { margin-top: 2rem; }
+    .pub { padding: 1.5rem 1.25rem; }
+  }
+
+  .pub {
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 18px; padding: 1.75rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+    position: relative;
+    box-shadow: 0 14px 32px -22px rgba(5,5,5,0.18);
+  }
+  .pub.verified {
+    border-color: var(--color-stamp);
+    box-shadow: 0 0 0 4px var(--color-stamp-soft), 0 20px 40px -28px rgba(255,79,24,0.22);
+  }
+  .pub.verified::before {
+    content: "Verified"; position: absolute; top: -0.7rem; left: 1.5rem;
+    font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase;
+    background: var(--color-stamp); color: #fff;
+    padding: 0.25rem 0.55rem; border-radius: 3px; font-weight: 700;
+  }
+
+  .p-head { display: flex; align-items: center; gap: 1rem; }
+  .p-avatar {
+    position: relative;
+    width: 3.25rem; height: 3.25rem; border-radius: 12px;
+    background: var(--color-ink); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .p-avatar.plain { background: var(--color-paper-mute-2); color: var(--color-mute); }
+  .p-mono { font-family: var(--font-sans); font-weight: 700; font-size: 1.25rem; letter-spacing: -0.015em; }
+  .p-badge {
+    position: absolute; right: -6px; bottom: -6px;
+    width: 1.25rem; height: 1.25rem;
+    background: var(--color-stamp); color: #fff;
+    border-radius: 999px; border: 2px solid var(--color-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700;
+  }
+  .p-name { font-family: var(--font-sans); font-weight: 680; font-size: 1.2rem; letter-spacing: -0.015em; color: var(--color-ink); display: flex; align-items: center; gap: 0.4rem; }
+  .p-check { color: var(--color-stamp); }
+  .p-meta { font-size: 0.78rem; color: var(--color-mute); margin-top: 0.1rem; }
+
+  .p-proof { padding: 0.85rem 1rem; background: var(--color-stamp-soft); border: 1px solid var(--color-stamp-tint); border-radius: 10px; display: flex; flex-direction: column; gap: 0.3rem; }
+  .p-proof.ghost { background: var(--color-paper-mute); border: 1px dashed var(--color-border); }
+  .p-proof-k { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-stamp-hover); font-weight: 700; }
+  .p-proof.ghost .p-proof-k { color: var(--color-mute); }
+  .p-proof-code { font-size: 0.85rem; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+
+  .p-perks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .p-perks li { display: grid; grid-template-columns: 1.3rem 1fr; gap: 0.55rem; font-size: 0.94rem; line-height: 1.5; color: var(--color-ink); }
+  .tick { font-weight: 700; color: var(--color-mute); }
+  .tick.o { color: var(--color-stamp); }
+
+  .p-pkgs {
+    margin-top: auto; padding-top: 0.85rem; border-top: 1px dashed var(--color-border);
+    display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap;
+    font-size: 0.78rem;
+  }
+  .p-pkgs-k { color: var(--color-stamp); font-weight: 700; letter-spacing: 0.04em; }
+  .p-pkgs-list { color: var(--color-mute); }
+
+  .more {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-paper-mute); border: 1px solid var(--color-border);
+    border-radius: 12px;
+    display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: baseline;
+  }
+  .more-k { font-size: 0.64rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .more-v { display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; color: var(--color-ink); font-size: 0.9rem; }
+  .more-v .sep { color: var(--color-stamp); }
+
+  .mono { font-family: var(--font-mono); }
+  .dim { color: var(--color-mute); }
+  .o { color: var(--color-stamp); }
+</style>

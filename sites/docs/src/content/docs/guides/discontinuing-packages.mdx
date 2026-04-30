@@ -1,0 +1,106 @@
+---
+title: Discontinuing a Package
+description: Mark a club package as no longer maintained, point users at a replacement, and understand how dart pub surfaces the status.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Discontinuing a package signals that the maintainer is no longer shipping fixes or new features. Unlike retracting a single version, this applies to the **whole package** — every version, past and future. club follows the pub.dev convention: discontinued packages remain fully downloadable and resolvable, but `dart pub` and the club UI surface the status so consumers can plan a migration.
+
+## When to Discontinue
+
+- You are no longer maintaining the package and have no plans to resume.
+- You've superseded it with a new package (use `replacedBy` to point users there).
+- The functionality has moved into the Dart/Flutter SDK or another upstream library.
+
+Prefer discontinuation over deleting the package. Deletion breaks every downstream lockfile; discontinuation does not.
+
+## What Happens Downstream
+
+- The package page shows a **Discontinued** banner, with a link to the replacement if `replacedBy` is set.
+- The pub API response (`/api/packages/<pkg>`) includes `"isDiscontinued": true` and the optional `"replacedBy": "<package>"`.
+- `dart pub outdated` flags the dependency so users see it at the next upgrade.
+- The version solver **still resolves** the package — lockfiles and `dart pub get` keep working. Discontinuation is informational, not enforcement.
+- If you set `replacedBy`, the club web UI and pub CLI surface it as the recommended migration target. The replacement must be a valid package name on the same registry; club doesn't validate that it actually exists (the pub spec leaves this to the consumer).
+
+<Aside type="tip">
+Consider also [unlisting](/guides/unlisting-packages/) a discontinued package to hide it from search results while keeping it downloadable — the two options compose.
+</Aside>
+
+## Who Can Discontinue
+
+- Any named **uploader** on the package.
+- Any **admin of the publisher** that owns it.
+- A server **admin** or **owner**.
+
+## Discontinuing a Package
+
+<Tabs>
+  <TabItem label="Web UI">
+  <Steps>
+
+  1. Open the package page.
+  2. Switch to the **Admin** tab.
+  3. Toggle **Discontinued**.
+  4. Optionally enter a **Replaced by** package name.
+  5. Save.
+
+  </Steps>
+  </TabItem>
+
+  <TabItem label="HTTP API">
+  ```http
+  PUT /api/packages/<pkg>/options
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+  {
+    "isDiscontinued": true,
+    "replacedBy": "new_package"
+  }
+  ```
+
+  Omit a field to leave it unchanged. Set `replacedBy` to `null` to clear the replacement hint without un-discontinuing the package.
+  </TabItem>
+</Tabs>
+
+## Updating the Replacement
+
+Set, change, or clear the replacement hint without touching the discontinued status:
+
+```http
+PUT /api/packages/<pkg>/options
+{ "replacedBy": "different_package" }
+```
+
+```http
+PUT /api/packages/<pkg>/options
+{ "replacedBy": null }
+```
+
+## Un-discontinuing
+
+Resuming maintenance? Flip the flag back:
+
+```http
+PUT /api/packages/<pkg>/options
+{ "isDiscontinued": false, "replacedBy": null }
+```
+
+The banner disappears immediately and the package returns to normal listing.
+
+## Audit Log
+
+Discontinuing, updating `replacedBy`, or un-discontinuing each append an entry to the package activity log with the actor and full before/after payload:
+
+```http
+GET /api/packages/<pkg>/activity-log
+```
+
+Event kind: `packageOptionsUpdated`.
+
+## See Also
+
+- [Package Administration overview](/guides/package-admin/)
+- [Unlisting a Package](/guides/unlisting-packages/)
+- [Retracting a Version](/guides/retracting-versions/) — for pulling a single bad release rather than the whole package

@@ -1,0 +1,400 @@
+---
+title: From-Source Deployment
+description: Build club from source, set it up as a systemd service, and manage logs for a production deployment without Docker.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide covers running club directly on a server without Docker. Use this approach if you prefer not to use containers, need to customise the build, or want to run club on a system where Docker is not available.
+
+## Prerequisites
+
+- A Linux server (Debian/Ubuntu recommended, but any systemd-based distro works)
+- [Dart SDK](https://dart.dev/get-dart) >= 3.7
+- [Node.js](https://nodejs.org/) >= 22
+- Git
+
+## Building from Source
+
+<Steps>
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/BirjuVachhani/club.git
+   cd club
+   ```
+
+2. **Install Dart dependencies**
+
+   ```bash
+   dart pub get
+   ```
+
+3. **Run code generation** (club_core only)
+
+   ```bash
+   cd packages/club_core
+   dart run build_runner build --delete-conflicting-outputs
+   cd ../..
+   ```
+
+4. **Build the SvelteKit frontend**
+
+   ```bash
+   cd packages/club_web
+   npm install
+   npm run build
+   cd ../..
+   ```
+
+   This produces static HTML/JS/CSS in `packages/club_web/build/`.
+
+5. **Build the server binary**
+
+   ```bash
+   dart build cli -t packages/club_server/bin/server.dart -o build/server
+   ```
+
+   The result is a self-contained native executable:
+
+   ```
+   build/server/
+   └── bundle/
+       ├── bin/
+       │   └── server         # AOT-compiled binary (entrypoint)
+       └── lib/               # Dynamic libraries the binary loads at runtime
+   ```
+
+   Both `bundle/bin/` and `bundle/lib/` must be kept together. Do not copy the binary alone.
+
+   <Aside type="caution">
+     Use `dart build cli` — not `dart compile exe`. `dart build cli` is the recommended way to build Dart CLI apps because it runs build hooks; several of club's native dependencies require those hooks to produce the `bundle/lib/` payload.
+   </Aside>
+
+</Steps>
+
+## Installation Layout
+
+Set up a clean directory structure for the deployment:
+
+```bash
+# Create the club user
+sudo useradd --system --home-dir /opt/club --create-home --shell /usr/sbin/nologin club
+
+# Create directories
+sudo mkdir -p /opt/club
+sudo mkdir -p /opt/club/static/web
+sudo mkdir -p /var/lib/club/packages
+sudo mkdir -p /var/lib/club/docs
+sudo mkdir -p /etc/club
+
+# Copy the build output — keep bin/ and lib/ together
+sudo cp -r build/server/bundle/. /opt/club/
+
+# Copy the frontend static files
+sudo cp -r packages/club_web/build/. /opt/club/static/web/
+
+# Set ownership
+sudo chown -R club:club /opt/club
+sudo chown -R club:club /var/lib/club
+```
+
+The layout after installation:
+
+```
+/opt/club/
+├── bin/
+│   └── server                # AOT-compiled binary
+├── lib/                       # Dynamic libraries loaded by the binary
+└── static/
+    └── web/                   # SvelteKit static export
+
+/var/lib/club/
+├── db/
+│   └── club.db                # SQLite database (created on first run)
+├── blobs/                     # Package tarballs + screenshots (+ dartdoc if blob mode)
+├── cache/
+│   ├── dartdoc/               # Generated dartdoc output (filesystem mode)
+│   ├── sdks/                  # Flutter/Dart SDKs for pana
+│   └── pub-cache/             # Pana's PUB_CACHE
+├── logs/
+│   └── scoring.log            # Pana analysis log
+└── tmp/
+    └── uploads/               # Ephemeral in-flight uploads
+
+/etc/club/
+└── env                        # Environment variables
+```
+
+## Configuration
+
+Create the environment file at `/etc/club/env`:
+
+```bash
+sudo tee /etc/club/env << 'EOF'
+SERVER_URL=https://packages.example.com
+JWT_SECRET=<output of: openssl rand -hex 32>
+TRUST_PROXY=true
+
+SQLITE_PATH=/var/lib/club/db/club.db
+BLOB_PATH=/var/lib/club/blobs
+DARTDOC_PATH=/var/lib/club/cache/dartdoc
+SDK_BASE_DIR=/var/lib/club/cache/sdks
+TEMP_DIR=/var/lib/club/tmp/uploads
+LOGS_DIR=/var/lib/club/logs
+STATIC_FILES_PATH=/opt/club/static/web
+
+LISTEN_PORT=8080
+HOST=127.0.0.1
+EOF
+```
+
+Restrict permissions (the file contains secrets):
+
+```bash
+sudo chmod 600 /etc/club/env
+sudo chown club:club /etc/club/env
+```
+
+Generate the JWT secret:
+
+```bash
+sudo sed -i "s|<output of: openssl rand -hex 32>|$(openssl rand -hex 32)|" /etc/club/env
+```
+
+<Aside type="note">
+  There are no `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars. On first boot, the server prints a one-time **setup code** to the logs and exposes a web wizard at `/setup` — finish the admin setup there. See [Viewing the setup code](#viewing-the-setup-code-on-first-run).
+</Aside>
+
+## Systemd Service
+
+Create `/etc/systemd/system/club.service`:
+
+```ini
+[Unit]
+Description=club Dart Package Repository
+After=network.target
+Documentation=https://github.com/BirjuVachhani/club
+
+[Service]
+Type=simple
+User=club
+Group=club
+ExecStart=/opt/club/bin/server
+EnvironmentFile=/etc/club/env
+WorkingDirectory=/opt/club
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/club
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable club
+sudo systemctl start club
+```
+
+Check the status:
+
+```bash
+sudo systemctl status club
+```
+
+## Running as a Background Service
+
+### Starting
+
+```bash
+sudo systemctl start club
+```
+
+### Stopping
+
+```bash
+sudo systemctl stop club
+```
+
+### Restarting
+
+```bash
+sudo systemctl restart club
+```
+
+### Checking status
+
+```bash
+sudo systemctl status club
+```
+
+### Viewing the setup code on first run
+
+```bash
+sudo journalctl -u club | grep -i 'setup code'
+```
+
+Paste the code into the `/setup` wizard in your browser to create the initial admin account.
+
+## Log Management
+
+### Viewing logs
+
+```bash
+# Follow logs in real time
+sudo journalctl -u club -f
+
+# Last 100 lines
+sudo journalctl -u club -n 100
+
+# Logs since a specific time
+sudo journalctl -u club --since "2025-01-15 10:00:00"
+
+# Logs from the current boot
+sudo journalctl -u club -b
+```
+
+### Log rotation
+
+systemd journal handles log rotation automatically. To configure retention:
+
+```bash
+# Edit /etc/systemd/journald.conf
+sudo tee -a /etc/systemd/journald.conf << 'EOF'
+SystemMaxUse=500M
+MaxRetentionSec=30day
+EOF
+
+sudo systemctl restart systemd-journald
+```
+
+### Forwarding to a file
+
+If you prefer file-based logs (for integration with log aggregation tools):
+
+```bash
+# Edit the service to log to a file
+sudo mkdir -p /var/log/club
+sudo chown club:club /var/log/club
+```
+
+Add to the `[Service]` section of the systemd unit:
+
+```ini
+StandardOutput=append:/var/log/club/club.log
+StandardError=append:/var/log/club/club.log
+```
+
+Set up logrotate at `/etc/logrotate.d/club`:
+
+```
+/var/log/club/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 club club
+    postrotate
+        systemctl reload club 2>/dev/null || true
+    endscript
+}
+```
+
+## Upgrading
+
+<Steps>
+
+1. **Back up the database**
+
+   ```bash
+   sqlite3 /var/lib/club/club.db ".backup /var/lib/club/club-backup-$(date +%Y%m%d).db"
+   ```
+
+2. **Pull the latest code and rebuild**
+
+   ```bash
+   cd /path/to/club
+   git pull
+
+   dart pub get
+
+   cd packages/club_core
+   dart run build_runner build --delete-conflicting-outputs
+   cd ../..
+
+   cd packages/club_web
+   npm install
+   npm run build
+   cd ../..
+
+   dart build cli -t packages/club_server/bin/server.dart -o build/server
+   ```
+
+3. **Replace the binary, libraries, and static files**
+
+   ```bash
+   sudo systemctl stop club
+   sudo cp -r build/server/bundle/. /opt/club/
+   sudo cp -r packages/club_web/build/. /opt/club/static/web/
+   sudo chown -R club:club /opt/club
+   ```
+
+4. **Restart the service**
+
+   ```bash
+   sudo systemctl start club
+   ```
+
+   Database migrations run automatically on startup.
+
+5. **Verify**
+
+   ```bash
+   sudo systemctl status club
+   curl -sf http://localhost:8080/api/v1/health | jq .
+   ```
+
+</Steps>
+
+## Backups
+
+### SQLite backup (safe while running)
+
+```bash
+sqlite3 /var/lib/club/club.db ".backup /opt/backups/club-$(date +%Y%m%d).db"
+```
+
+### Package tarballs
+
+```bash
+tar czf /opt/backups/club-packages-$(date +%Y%m%d).tar.gz -C /var/lib/club/packages .
+```
+
+### Automated daily backup via cron
+
+```bash
+sudo tee /etc/cron.d/club-backup << 'EOF'
+0 2 * * * club sqlite3 /var/lib/club/club.db ".backup /opt/backups/club-$(date +\%Y\%m\%d).db" && tar czf /opt/backups/club-packages-$(date +\%Y\%m\%d).tar.gz -C /var/lib/club/packages .
+EOF
+```
+
+<Aside type="tip">
+  Keep at least 7 days of backups. Periodically test restoring from a backup to verify your backup process works.
+</Aside>

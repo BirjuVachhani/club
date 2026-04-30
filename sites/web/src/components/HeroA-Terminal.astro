@@ -1,0 +1,157 @@
+---
+import { docsUrl, GITHUB_URL } from "../lib/config";
+---
+
+<!--
+  HeroA — "Terminal"
+  Light paper bg, two columns. Left: copy + CTAs. Right: realistic terminal
+  card showing the pub workflow. Dev-tooling vibe, receipt-like.
+-->
+<section
+  class="relative overflow-hidden"
+  style="background: var(--color-bg); color: var(--color-ink);"
+>
+  <!-- faint paper grid -->
+  <div
+    class="pointer-events-none absolute inset-0 opacity-[0.5]"
+    style="
+      background-image:
+        linear-gradient(var(--color-border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse at 35% 40%, #000 0%, #000 40%, transparent 75%);
+    "
+  />
+
+  <div class="relative mx-auto w-full max-w-[80rem] px-6 pb-24 pt-36 md:px-10 md:pb-28 md:pt-40">
+    <div class="grid items-center gap-12 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:gap-16">
+      <!-- Left column: copy -->
+      <div>
+        <div class="flex items-center gap-3 pb-6">
+          <span class="chip">
+            <span class="chip-dot"></span>
+            Pub Spec v2
+          </span>
+          <span class="font-mono text-[0.7rem] tracking-[0.14em] uppercase" style="color: var(--color-mute);">
+            v0.1 · MIT
+          </span>
+        </div>
+
+        <h1 class="h1 max-w-[18ch]">
+          Same <span style="color: var(--color-stamp);">dart pub</span>.
+          <br class="hidden md:block" />
+          Your packages, your walls.
+        </h1>
+
+        <p class="prose-body mt-6 max-w-xl">
+          CLUB is a self-hosted package repository for Dart and Flutter
+          teams — pub.dev on the wire, yours on the disk. Point your
+          clients at it and the commands they already run just work.
+        </p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+            Get started
+            <span class="btn-arrow">→</span>
+          </a>
+          <a href={GITHUB_URL} class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 018 4.8c.68 0 1.36.09 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+
+        <!-- inline meta row -->
+        <div
+          class="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[0.7rem] tracking-[0.12em] uppercase"
+          style="color: var(--color-mute);"
+        >
+          <span>Single container</span>
+          <span style="color: var(--color-stamp);">·</span>
+          <span>SQLite + filesystem</span>
+          <span style="color: var(--color-stamp);">·</span>
+          <span>S3 pluggable</span>
+        </div>
+      </div>
+
+      <!-- Right column: terminal card -->
+      <div class="relative">
+        <!-- soft orange halo -->
+        <div
+          class="pointer-events-none absolute -inset-8 rounded-[2rem] opacity-60 blur-3xl"
+          style="background: radial-gradient(circle at 70% 30%, var(--color-stamp-soft) 0%, transparent 70%);"
+        />
+
+        <div
+          class="relative rounded-[18px] border shadow-[0_30px_80px_-30px_rgba(5,5,5,0.35)]"
+          style="background: var(--color-ink-dark); border-color: var(--color-border-dark);"
+        >
+          <!-- title bar -->
+          <div
+            class="flex items-center gap-2 border-b px-4 py-3"
+            style="border-color: var(--color-border-dark);"
+          >
+            <span class="h-3 w-3 rounded-full" style="background: #3a3a3a;"></span>
+            <span class="h-3 w-3 rounded-full" style="background: #3a3a3a;"></span>
+            <span class="h-3 w-3 rounded-full" style="background: #3a3a3a;"></span>
+            <span
+              class="ml-auto font-mono text-[0.68rem] tracking-[0.14em] uppercase"
+              style="color: var(--color-mute-dark);"
+            >
+              ~/acme-app · zsh
+            </span>
+          </div>
+
+          <!-- body -->
+          <div class="terminal px-5 py-5" style="color: #EDEDED;">
+            <div>
+              <span style="color: var(--color-stamp);">$</span>
+              <span>&nbsp;dart pub add acme_ui \</span>
+            </div>
+            <div style="color: var(--color-mute-dark);">
+              &nbsp;&nbsp;&nbsp;&nbsp;--hosted-url=<span style="color: #EDEDED;">https://club.acme.com</span>
+            </div>
+            <div class="mt-2" style="color: var(--color-mute-dark);">
+              Resolving dependencies<span style="color: var(--color-stamp);">...</span>
+            </div>
+            <div style="color: var(--color-mute-dark);">
+              + acme_ui <span style="color: #EDEDED;">2.4.0</span>
+              <span style="color: var(--color-stamp);">(from club.acme.com)</span>
+            </div>
+            <div style="color: var(--color-mute-dark);">
+              + acme_theme <span style="color: #EDEDED;">1.9.2</span>
+              <span style="color: var(--color-stamp);">(from club.acme.com)</span>
+            </div>
+            <div style="color: var(--color-mute-dark);">
+              Changed 2 dependencies.
+            </div>
+
+            <div class="mt-4">
+              <span style="color: var(--color-stamp);">$</span>
+              <span>&nbsp;dart pub publish</span>
+              <span class="inline-block w-[0.55em] translate-y-[2px]" style="background: var(--color-stamp); height: 1em; margin-left: 0.2em; animation: blink 1s step-end infinite;"></span>
+            </div>
+          </div>
+
+          <!-- footer rail -->
+          <div
+            class="flex items-center justify-between border-t px-4 py-2.5 font-mono text-[0.65rem] tracking-[0.14em] uppercase"
+            style="border-color: var(--color-border-dark); color: var(--color-mute-dark);"
+          >
+            <span>tcp · 443</span>
+            <span>bcrypt + sha-256 tokens</span>
+            <span style="color: var(--color-stamp);">● online</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+</style>

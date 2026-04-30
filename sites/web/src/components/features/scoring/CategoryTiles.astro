@@ -1,0 +1,171 @@
+---
+// Scoring variant B — "Category tiles"
+// Headline on top, five tiles in a grid below. Each tile shows one of
+// the pub-points criteria with its point allocation and what it
+// actually measures. Total strip at the bottom.
+const criteria = [
+  {
+    k: "Conventions",
+    pts: 30,
+    blurb: "Follow Dart file conventions — a valid pubspec.yaml, README, CHANGELOG, and an OSI-approved license.",
+    checks: ["pubspec.yaml", "README", "CHANGELOG", "License"],
+  },
+  {
+    k: "Documentation",
+    pts: 20,
+    blurb: "Provide useful documentation — at least 20% of the public API has dartdoc comments, plus an example.",
+    checks: ["20% API comments", "example/ folder"],
+  },
+  {
+    k: "Platforms",
+    pts: 20,
+    blurb: "Support multiple platforms — more platforms supported, more points awarded.",
+    checks: ["Android", "iOS", "Web", "Desktop"],
+  },
+  {
+    k: "Static analysis",
+    pts: 50,
+    blurb: "Pass static analysis — no errors, no warnings, no hints from dart analyze.",
+    checks: ["no errors", "no warnings", "no hints"],
+  },
+  {
+    k: "Dependencies",
+    pts: 40,
+    blurb: "Keep up-to-date dependencies — every dep supports the latest stable SDK; nothing deprecated.",
+    checks: ["latest stable", "no deprecated", "solver passes"],
+  },
+];
+const total = criteria.reduce((s, c) => s + c.pts, 0);
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Quality</div>
+      <h2 class="h2">
+        Scored against the <span class="accent">same five criteria</span> as pub.dev.
+      </h2>
+      <p class="lede">
+        Pub points measure what matters: conventions, documentation,
+        platform support, static analysis, and dependency health. Same
+        rubric, same engine, same <span class="ink">{total} points</span> possible —
+        calculated inside your infrastructure.
+      </p>
+    </header>
+
+    <div class="tiles">
+      {criteria.map((c, i) => (
+        <article class={`tile ${i === 0 ? "first" : ""} ${i === 3 ? "wide" : ""}`}>
+          <header class="tile-head">
+            <span class="mono tile-k">{String(i + 1).padStart(2, "0")} — {c.k}</span>
+            <div class="tile-pts">
+              <strong>{c.pts}</strong>
+              <em>pts</em>
+            </div>
+          </header>
+          <p class="tile-blurb">{c.blurb}</p>
+          <ul class="tile-checks">
+            {c.checks.map((check) => (
+              <li><span class="tick">✓</span>{check}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+
+    <div class="total">
+      <div class="total-k mono">Total possible</div>
+      <div class="total-n">
+        <strong>{total}</strong>
+        <em>pub points</em>
+      </div>
+      <div class="total-meta mono">
+        ↻ Recalculated on every publish · stays on your server
+      </div>
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag">Also</span>
+      Users can <strong>like</strong> a package. Useful for discovery in a big registry — it's there if your team finds it handy.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-bg); }
+  .wrap { max-width: 86rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .head { max-width: 56rem; margin: 0 auto 3rem; text-align: center; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem auto 0; max-width: 24ch; color: var(--color-ink); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.25rem auto 0; max-width: 46rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  /* Tiles — 3 cols top, 2 cols bottom, with "analysis" (50pts) wider */
+  .tiles {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(6, 1fr);
+  }
+  @media (max-width: 1000px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .tiles { grid-template-columns: 1fr; } }
+
+  .tile {
+    grid-column: span 2;
+    padding: 1.5rem;
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 16px;
+    display: flex; flex-direction: column; gap: 0.85rem;
+    box-shadow: 0 14px 32px -22px rgba(5,5,5,0.15);
+    transition: border-color 150ms, transform 150ms;
+  }
+  .tile:hover { border-color: var(--color-stamp); transform: translateY(-2px); }
+  .tile.wide { grid-column: span 3; }
+  @media (max-width: 1000px) {
+    .tile, .tile.wide { grid-column: span 1; }
+  }
+
+  .tile-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+  .tile-k { font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; }
+  .tile-pts { font-family: var(--font-sans); }
+  .tile-pts strong { font-weight: 700; font-size: 1.85rem; letter-spacing: -0.035em; color: var(--color-ink); line-height: 1; }
+  .tile-pts em { font-style: normal; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.14em; color: var(--color-mute); text-transform: uppercase; margin-left: 0.25rem; }
+
+  .tile-blurb { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--color-mute); }
+
+  .tile-checks { list-style: none; padding: 0; margin: auto 0 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tile-checks li {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.25rem 0.55rem; border-radius: 999px;
+    background: var(--color-paper-mute); color: var(--color-ink);
+    border: 1px solid var(--color-border);
+    font-family: var(--font-mono); font-size: 0.72rem;
+  }
+  .tick { color: var(--color-stamp); font-weight: 700; font-size: 0.85em; }
+
+  /* Total strip */
+  .total {
+    margin-top: 1rem; padding: 1.5rem 1.75rem;
+    background: var(--color-ink-dark); color: #EDEDED;
+    border-radius: 16px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: center;
+  }
+  @media (max-width: 800px) { .total { grid-template-columns: 1fr; text-align: center; gap: 0.5rem; } }
+  .total-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-mute-dark); font-weight: 700; }
+  .total-n strong { font-family: var(--font-sans); font-weight: 700; font-size: 2.75rem; letter-spacing: -0.04em; color: var(--color-stamp); line-height: 1; }
+  .total-n em { font-style: normal; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; color: var(--color-mute-dark); text-transform: uppercase; margin-left: 0.5rem; }
+  .total-meta { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute-dark); }
+
+  .footnote {
+    margin-top: 1.25rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border); border-radius: 8px;
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+</style>

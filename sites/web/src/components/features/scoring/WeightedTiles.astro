@@ -1,0 +1,192 @@
+---
+// Scoring variant F — "Weighted tiles"
+// Unlike B where every tile is the same size, here each criterion is
+// sized by its point weight. Analysis (50 pts) and Dependencies (40) are
+// the big tiles; the 20-pt criteria are narrow. Visual hierarchy by
+// design — matches how pub.dev itself weighs them.
+const criteria = [
+  {
+    k: "Static analysis",
+    pts: 50,
+    span: 6,
+    tone: "featured",
+    desc: "Pass dart analyze with no errors, no warnings, no hints. The single heaviest-weighted criterion — for good reason.",
+    checks: ["no errors", "no warnings", "no hints", "passes CI on publish"],
+  },
+  {
+    k: "Dependencies",
+    pts: 40,
+    span: 6,
+    tone: "featured",
+    desc: "Every dep supports the latest stable SDK. No deprecated transitive packages. Solver passes cleanly.",
+    checks: ["latest stable", "no deprecated", "solver passes"],
+  },
+  {
+    k: "Conventions",
+    pts: 30,
+    span: 4,
+    tone: "medium",
+    desc: "Valid pubspec, README, CHANGELOG, OSI-approved license.",
+    checks: ["pubspec", "README", "CHANGELOG", "license"],
+  },
+  {
+    k: "Documentation",
+    pts: 20,
+    span: 4,
+    tone: "small",
+    desc: "20% of public API has dartdoc comments, plus an example.",
+    checks: ["dartdoc ≥ 20%", "example/"],
+  },
+  {
+    k: "Platforms",
+    pts: 20,
+    span: 4,
+    tone: "small",
+    desc: "Support multiple platforms — more points the more you cover.",
+    checks: ["Android · iOS", "web · desktop"],
+  },
+];
+---
+
+<section id="f-scoring" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ Quality</div>
+      <h2 class="h2">
+        Not every check <span class="accent">counts the same</span>.
+      </h2>
+      <p class="lede">
+        CLUB runs pub.dev's own <span class="ink">pana</span> engine and
+        applies the same weighting — static analysis and dependency
+        health are worth the most, because they catch the most. Each
+        tile below is sized by its weight.
+      </p>
+    </header>
+
+    <div class="grid">
+      {criteria.map((c) => (
+        <article class={`tile tone-${c.tone}`} style={`grid-column: span ${c.span};`}>
+          <header class="tile-head">
+            <span class="tile-k mono">{c.k}</span>
+            <div class="tile-pts">
+              <strong>{c.pts}</strong>
+              <em>pts</em>
+            </div>
+          </header>
+
+          <!-- Weight meter -->
+          <div class="meter">
+            <i style={`width: ${(c.pts / 50) * 100}%`}></i>
+          </div>
+          <div class="meter-note mono">{Math.round((c.pts / 160) * 100)}% of total</div>
+
+          <p class="tile-desc">{c.desc}</p>
+          <ul class="tile-checks">
+            {c.checks.map((check) => (
+              <li><span class="tick">✓</span>{check}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+
+    <div class="total">
+      <span class="total-k mono">All in</span>
+      <span class="total-n"><strong>160</strong><em>pub points possible</em></span>
+      <span class="total-foot mono">same rubric · same engine · your server</span>
+    </div>
+
+    <div class="footnote">
+      <span class="mono tag-in">Also</span>
+      Users can <strong>like</strong> a package. Not part of the score — it's there if your team finds it useful.
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec { padding: 6rem 0; background: var(--color-paper-mute); }
+  .wrap { max-width: 90rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .orange, .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .tag-in { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-stamp); font-weight: 700; margin-right: 0.5rem; background: var(--color-stamp-soft); padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+  .head { max-width: 56rem; margin: 0 0 3rem; }
+  .eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--color-mute); }
+  .eyebrow.orange { color: var(--color-stamp); }
+  .h2 { font-family: var(--font-sans); font-weight: 680; font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem); letter-spacing: -0.022em; line-height: 1.08; margin: 1rem 0 0; max-width: 22ch; color: var(--color-ink); }
+  .lede { font-size: 1.1rem; line-height: 1.55; color: var(--color-mute); margin: 1.5rem 0 0; max-width: 44rem; }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  .grid {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(12, 1fr);
+  }
+  @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px)  { .grid { grid-template-columns: 1fr; } }
+
+  .tile {
+    padding: 1.5rem;
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 16px;
+    display: flex; flex-direction: column; gap: 0.85rem;
+    box-shadow: 0 14px 32px -24px rgba(5,5,5,0.15);
+    transition: border-color 150ms;
+  }
+  .tile:hover { border-color: var(--color-stamp); }
+  @media (max-width: 1000px) { .tile { grid-column: span 1 !important; } }
+
+  .tone-featured {
+    border-color: color-mix(in oklab, var(--color-stamp) 40%, var(--color-border));
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-stamp) 10%, transparent), 0 24px 50px -30px rgba(255,79,24,0.2);
+  }
+  .tone-featured .tile-k { color: var(--color-stamp); }
+
+  .tile-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+  .tile-k { font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-mute); font-weight: 700; }
+  .tile-pts { font-family: var(--font-sans); }
+  .tile-pts strong {
+    font-weight: 700; letter-spacing: -0.04em;
+    color: var(--color-ink); line-height: 1;
+    font-size: 2rem;
+  }
+  .tone-featured .tile-pts strong { color: var(--color-stamp); font-size: 2.75rem; }
+  .tile-pts em { font-style: normal; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.14em; color: var(--color-mute); text-transform: uppercase; margin-left: 0.3rem; }
+
+  .meter { height: 6px; background: var(--color-paper-mute-2); border-radius: 999px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--color-stamp); border-radius: 999px; }
+  .meter-note { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute); font-weight: 600; margin-top: -0.35rem; }
+
+  .tile-desc { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--color-mute); }
+  .tone-small .tile-desc { font-size: 0.85rem; }
+
+  .tile-checks { list-style: none; padding: 0; margin: auto 0 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tile-checks li {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.22rem 0.5rem; border-radius: 999px;
+    background: var(--color-paper-mute); color: var(--color-ink);
+    border: 1px solid var(--color-border);
+    font-family: var(--font-mono); font-size: 0.7rem;
+  }
+  .tick { color: var(--color-stamp); font-weight: 700; font-size: 0.85em; }
+
+  .total {
+    margin-top: 1rem; padding: 1.25rem 1.75rem;
+    background: var(--color-ink-dark); color: #EDEDED;
+    border-radius: 14px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: center;
+  }
+  @media (max-width: 800px) { .total { grid-template-columns: 1fr; gap: 0.5rem; text-align: center; } }
+  .total-k { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-mute-dark); font-weight: 700; }
+  .total-n strong { font-family: var(--font-sans); font-weight: 700; font-size: 2.25rem; letter-spacing: -0.04em; color: var(--color-stamp); line-height: 1; }
+  .total-n em { font-style: normal; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute-dark); margin-left: 0.5rem; }
+  .total-foot { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-mute-dark); }
+
+  .footnote {
+    margin-top: 1.25rem; padding: 0.85rem 1.1rem;
+    border: 1px dashed var(--color-border); border-radius: 8px; background: var(--color-bg);
+    font-size: 0.88rem; color: var(--color-mute); line-height: 1.5;
+  }
+  .footnote strong { color: var(--color-ink); font-weight: 640; }
+</style>

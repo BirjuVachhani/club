@@ -1,0 +1,182 @@
+---
+title: Authentication
+description: How authentication works in club — personal access tokens, web sessions, user roles, CLI login, and security best practices.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+All access to a club server requires authentication. There is no anonymous or public access — every request must carry a valid session cookie or personal access token.
+
+## Auth Modes
+
+club supports two authentication mechanisms, each for a different surface:
+
+| Mode | Used by | How |
+|------|---------|-----|
+| **Web session** | Browser UI | Cookie set at login |
+| **Personal Access Token (PAT)** | CLI, API clients, `dart pub`, CI | `Authorization: Bearer <token>` header |
+
+Web sessions can only drive the web UI. PATs can only drive API calls and `dart pub` traffic. The two never overlap.
+
+## Personal Access Tokens
+
+A PAT is a string with the `club_pat_` prefix followed by a random secret:
+
+```
+club_pat_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+```
+
+It is sent as a Bearer token on every request:
+
+```
+Authorization: Bearer club_pat_a1b2c3d4e5f6...
+```
+
+The full secret is shown **once** at creation time — copy it immediately. The server never stores the raw value, only a hashed form, so if you lose the token you must revoke it and create a new one.
+
+## Token Scopes
+
+Each PAT carries one or more scopes. Scopes are **clamped to the owner's role** — a token cannot exceed what its user is allowed to do.
+
+| Scope | Permissions |
+|-------|-------------|
+| `read` | Browse packages, download archives, search, view metadata |
+| `write` | Publish new versions, manage package options, manage uploaders |
+| `admin` | All of the above, plus: manage users, delete any package, manage publishers |
+
+<Aside type="tip">
+Follow the principle of least privilege. A CI pipeline that only fetches packages needs `read` only. A developer's local token typically needs `read` + `write`. Only server admins need `admin`.
+</Aside>
+
+## Token Lifecycle
+
+### Creation
+
+Create PATs from the web UI at **`/settings/keys`** or via the API:
+
+```
+POST /api/auth/keys
+{
+  "name": "ci-publish",
+  "scopes": ["read", "write"],
+  "expiresInDays": 90
+}
+```
+
+The full secret is returned **once** in the response and then never again.
+
+<Aside type="caution">
+The PAT secret is displayed only at creation time. Store it immediately in a secure location (password manager, CI secret, etc.). It cannot be retrieved later — if lost, revoke the key and issue a new one.
+</Aside>
+
+### Expiry
+
+PATs can carry an optional expiry (measured in days from creation). Once a token expires:
+
+- All requests return `401 Unauthorized`.
+- The token cannot be extended — create a new one.
+- Expired tokens remain listed (marked expired) until revoked.
+
+### Revocation
+
+Revoke a PAT from `/settings/keys` or via `DELETE /api/auth/keys/<id>`. Revocation is immediate; any in-flight request using the key will fail.
+
+## CLI Login
+
+`club login` authenticates the CLI and stores a token on disk.
+
+<Tabs>
+  <TabItem label="Browser (default)">
+  ```bash
+  club login https://club.example.com
+  ```
+
+  Opens the default browser and runs an **OAuth 2.0 Authorization Code flow with PKCE**. Once you approve the request in the UI, the CLI receives a short-lived authorization code, exchanges it for a PAT, and stores it locally.
+  </TabItem>
+  <TabItem label="Paste an existing PAT">
+  ```bash
+  club login https://club.example.com --key club_pat_...
+  ```
+
+  Useful when you already created a token in the UI or need a fully headless workflow.
+  </TabItem>
+  <TabItem label="No browser (terminal fallback)">
+  ```bash
+  club login https://club.example.com --no-browser
+  ```
+
+  Prompts for email and password in the terminal, then issues a PAT server-side.
+  </TabItem>
+</Tabs>
+
+See the [CLI reference](/cli/login-setup/) for all flags.
+
+## `dart pub` Integration
+
+The Dart tool supports custom package repositories via token registration:
+
+```bash
+# Interactive — paste the PAT when prompted
+dart pub token add https://club.example.com
+
+# CI — read the token from an env var at runtime
+dart pub token add https://club.example.com --env-var CLUB_TOKEN
+```
+
+`dart pub get`, `dart pub publish`, and other commands then automatically attach the token when talking to your club server.
+
+`club setup` automates this: it reads the CLI's stored PAT and registers it with `dart pub` for you.
+
+### Where tokens live
+
+| Store | Location | Used by |
+|-------|----------|---------|
+| club credentials | `~/.config/club/credentials.json` | `club` CLI |
+| dart pub credentials | `~/.config/dart/pub-tokens.json` | `dart pub`, `flutter pub` |
+
+Both files should be `chmod 600`.
+
+## User Roles
+
+club has a strict hierarchy. Each role is a superset of the one below it.
+
+| Role | What they can do |
+|------|------------------|
+| `owner` | Everything. There is exactly one owner; it is transferred, never granted. |
+| `admin` | Manage users, publishers, packages, scoring, and server settings. |
+| `member` | Publish and manage their own packages and publisher memberships. Previously named `editor`. |
+| `viewer` | Read-only: browse, download, search. Cannot publish. |
+
+Self-signup (when the server sets `SIGNUP_ENABLED=true`) creates `member` accounts. All other role changes go through an admin.
+
+When `mustChangePassword` is true on an account (e.g. admin-created users), the user is forced to change their password on next login before any other action is allowed.
+
+## Web sessions
+
+The web UI signs you in with email and password. From **Settings → Sessions** you can:
+
+- See every device currently signed into your account.
+- Sign out a single session.
+- "Sign out everywhere else" to revoke every session except the current browser.
+
+There is no email delivery. Password resets and invites are handled by admins (see [Managing Users](/guides/managing-users/)) — not via email links.
+
+## Security Best Practices
+
+<Steps>
+
+1. **Use scoped tokens.** Never use an `admin`-scoped token where `read` or `read` + `write` would suffice.
+
+2. **Set expiries on CI tokens.** 90 days is a sensible default; rotate before they lapse.
+
+3. **One token per purpose.** Separate tokens for each pipeline, developer machine, and integration make revocation surgical.
+
+4. **Never commit tokens.** Do not put PATs in `pubspec.yaml`, Dockerfiles, or any source control. Use CI secrets and env vars.
+
+5. **Prefer `--env-var` in CI.** It keeps the token out of `~/.config/dart/pub-tokens.json` on ephemeral runners.
+
+6. **Audit sessions and keys.** Review `/settings/keys` and `/settings/sessions` periodically; revoke anything unfamiliar.
+
+7. **Restrict credential file permissions.** `chmod 600 ~/.config/club/credentials.json` and `~/.config/dart/pub-tokens.json`.
+
+</Steps>

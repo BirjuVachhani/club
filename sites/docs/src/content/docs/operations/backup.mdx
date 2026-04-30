@@ -1,0 +1,350 @@
+---
+title: Backup & Restore
+description: How to back up and restore club data across all storage backends, with automated backup scripts and cron examples.
+---
+
+import { Aside, Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+A first-class backup/restore feature is planned for a future release. In the meantime, back up the underlying storage directly.
+
+<Aside type="tip">
+  For the authoritative reference of every path under `/data` — what each tier holds, what can safely be deleted, and what each env var controls — see [Data Directory Layout](/reference/data-layout/).
+</Aside>
+
+The `/data` directory is structured in tiers so backups only need to cover the two primary ones:
+
+```
+/data/
+├── db/           🔒 PRIMARY — back this up
+├── blobs/        🔒 PRIMARY — back this up
+├── cache/        🟡 safe to skip — regenerates automatically
+├── logs/         🟢 observability — optional
+└── tmp/          🟢 ephemeral — never restore
+```
+
+- **`db/`** holds `club.db` plus the WAL/SHM sidecars. The SQLite source of truth: packages, versions, users, tokens, publishers, audit log, scores, download counts, settings.
+- **`blobs/`** holds package tarballs, per-version screenshots, and — when `DARTDOC_BACKEND=blob` — the indexed-blob dartdoc archives. Everything addressable via the `BlobStore` interface.
+- **`cache/`** holds regenerable content: `cache/dartdoc/` (filesystem-mode dartdoc, regenerated on next scoring run), `cache/sdks/` (Flutter/Dart SDK installs, re-downloaded on first boot), `cache/pub-cache/` (populated on demand). Skipping this from backups is fine.
+- **`logs/`** holds `scoring.log`. Back up only if you want the history.
+- **`tmp/`** holds in-flight uploads. Never restore — stale upload sessions will already have expired in the DB.
+
+A fresh container started against a restored `db/` + `blobs/` picks everything up automatically: the DB opens, tarballs and screenshots are served from disk, SDKs re-initialise on first scoring job. The admin UI surfaces a popup if any database entries point at missing tarballs after a partial restore, so you can clean up stranded records.
+
+## What to Back Up
+
+| Component | Contains | Backend Options |
+|-----------|----------|-----------------|
+| Metadata store | Packages, versions, users, tokens, publishers, audit log, scores, download counts, server settings | SQLite file (default, `/data/db/club.db`) or PostgreSQL database |
+| Blob store | `.tar.gz` package archives, screenshots, and (in blob-mode) dartdoc indexed blobs | Filesystem directory (`/data/blobs/`), S3 bucket, or GCS bucket |
+
+<Aside type="caution">
+The search index (SQLite FTS5 or Meilisearch) does not need to be backed up separately. It is rebuilt from the metadata store as packages are re-indexed. Filesystem-mode dartdoc under `/data/cache/dartdoc/` is also not worth backing up — it regenerates on the next scoring pass after publish.
+</Aside>
+
+---
+
+## Metadata Store Backup
+
+<Tabs>
+  <TabItem label="SQLite (default)">
+    SQLite's `.backup` command creates a consistent snapshot even while the server is running (thanks to WAL mode).
+
+    **Backup:**
+
+    ```bash
+    sqlite3 /data/db/club.db ".backup /backups/club-$(date +%Y%m%d).db"
+    ```
+
+    **Restore:**
+
+    <Steps>
+
+    1. Stop the club server.
+
+    2. Replace the database file:
+
+       ```bash
+       cp /backups/club-20260409.db /data/db/club.db
+       ```
+
+    3. Start the club server. No manual migration step is needed — the server reconciles its schema on startup.
+
+    </Steps>
+
+    <Aside type="tip">
+      The `.backup` command is safe to run while the server is handling requests. It uses SQLite's online backup API which holds a read lock for the duration of the copy.
+    </Aside>
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    Use `pg_dump` for logical backups or `pg_basebackup` for physical backups.
+
+    **Backup (custom format, compressed):**
+
+    ```bash
+    pg_dump -Fc -h db.example.com -U club club > /backups/club-$(date +%Y%m%d).dump
+    ```
+
+    **Restore:**
+
+    <Steps>
+
+    1. Stop the club server.
+
+    2. Drop and recreate the database:
+
+       ```bash
+       dropdb -h db.example.com -U club club
+       createdb -h db.example.com -U club club
+       ```
+
+    3. Restore the backup:
+
+       ```bash
+       pg_restore -h db.example.com -U club -d club /backups/club-20260409.dump
+       ```
+
+    4. Start the club server.
+
+    </Steps>
+  </TabItem>
+</Tabs>
+
+---
+
+## Blob Store Backup
+
+<Tabs>
+  <TabItem label="Filesystem">
+    Use `tar` for a compressed backup of the packages directory, or `rsync` for incremental backups.
+
+    **Full backup with tar:**
+
+    ```bash
+    tar -czf /backups/blobs-$(date +%Y%m%d).tar.gz -C /data blobs/
+    ```
+
+    **Incremental backup with rsync:**
+
+    ```bash
+    rsync -av --delete /data/blobs/ /backups/blobs/
+    ```
+
+    **Restore:**
+
+    ```bash
+    # From tar
+    tar -xzf /backups/blobs-20260409.tar.gz -C /data
+
+    # From rsync
+    rsync -av /backups/blobs/ /data/blobs/
+    ```
+  </TabItem>
+  <TabItem label="S3">
+    For AWS S3, MinIO, or DigitalOcean Spaces.
+
+    **Backup to local:**
+
+    ```bash
+    aws s3 sync s3://club-packages /backups/packages/
+    ```
+
+    **Backup to another bucket:**
+
+    ```bash
+    aws s3 sync s3://club-packages s3://club-packages-backup
+    ```
+
+    **Restore:**
+
+    ```bash
+    aws s3 sync /backups/packages/ s3://club-packages
+    ```
+
+    <Aside type="tip">
+      Strongly prefer native bucket features for point-in-time recovery: enable [S3 Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html) and lifecycle policies on the bucket. Explicit cron-based backups become optional once versioning is in place.
+    </Aside>
+  </TabItem>
+  <TabItem label="GCS">
+    For Google Cloud Storage.
+
+    Enable Object Versioning and lifecycle rules on the bucket for native point-in-time recovery.
+
+    **Manual backup with `gsutil`:**
+
+    ```bash
+    gsutil -m rsync -r gs://club-packages /backups/packages/
+    ```
+
+    **Restore:**
+
+    ```bash
+    gsutil -m rsync -r /backups/packages/ gs://club-packages
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Automated Backup with Cron
+
+### Full Backup Script
+
+Create a script that backs up both the metadata and blob stores:
+
+```bash
+#!/bin/bash
+# /opt/club/backup.sh
+# Full club backup script
+
+set -euo pipefail
+
+BACKUP_DIR="/backups/club"
+DATE=$(date +%Y%m%d-%H%M%S)
+RETAIN_DAYS=30
+
+mkdir -p "$BACKUP_DIR"
+
+echo "[$(date)] Starting club backup..."
+
+# -------------------------------------------------------
+# 1. Back up metadata store
+# -------------------------------------------------------
+
+# SQLite
+if [ -f /data/db/club.db ]; then
+  echo "Backing up SQLite database..."
+  sqlite3 /data/db/club.db ".backup $BACKUP_DIR/club-$DATE.db"
+  echo "SQLite backup complete: $BACKUP_DIR/club-$DATE.db"
+fi
+
+# PostgreSQL (uncomment if using postgres)
+# echo "Backing up PostgreSQL database..."
+# pg_dump -Fc -h db.example.com -U club club \
+#   > "$BACKUP_DIR/club-$DATE.dump"
+# echo "PostgreSQL backup complete."
+
+# -------------------------------------------------------
+# 2. Back up blob store
+# -------------------------------------------------------
+
+# Filesystem
+if [ -d /data/blobs ]; then
+  echo "Backing up blobs (tarballs + screenshots + blob-mode dartdoc)..."
+  tar -czf "$BACKUP_DIR/blobs-$DATE.tar.gz" -C /data blobs/
+  echo "Blob backup complete: $BACKUP_DIR/blobs-$DATE.tar.gz"
+fi
+
+# S3 (uncomment if using S3)
+# echo "Syncing S3 bucket..."
+# aws s3 sync s3://club-packages "$BACKUP_DIR/packages-$DATE/"
+# echo "S3 sync complete."
+
+# -------------------------------------------------------
+# 3. Clean up old backups
+# -------------------------------------------------------
+
+echo "Removing backups older than $RETAIN_DAYS days..."
+find "$BACKUP_DIR" -type f -mtime +"$RETAIN_DAYS" -delete
+
+echo "[$(date)] Backup complete."
+```
+
+### Cron Schedule
+
+Set up a daily backup at 2:00 AM:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line:
+0 2 * * * /opt/club/backup.sh >> /var/log/club-backup.log 2>&1
+```
+
+### Docker Backup
+
+If club runs in Docker, execute the backup script inside the container or mount the data volumes:
+
+```bash
+# Backup from outside the container using mounted volumes
+docker run --rm \
+  -v club-data:/data:ro \
+  -v /backups:/backups \
+  alpine sh -c '
+    apk add --no-cache sqlite
+    sqlite3 /data/db/club.db ".backup /backups/club-$(date +%Y%m%d).db"
+    tar -czf /backups/blobs-$(date +%Y%m%d).tar.gz -C /data blobs/
+  '
+```
+
+---
+
+## Full Restore Procedure
+
+<Steps>
+
+1. **Stop the club server.**
+
+   ```bash
+   docker compose down
+   # or: systemctl stop club
+   ```
+
+2. **Restore the metadata store.**
+
+   ```bash
+   # SQLite
+   cp /backups/club-20260409.db /data/db/club.db
+
+   # PostgreSQL
+   # pg_restore -h db.example.com -U club -d club /backups/club-20260409.dump
+   ```
+
+3. **Restore the blob store.**
+
+   ```bash
+   # Filesystem
+   tar -xzf /backups/blobs-20260409.tar.gz -C /data
+
+   # S3
+   # aws s3 sync /backups/blobs/ s3://club-packages
+   ```
+
+4. **Start the club server.**
+
+   ```bash
+   docker compose up -d
+   # or: systemctl start club
+   ```
+
+5. **Verify the restore** by checking the health endpoint and browsing packages:
+
+   ```bash
+   curl https://packages.example.com/api/v1/health
+   ```
+
+</Steps>
+
+<Aside type="caution">
+After restoring, any packages published between the backup time and the restore time will be lost. API tokens created in that window will also be lost.
+</Aside>
+
+---
+
+## Backup Verification
+
+Periodically test your backups by restoring to a temporary instance:
+
+```bash
+# Start a temporary club instance with restored data
+docker run --rm -p 9090:8080 \
+  -v /backups/club-20260409.db:/data/db/club.db \
+  -v /tmp/restore-blobs:/data/blobs \
+  -e SERVER_URL=http://localhost:9090 \
+  -e JWT_SECRET=test-secret-at-least-32-characters-long \
+  club:latest
+
+# Verify packages are accessible
+curl http://localhost:9090/api/v1/health
+curl -H "Authorization: Bearer <token>" http://localhost:9090/api/packages
+```

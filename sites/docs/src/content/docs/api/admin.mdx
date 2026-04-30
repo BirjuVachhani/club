@@ -1,0 +1,294 @@
+---
+title: Admin Endpoints
+description: Server administration - users, ownership, package/version removal, SDK management, dartdoc regeneration, and health checks.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Admin endpoints live under `/api/admin/*` and require a PAT whose user has the `admin` or `owner` role. Transfer of the `owner` role is restricted to the current owner. The health check requires no authentication.
+
+## Server Stats
+
+```http
+GET /api/admin/stats
+Authorization: Bearer club_pat_...
+```
+
+Returns server uptime, resource counts (users, packages, versions, downloads), disk usage, and information about the configured storage backends.
+
+---
+
+## User Management
+
+### List Users
+
+```http
+GET /api/admin/users?email=<filter>&page=<n>
+Authorization: Bearer club_pat_...
+```
+
+| Query | Description |
+|-------|-------------|
+| `email` | Partial/case-insensitive email match |
+| `page` | Page number (1-indexed) |
+
+### Get a User
+
+```http
+GET /api/admin/users/<userId>
+Authorization: Bearer club_pat_...
+```
+
+### Create a User
+
+```http
+POST /api/admin/users
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "newuser@example.com",
+  "displayName": "New User",
+  "role": "member",
+  "mode": "invite",
+  "expiresInHours": 72
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | yes | Login email (must be unique) |
+| `displayName` | string | yes | Human-readable name |
+| `role` | string | yes | `admin`, `member`, or `viewer` (legacy `editor` also accepted; normalised to `member`) |
+| `mode` | string | yes | `password` generates a one-time password; `invite` issues an invite URL |
+| `expiresInHours` | integer | no | Only used for `invite` mode |
+
+**Response: `201 Created`** — returns the user plus either `generatedPassword` (for `password` mode) or `inviteUrl` (for `invite` mode).
+
+### Update a User
+
+```http
+PUT /api/admin/users/<userId>
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "role": "admin",
+  "displayName": "Jane D.",
+  "isActive": false
+}
+```
+
+All fields are optional; only included fields are changed. Deactivating a user disables their sessions and PATs immediately.
+
+### Delete a User
+
+```http
+DELETE /api/admin/users/<userId>
+Authorization: Bearer club_pat_...
+```
+
+### Reset a User's Password
+
+```http
+POST /api/admin/users/<userId>/reset-password
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{ "password": "optional-new-password" }
+```
+
+If `password` is omitted, the server generates one and returns it in the response. All existing sessions for the user are revoked.
+
+---
+
+## Ownership Transfer
+
+```http
+POST /api/admin/transfer-ownership
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{ "email": "new-owner@example.com" }
+```
+
+**Only the current owner can call this.** The target user becomes the new `owner`; the previous owner is demoted to `admin`.
+
+---
+
+## Package Removal
+
+### Delete a Package
+
+```http
+DELETE /api/admin/packages/<package>
+Authorization: Bearer club_pat_...
+```
+
+Removes the package and every version, including blob storage and the search index.
+
+### Delete a Version
+
+```http
+DELETE /api/admin/packages/<package>/versions/<version>
+Authorization: Bearer club_pat_...
+```
+
+Removes a single version and its tarball.
+
+<Aside type="danger">
+  Both operations are permanent and will break any lockfile that pinned the deleted version. Prefer retracting or discontinuing when possible.
+</Aside>
+
+---
+
+## Scoring Control
+
+### Re-queue Pana Analysis
+
+```http
+POST /api/admin/packages/<package>/versions/<version>/rescore
+Authorization: Bearer club_pat_...
+```
+
+Queues the version for a fresh pana run. **Response: `200 OK`**.
+
+### Score Any Unscored Versions
+
+```http
+POST /api/admin/sdk/score-remaining
+Authorization: Bearer club_pat_...
+```
+
+Kicks off scoring for every package version that is missing a report.
+
+### Scoring Logs
+
+```http
+GET    /api/admin/sdk/scoring-logs
+DELETE /api/admin/sdk/scoring-logs
+```
+
+`GET` returns recent scoring job logs. `DELETE` clears them.
+
+---
+
+## SDK Management
+
+club bundles a pana-capable Dart/Flutter SDK and lets admins manage which version is used.
+
+### Discover Releases
+
+```http
+GET /api/admin/sdk/releases?channel=<stable|beta|dev>
+Authorization: Bearer club_pat_...
+```
+
+Lists available Dart/Flutter SDK releases for a channel.
+
+### Installed SDKs
+
+```http
+GET  /api/admin/sdk/installs
+POST /api/admin/sdk/installs
+```
+
+`POST` installs a new SDK:
+
+```json
+{ "version": "3.4.0", "channel": "stable" }
+```
+
+### Install Progress
+
+```http
+GET /api/admin/sdk/installs/<id>/progress
+Authorization: Bearer club_pat_...
+```
+
+Returns the current download/extract progress for an install.
+
+### Set Default / Rebuild / Remove
+
+```http
+POST   /api/admin/sdk/installs/<id>/set-default
+POST   /api/admin/sdk/installs/<id>/rebuild
+DELETE /api/admin/sdk/installs/<id>
+```
+
+### SDK Settings
+
+```http
+GET /api/admin/sdk/settings
+PUT /api/admin/sdk/settings
+```
+
+Read or update global SDK scoring configuration.
+
+### Platform Info
+
+```http
+GET /api/admin/sdk/platform
+Authorization: Bearer club_pat_...
+```
+
+Returns the server's detected OS/architecture so the UI can pick the right SDK builds.
+
+---
+
+## Dartdoc
+
+### Regenerate Documentation
+
+```http
+POST /api/admin/packages/<package>/regenerate-docs
+Authorization: Bearer club_pat_...
+```
+
+Queues dartdoc regeneration for the package's latest version.
+
+---
+
+## Health Check
+
+```http
+GET /api/v1/health
+```
+
+**No authentication required.** Use for load-balancer and uptime monitoring.
+
+**Response: `200 OK`** (healthy) or **`503 Service Unavailable`** (degraded):
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "metadata_store": { "status": "ok", "latencyMs": 2 },
+    "blob_store":     { "status": "ok", "latencyMs": 5 },
+    "search_index":   { "status": "ok", "latencyMs": 1 }
+  },
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T10:00:00.000Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `status` | `ok` or `degraded` |
+| `checks.*.status` | `ok` or `error` |
+| `checks.*.latencyMs` | Probe latency when healthy |
+| `checks.*.message` | Error detail when unhealthy |
+| `version` | Server version |
+| `timestamp` | ISO 8601 check time |
+
+<Aside type="tip">
+  Use the per-component `checks` object to identify which backend is degraded.
+</Aside>

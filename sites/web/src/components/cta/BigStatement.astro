@@ -1,0 +1,79 @@
+---
+// CTA variant D — "Big statement"
+// Maximum restraint. An oversized typographic statement is the entire
+// section; everything else is supporting. One primary CTA. Feels like
+// the closing frame of a confident product pitch.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <div class="wrap">
+    <div class="rail mono"><span>— Closing frame —</span><span>2026</span></div>
+    <h1 class="display">
+      Your private <em>pub</em>.<br/>
+      <span class="accent">Today.</span>
+    </h1>
+
+    <div class="act">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary lg">
+        Read the quick start
+        <span class="btn-arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="ghost-link mono">GitHub ↗</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    padding: 8rem 0 9rem;
+    background: var(--color-bg); border-top: 3px solid var(--color-ink);
+    position: relative;
+  }
+  .cta::before {
+    content: ""; position: absolute; top: 3px; left: 0; right: 0; height: 1px;
+    background: var(--color-stamp);
+  }
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 0 2rem; text-align: center; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .rail {
+    display: flex; justify-content: space-between; gap: 1rem;
+    font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+    max-width: 68rem; margin: 0 auto;
+  }
+
+  .display {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(3.5rem, 10vw, 8.5rem);
+    letter-spacing: -0.05em; line-height: 0.95;
+    margin: 3rem auto 0;
+    color: var(--color-ink); max-width: 12ch;
+  }
+  .display em {
+    font-style: italic; font-weight: 560;
+    color: var(--color-ink);
+  }
+  .accent { color: var(--color-stamp); }
+
+  .act {
+    margin-top: 3.5rem;
+    display: flex; flex-wrap: wrap; gap: 1.25rem; justify-content: center; align-items: center;
+  }
+  .btn.lg {
+    font-size: 1rem; padding: 0.9em 1.5em;
+  }
+  .ghost-link {
+    color: var(--color-mute); font-size: 0.85rem;
+    letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+    padding: 0.5rem 0; position: relative;
+  }
+  .ghost-link:hover { color: var(--color-ink); }
+  .ghost-link::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0.35rem;
+    height: 1px; background: currentColor; opacity: 0.35;
+  }
+
+  .mono { font-family: var(--font-mono); }
+</style>

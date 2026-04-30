@@ -1,0 +1,292 @@
+---
+title: Monitoring
+description: Health endpoint usage, integration with monitoring tools, log inspection, and disk usage tracking for club.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+club exposes a single health-check endpoint and writes plain text logs to stdout. It does **not** expose a Prometheus metrics endpoint, and its logs are not structured JSON. Monitoring is built around the health endpoint, external uptime probes, and standard container/system logging.
+
+## Health Endpoint
+
+```http
+GET /api/v1/health
+```
+
+**No authentication required.** This endpoint is designed for load balancers, uptime monitors, and orchestration health checks.
+
+### Response: Healthy (200 OK)
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "metadata_store": { "status": "ok", "latencyMs": 2 },
+    "blob_store": { "status": "ok", "latencyMs": 5 },
+    "search_index": { "status": "ok", "latencyMs": 1 }
+  },
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T10:00:00.000Z"
+}
+```
+
+### Response: Degraded (503 Service Unavailable)
+
+```json
+{
+  "status": "degraded",
+  "checks": {
+    "metadata_store": { "status": "ok", "latencyMs": 2 },
+    "blob_store": { "status": "error", "message": "disk full" },
+    "search_index": { "status": "ok", "latencyMs": 1 }
+  },
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T10:00:00.000Z"
+}
+```
+
+### Status Codes
+
+| HTTP Status | `status` Field | Meaning |
+|-------------|----------------|---------|
+| 200 | `ok` | All components are healthy |
+| 503 | `degraded` | At least one component has an error |
+
+### Component Checks
+
+The health endpoint tests each storage layer by performing a lightweight operation:
+
+| Component | Check Performed |
+|-----------|----------------|
+| `metadata_store` | Executes a simple query |
+| `blob_store` | Lists files/objects in the root path |
+| `search_index` | Verifies the index is ready and queryable |
+
+<Aside type="note">
+There is **no `/metrics` endpoint** — club does not expose Prometheus metrics. If you need metrics, scrape the health endpoint with Blackbox Exporter or derive signals from logs.
+</Aside>
+
+---
+
+## Integration with Monitoring Tools
+
+### Load Balancer Health Check
+
+Configure your load balancer to poll the health endpoint:
+
+<Tabs>
+  <TabItem label="Docker healthcheck">
+    ```yaml
+    # docker-compose.yml
+    services:
+      club:
+        image: club:latest
+        healthcheck:
+          test: ["CMD", "curl", "-sf", "http://localhost:8080/api/v1/health"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 10s
+    ```
+  </TabItem>
+  <TabItem label="Caddy">
+    Caddy performs passive health checks by default. For active checks:
+
+    ```
+    # Caddyfile
+    packages.example.com {
+        reverse_proxy club:8080 {
+            health_uri /api/v1/health
+            health_interval 30s
+            health_timeout 5s
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="nginx">
+    ```nginx
+    upstream club {
+        server 127.0.0.1:8080;
+    }
+
+    # Requires nginx_upstream_check_module or nginx-plus
+    # For open source nginx, use external tools like keepalived
+    ```
+  </TabItem>
+</Tabs>
+
+### Uptime Monitoring
+
+Use external monitoring services to check the health endpoint:
+
+```bash
+# UptimeRobot, Better Stack, Pingdom, etc.
+# URL: https://packages.example.com/api/v1/health
+# Method: GET
+# Expected status: 200
+# Check interval: 60 seconds
+```
+
+### Prometheus via Blackbox Exporter
+
+Because club has no native `/metrics` endpoint, the common pattern is to use [Blackbox Exporter](https://github.com/prometheus/blackbox_exporter) to probe the health endpoint and report up/down + latency as a metric:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: club
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://packages.example.com/api/v1/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+```
+
+### Simple Monitoring Script
+
+A lightweight monitoring script you can run via cron:
+
+```bash
+#!/bin/bash
+# /opt/club/check-health.sh
+
+HEALTH_URL="https://packages.example.com/api/v1/health"
+ALERT_EMAIL="ops@example.com"
+
+HTTP_CODE=$(curl -sf -o /tmp/club-health.json -w "%{http_code}" "$HEALTH_URL")
+
+if [ "$HTTP_CODE" != "200" ]; then
+  BODY=$(cat /tmp/club-health.json 2>/dev/null || echo "No response")
+  echo "club health check failed (HTTP $HTTP_CODE): $BODY" \
+    | mail -s "ALERT: club health check failed" "$ALERT_EMAIL"
+fi
+```
+
+```bash
+# Check every 5 minutes
+*/5 * * * * /opt/club/check-health.sh
+```
+
+---
+
+## Log Monitoring
+
+club writes plain-text log lines to stdout. A simple request-logger middleware records one line per HTTP request containing method, path, status code, and duration. There is no structured JSON logging.
+
+In Docker, logs are captured by the container runtime and accessible via `docker logs`.
+
+### Viewing Logs
+
+```bash
+# Docker
+docker logs club --tail 100 -f
+
+# Docker Compose
+docker compose logs club --tail 100 -f
+
+# systemd
+journalctl -u club -f
+```
+
+### Log Levels
+
+Set verbosity via `LOG_LEVEL`:
+
+```bash
+LOG_LEVEL=info    # Default, recommended for production
+LOG_LEVEL=debug   # Verbose, for troubleshooting
+```
+
+| Level | What It Includes |
+|-------|-----------------|
+| `error` | Unhandled exceptions, failed health checks, storage errors |
+| `warning` | Rate limits hit, expired sessions, validation failures |
+| `info` | Requests, publishes, user logins, startup/shutdown |
+| `debug` | SQL queries, HTTP headers, config loading details |
+
+### Key Log Events to Watch
+
+| Event | What It Means |
+|-------|--------------|
+| `Server started on 0.0.0.0:8080` | Successful startup |
+| `Published my_package version 2.1.0` | Package published successfully |
+| `Authentication failed for token club_pat_...` | Invalid or expired token used |
+| `Upload rejected: Version 2.1.0 already exists` | Duplicate publish attempt |
+| `Health check failed: blob_store error` | Storage backend issue |
+
+### Log Aggregation
+
+For production, forward logs to a centralized logging system. Because logs are plain text, use a shipper that can cope with unstructured lines (Promtail, Fluentd, Vector) or parse request-logger lines into fields at ingest time.
+
+```yaml
+# docker-compose.yml with logging driver
+services:
+  club:
+    image: club:latest
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+---
+
+## Disk Usage Monitoring
+
+See [Data Directory Layout](/reference/data-layout/) for the full `/data` tree and tier semantics. The table below summarises per-component growth expectations.
+
+### What Uses Disk Space
+
+| Component | Location | Growth Pattern |
+|-----------|----------|----------------|
+| SQLite database | `/data/db/club.db` | Grows with packages, versions, users, audit log, download counts |
+| SQLite WAL file | `/data/db/club.db-wal` | Temporary, checkpointed periodically |
+| Package tarballs + screenshots | `/data/blobs/` | Grows with each published version |
+| Blob-mode dartdoc | `/data/blobs/<pkg>/dartdoc/latest/` | One indexed-blob pair per package (~5–30 MB/pkg). Only when `DARTDOC_BACKEND=blob`. |
+| Filesystem-mode dartdoc | `/data/cache/dartdoc/` | Rendered HTML tree (~20–100 MB/pkg). Only when `DARTDOC_BACKEND=filesystem`. |
+| Flutter/Dart SDKs | `/data/cache/sdks/` | Each installed SDK is ~1–3 GB |
+| Pana pub-cache | `/data/cache/pub-cache/` | Grows with scoring jobs; bounded by the union of all scored packages' deps |
+| Scoring log | `/data/logs/scoring.log` | Slow-growing; rotate manually if needed |
+| Temp uploads | `/data/tmp/uploads/` | Temporary, cleaned up after finalization |
+
+### Monitoring Script
+
+```bash
+#!/bin/bash
+# /opt/club/check-disk.sh
+
+THRESHOLD_PERCENT=85
+DATA_DIR="/data"
+
+USAGE=$(df "$DATA_DIR" | tail -1 | awk '{print $5}' | tr -d '%')
+
+if [ "$USAGE" -gt "$THRESHOLD_PERCENT" ]; then
+  echo "ALERT: club data disk at ${USAGE}% usage (threshold: ${THRESHOLD_PERCENT}%)"
+  echo ""
+  echo "Disk usage breakdown:"
+  du -sh "$DATA_DIR"/* 2>/dev/null | sort -rh
+fi
+```
+
+### Docker Volume Monitoring
+
+```bash
+# Check Docker volume size
+docker system df -v | grep club
+
+# Check data directory inside container
+docker exec club du -sh /data/*
+```
+
+<Aside type="tip">
+Set up alerts for disk usage above 80%. Package archives are the largest consumers of disk space. If you are running low on disk, consider switching to S3 or GCS blob storage.
+</Aside>

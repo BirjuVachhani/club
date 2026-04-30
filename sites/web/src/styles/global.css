@@ -1,0 +1,354 @@
+@import "tailwindcss";
+
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/fira-code";
+
+@theme {
+  /* ── Brand palette — mirrors packages/club_web/src/app.css ── */
+  --color-bg:            #FFFFFF;
+  --color-ink:           #141517;      /* foreground on light */
+  --color-ink-dark:      #050505;      /* bg on dark sections */
+  --color-ink-dark-raise:#0E0E10;      /* elevated dark surfaces */
+  --color-paper-mute:    #F7F8FA;      /* light muted band */
+  --color-paper-mute-2:  #EAECF0;      /* heavier light band */
+  --color-border:        #E0E2E7;      /* brand border */
+  --color-border-dark:   #252525;      /* brand dark-mode border */
+  --color-mute:          #64748B;      /* brand muted-foreground */
+  --color-mute-dark:     #9A9AA1;      /* brand dark muted */
+
+  --color-stamp:         #FF4F18;      /* brand primary */
+  --color-stamp-hover:   #CC3600;      /* brand link-hover */
+  --color-stamp-soft:    #FFF0EB;      /* brand accent (light) */
+  --color-stamp-tint:    #FFE4DA;
+
+  /* Typography — brand uses Inter Variable + Fira Code Variable */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code Variable", "Fira Code", ui-monospace, monospace;
+
+  /* Restrained type scale — no more mega display */
+  --text-hero:    clamp(2.25rem, 4.5vw + 0.5rem, 4rem);
+  --text-h2:      clamp(1.75rem, 2.5vw + 0.75rem, 2.75rem);
+  --text-h3:      clamp(1.15rem, 0.8vw + 0.9rem, 1.4rem);
+  --text-body:    1rem;
+  --text-small:   0.875rem;
+  --text-micro:   0.75rem;
+
+  /* Motion — shared easing curves. Never use bounce/elastic: feels dated. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-press:     cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ── Base ── */
+html {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-stamp);
+  color: #fff;
+}
+
+/* ── Typographic primitives — all Inter, all brand ── */
+.h1,
+.h2,
+.h3 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.022em;   /* matches brand --pub-heading */
+  font-weight: 640;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.h1 { font-size: var(--text-hero); letter-spacing: -0.028em; font-weight: 680; }
+.h2 { font-size: var(--text-h2); }
+.h3 { font-size: var(--text-h3); letter-spacing: -0.015em; font-weight: 600; line-height: 1.25; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.prose-body {
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--color-mute);
+}
+
+/* Terminal / code block */
+.terminal {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  font-variation-settings: "wght" 420;
+}
+
+/* Marquee keyframes */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  gap: 2.5rem;
+  width: max-content;
+  animation: marquee 70s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* Chip / badge — brand-style pill */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.4em 0.85em 0.4em 0.7em;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-stamp) 12%, transparent);
+  color: var(--color-stamp);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid color-mix(in oklab, var(--color-stamp) 28%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--color-stamp) 6%, transparent),
+    0 8px 22px -10px color-mix(in oklab, var(--color-stamp) 35%, transparent);
+}
+
+.chip-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  background: var(--color-stamp);
+  border-radius: 999px;
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-stamp) 60%, transparent);
+  animation: chip-pulse 2.4s cubic-bezier(.4,0,.6,1) infinite;
+}
+
+@keyframes chip-pulse {
+  0%   { box-shadow: 0 0 0 0   color-mix(in oklab, var(--color-stamp) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-stamp) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0   color-mix(in oklab, var(--color-stamp) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-dot { animation: none; }
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-stamp);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Inline reference links to ecosystem sites — visually identifiable as links */
+a[href*="dart.dev"],
+a[href*="flutter.dev"],
+a[href*="pub.dev"] {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+  transition: color 150ms ease, text-decoration-color 150ms ease;
+}
+a[href*="dart.dev"]:hover,
+a[href*="flutter.dev"]:hover,
+a[href*="pub.dev"]:hover {
+  color: var(--color-stamp);
+  text-decoration-color: var(--color-stamp);
+}
+
+/* Buttons — brand-style rounded pills, not sharp stamps */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.65em 1.15em;
+  min-height: 2.5rem;               /* keeps proportion on desktop */
+  border-radius: 0.625rem;
+  border: 1px solid transparent;
+  transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+  white-space: nowrap;
+  letter-spacing: -0.005em;
+}
+
+/* Touch-first sizing on mobile — ensure ≥44px tap target */
+@media (max-width: 768px) {
+  .btn {
+    min-height: 2.75rem;
+    padding: 0.75em 1.25em;
+    font-size: 0.9rem;
+  }
+}
+
+.btn-primary {
+  background: var(--color-stamp);
+  color: #fff;
+  border-color: var(--color-stamp);
+}
+.btn-primary:hover {
+  background: var(--color-stamp-hover);
+  border-color: var(--color-stamp-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: inherit;
+  border-color: color-mix(in oklab, currentColor 22%, transparent);
+}
+.btn-ghost:hover {
+  border-color: currentColor;
+  background: color-mix(in oklab, currentColor 4%, transparent);
+}
+
+.btn-arrow {
+  transition: transform 220ms var(--ease-press);
+}
+.btn:hover .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* Primary button: magnetic lift + subtle glow + press feedback */
+.btn-primary {
+  position: relative;
+  will-change: transform;
+  transition:
+    background 150ms ease-out,
+    border-color 150ms ease-out,
+    transform 240ms var(--ease-out-quart),
+    box-shadow 240ms var(--ease-out-quart);
+}
+.btn-primary:hover {
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 10px 24px -10px color-mix(in oklab, var(--color-stamp) 55%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--color-stamp) 14%, transparent);
+}
+.btn-primary:active {
+  transform: translateY(0) scale(0.97);
+  transition-duration: 80ms;
+}
+
+/* Ghost button: subtle press feedback */
+.btn-ghost {
+  transition:
+    background 150ms ease-out,
+    border-color 150ms ease-out,
+    color 150ms ease-out,
+    transform 240ms var(--ease-out-quart);
+}
+.btn-ghost:hover { transform: translateY(-1px); }
+.btn-ghost:active { transform: translateY(0) scale(0.97); transition-duration: 80ms; }
+
+/* ─────────────────────────────────────────────────────────────────
+   Scroll-reveal system
+   Any element with [data-reveal] starts hidden + slightly shifted.
+   When Base.astro's IntersectionObserver adds .is-visible it settles in.
+   Stagger children by setting [data-reveal-delay] (milliseconds) or
+   wrap a parent with [data-reveal-children] — children auto-stagger.
+   ───────────────────────────────────────────────────────────────── */
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 700ms var(--ease-out-quart),
+    transform 700ms var(--ease-out-quart);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: transform, opacity;
+}
+[data-reveal="fade"]   { transform: none; }
+[data-reveal="left"]   { transform: translate3d(-18px, 0, 0); }
+[data-reveal="right"]  { transform: translate3d( 18px, 0, 0); }
+[data-reveal="zoom"]   { transform: scale(0.94); }
+[data-reveal="drop"]   { transform: translate3d(0, -24px, 0); }
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Auto-stagger children of [data-reveal-children] */
+[data-reveal-children] > * {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+  transition:
+    opacity 650ms var(--ease-out-quart),
+    transform 650ms var(--ease-out-quart);
+  transition-delay: calc(var(--reveal-index, 0) * 70ms);
+  will-change: transform, opacity;
+}
+[data-reveal-children].is-visible > * {
+  opacity: 1;
+  transform: none;
+}
+
+/* Entrance-on-load helpers (hero). Compose with [data-enter] + inline delay. */
+[data-enter] {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0);
+  animation: enter 780ms var(--ease-out-quint) forwards;
+  animation-delay: var(--enter-delay, 0ms);
+  will-change: transform, opacity;
+}
+[data-enter="down"] { transform: translate3d(0, -18px, 0); }
+[data-enter="zoom"] { transform: scale(0.92); }
+@keyframes enter {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes enter-down {
+  from { opacity: 0; transform: translate3d(0, -18px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes enter-zoom {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+[data-enter="down"] { animation-name: enter-down; }
+[data-enter="zoom"] { animation-name: enter-zoom; }
+
+/* Respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal-children] > *,
+  [data-enter] {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .btn-primary:hover,
+  .btn-primary:active,
+  .btn-ghost:hover,
+  .btn-ghost:active { transform: none; }
+}

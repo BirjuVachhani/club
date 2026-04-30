@@ -1,0 +1,159 @@
+---
+// FAQ — Variant F · Terminal/CLI feel
+// Compact, dense, monospaced. Reads like piped help output:
+// `club faq --all`. For a developer audience that values density.
+import { FAQS } from "../../lib/landing-copy";
+---
+
+<section id="faq" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="eyebrow orange">§ FAQ</div>
+      <h2 class="h2">A developer-grade FAQ. <br class="md-only" />Read top to bottom.</h2>
+      <p class="lede">
+        No accordions, no scroll-tricks. Every answer is open, formatted
+        like the help text you already read all day.
+      </p>
+    </header>
+
+    <div class="terminal">
+      <div class="t-bar">
+        <div class="t-dots">
+          <span class="t-dot r"></span>
+          <span class="t-dot y"></span>
+          <span class="t-dot g"></span>
+        </div>
+        <div class="t-title">~/club &mdash; faq.txt</div>
+        <div class="t-meta">{FAQS.length} entries</div>
+      </div>
+
+      <div class="t-body">
+        <pre class="t-cmd"><span class="prompt">$</span> club faq --all <span class="dim">|</span> less</pre>
+
+        {FAQS.map((f, i) => (
+          <div class="entry">
+            <div class="line q-line">
+              <span class="addr">[{String(i + 1).padStart(2, "0")}]</span>
+              <span class="q-mark">Q&nbsp;&gt;</span>
+              <span class="q-text">{f.q}</span>
+            </div>
+            <div class="line a-line">
+              <span class="addr">&nbsp;</span>
+              <span class="a-mark">A&nbsp;&gt;</span>
+              <span class="a-text">{f.a}</span>
+            </div>
+          </div>
+        ))}
+
+        <div class="t-end">
+          <span class="prompt">$</span>
+          <span class="cursor"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 80rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 4.5rem 0; } }
+
+  .md-only { display: none; }
+  @media (min-width: 768px) { .md-only { display: inline; } }
+
+  .head { max-width: 50rem; margin-bottom: 3rem; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 1rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 1rem; line-height: 1.6; color: var(--color-mute);
+    margin: 1.25rem 0 0; max-width: 36rem;
+  }
+
+  .terminal {
+    background: #0E0E10; color: #EDEDED;
+    border: 1px solid var(--color-border-dark);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 30px 80px -40px rgba(0,0,0,0.5);
+  }
+
+  .t-bar {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: #18181B;
+    border-bottom: 1px solid var(--color-border-dark);
+  }
+  .t-dots { display: flex; gap: 0.4rem; }
+  .t-dot { width: 11px; height: 11px; border-radius: 999px; opacity: 0.85; }
+  .t-dot.r { background: #FF5F57; }
+  .t-dot.y { background: #FEBC2E; }
+  .t-dot.g { background: #28C840; }
+  .t-title {
+    flex: 1; text-align: center;
+    font-family: var(--font-mono); font-size: 0.75rem;
+    color: var(--color-mute-dark);
+    letter-spacing: 0.06em;
+  }
+  .t-meta {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-stamp);
+  }
+
+  .t-body {
+    padding: 1.5rem 1.5rem 2rem;
+    font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.7;
+  }
+  @media (max-width: 600px) { .t-body { padding: 1.25rem; font-size: 0.78rem; } }
+
+  .t-cmd {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-mono); font-size: 0.85rem;
+    color: #EDEDED;
+  }
+  .prompt { color: var(--color-stamp); margin-right: 0.5rem; }
+  .dim { color: var(--color-mute-dark); }
+
+  .entry {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px dashed color-mix(in oklab, #EDEDED 12%, transparent);
+  }
+  .entry:last-of-type { border-bottom: 0; }
+
+  .line {
+    display: grid; grid-template-columns: 4ch 4ch 1fr; gap: 0.5rem;
+    align-items: start;
+  }
+  .addr { color: var(--color-mute-dark); font-size: 0.78rem; }
+  .q-mark { color: var(--color-stamp); font-weight: 700; }
+  .a-mark { color: #28C840; font-weight: 700; }
+  .q-text { color: #EDEDED; font-weight: 600; word-wrap: break-word; }
+  .a-text {
+    color: var(--color-mute-dark); word-wrap: break-word;
+    font-family: var(--font-sans); font-size: 0.94rem; line-height: 1.6;
+  }
+
+  .t-end {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .cursor {
+    display: inline-block; width: 9px; height: 1.1rem;
+    background: var(--color-stamp);
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>

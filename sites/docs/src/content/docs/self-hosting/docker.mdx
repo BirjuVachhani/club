@@ -1,0 +1,439 @@
+---
+title: Docker Deployment
+description: Complete guide to deploying club with Docker, including docker-compose configuration, volumes, health checks, and day-to-day operations.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Docker is the recommended way to deploy club. The image bundles the AOT-compiled Dart server and the pre-built SvelteKit frontend into a single container with no external dependencies.
+
+## Image Details
+
+| Property | Value |
+|----------|-------|
+| Build stages | 3 (Dart AOT, Node static, Debian runtime) |
+| Runtime base | `debian:bookworm-slim` |
+| Final image size | ~80 MB |
+| Runtime user | `club` (UID 1000) |
+| Exposed port | 8080 |
+| Data volume | `/data` |
+| Entrypoint | `/app/bin/server` (AOT-compiled Dart binary) |
+| Health check | TCP `GET /api/v1/health` on port 8080 |
+
+No Dart SDK or Node.js runtime is included in the final image. The Dart server is an AOT-compiled native binary. The SvelteKit frontend is pre-built static HTML/JS/CSS.
+
+The runtime image also ships `git`, `curl`, and `unzip` — required by the built-in Flutter SDK installer used for pana scoring. SDK caches live under `/data/cache/sdks` and `/data/cache/pub-cache`, so they persist on the `/data` volume.
+
+## docker-compose.yml
+
+Create `/opt/club/docker-compose.yml`:
+
+```yaml
+version: "3.9"
+
+services:
+  club:
+    image: ghcr.io/birjuvachhani/club:latest
+    # Or build from source:
+    # build:
+    #   context: .
+    #   dockerfile: docker/Dockerfile
+    container_name: club
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file: .env
+    volumes:
+      - club_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  club_data:
+    # Explicit volume name — stable regardless of the working directory
+    # you run compose from. This is what keeps your data safe across
+    # `docker compose up -d --build` cycles.
+    name: club_data
+    driver: local
+
+# Pin the compose project name. Without this, compose prefixes the volume
+# with the directory name, and moving the repo would orphan your data.
+name: club
+```
+
+### Field-by-field explanation
+
+| Field | Purpose |
+|-------|---------|
+| `image` | Pre-built image from the container registry. Comment out if using `build`. |
+| `container_name` | Fixed name for easy reference in commands (`docker logs club`). |
+| `restart: unless-stopped` | Restarts on crash or reboot, but not if you explicitly stop it. |
+| `ports: "127.0.0.1:8080:8080"` | Binds port 8080 to localhost only. Traffic should come through a reverse proxy. |
+| `env_file: .env` | Loads configuration from the `.env` file in the same directory. |
+| `volumes: club_data:/data` | Named volume for persistent storage (SQLite database + package tarballs). |
+| `healthcheck` | Docker monitors the health endpoint and marks the container as unhealthy if it fails 3 times. |
+| `start_period: 10s` | Gives the server 10 seconds to start before health checks begin. |
+
+## .env Configuration
+
+Create `/opt/club/.env`:
+
+```bash
+# Required
+SERVER_URL=https://packages.example.com
+JWT_SECRET=<output of: openssl rand -hex 32>
+
+# Recommended when behind a reverse proxy (Caddy / nginx / Traefik)
+TRUST_PROXY=true
+
+# Optional overrides
+# PORT=10234              # Host-side port for docker-compose (NOT the internal listen port)
+# LISTEN_PORT=8080        # Internal listen port inside the container
+# LOG_LEVEL=info
+# MAX_UPLOAD_BYTES=104857600
+```
+
+Generate the JWT secret:
+
+```bash
+echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+```
+
+<Aside type="danger">
+  The JWT secret must be at least 32 characters. If you lose it or change it, all existing sessions and tokens become invalid. Back it up securely.
+</Aside>
+
+<Aside type="note">
+  In docker-compose, `PORT` is used to configure the **host-side** port in `ports:` mappings. The server's internal listen port is `LISTEN_PORT` (default `8080`). This split avoids a name collision that would otherwise force you to pick between the two.
+</Aside>
+
+## First-boot admin setup
+
+club does **not** read `ADMIN_EMAIL` / `ADMIN_PASSWORD` environment variables. Instead, on first boot — before any user exists — the server prints a one-time **setup code** to the logs and exposes a web wizard at `/setup`.
+
+1. Start the container: `docker compose up -d`
+2. Watch the logs for the setup code:
+
+   ```bash
+   docker compose logs club | grep -i 'setup code'
+   ```
+
+   You'll see something like:
+
+   ```
+   [INFO] Setup code: XXXX-XXXX-XXXX-XXXX
+   [INFO] Finish setup at: https://packages.example.com/setup
+   ```
+3. Open the URL in your browser, paste the code, and create the admin account (email + password).
+4. Once the admin exists, the wizard closes and the code is no longer valid.
+
+<Aside type="tip">
+  If you miss the log line, tail the logs again — the code is re-emitted on each restart until setup completes.
+</Aside>
+
+## Data persistence
+
+<Aside type="tip" title="Your data is safe across rebuilds">
+Rebuilding the image with `docker compose up -d --build` **will not**
+touch the `club_data` volume. Your SQLite database, published tarballs,
+user accounts, and tokens all survive rebuilds, restarts, image version
+upgrades, and `docker compose down`.
+
+The **only** commands that delete data are `docker volume rm club_data`
+or `docker compose down -v`.
+</Aside>
+
+The `/data` volume inside the container holds all persistent state, grouped by durability class so backups only need to cover the "primary" tiers. For the authoritative spec — every path, env-var override, and tier semantic — see [Data Directory Layout](/reference/data-layout/).
+
+```
+/data/
+├── db/                  # 🔒 Primary state — back up regularly
+│   ├── club.db          #    SQLite database (metadata, users, tokens, etc.)
+│   └── club.db-wal      #    WAL + SHM are auto-managed by SQLite
+├── blobs/               # 🔒 Primary state — back up regularly
+│   └── <pkg>/
+│       ├── <version>/
+│       │   ├── artifacts/
+│       │   │   └── package.tar.gz    # the tarball
+│       │   └── screenshots/          # per-version image assets
+│       │       └── 0
+│       └── dartdoc/latest/           # only present with DARTDOC_BACKEND=blob
+│           ├── blob
+│           └── index.json
+├── cache/               # 🟡 Safe to wipe — fully regenerable
+│   ├── dartdoc/         #    Rendered dartdoc trees (DARTDOC_BACKEND=filesystem)
+│   ├── sdks/            #    Flutter/Dart SDK installs (SDK_BASE_DIR)
+│   └── pub-cache/       #    Pana's PUB_CACHE
+├── logs/                # 🟢 Observability
+│   └── scoring.log      #    pana analysis log
+└── tmp/                 # 🟢 Ephemeral — in-flight uploads (TEMP_DIR)
+    └── uploads/
+```
+
+The `🔒` tiers (`db/`, `blobs/`) are all you need to back up. The `🟡` cache is re-derivable on next boot — for `dartdoc`, on the next scoring run per package; for SDKs/pub-cache, automatically. The `🟢` tiers hold only observability or in-flight data.
+
+### Why the volume has an explicit `name:`
+
+The `docker-compose.yml` file declares:
+
+```yaml
+volumes:
+  club_data:
+    name: club_data       # ← explicit, stable identity
+    driver: local
+
+name: club                # ← pin the compose project name
+```
+
+Both lines are critical for your data surviving rebuilds:
+
+- Without `name: club_data` under the volume, Docker Compose prefixes
+  the name with the project — e.g. `docker_club_data` if you run
+  compose from `/docker/`, or `club_club_data` from `/club/`. Moving
+  the repo or renaming the directory would silently orphan your data
+  (still on disk, but not mounted).
+- Without the top-level `name: club`, the compose project name defaults
+  to the current directory name, amplifying the same problem.
+
+With both set, the volume is always `club_data` no matter where you run
+compose from.
+
+### What does and does not delete data
+
+| Command | Volume deleted? |
+|---------|------------------|
+| `docker compose up -d` | No |
+| `docker compose up -d --build` | No |
+| `docker compose up -d --force-recreate` | No |
+| `docker compose restart` | No |
+| `docker compose stop` | No |
+| `docker compose down` | No |
+| `docker compose down --rmi all` | No (image removed, volume kept) |
+| **`docker compose down -v`** | **Yes — all data lost** |
+| **`docker volume rm club_data`** | **Yes — all data lost** |
+| **`make clean`** | **Yes — prompts first, then deletes** |
+
+### Verifying your data is persisted
+
+```bash
+# Confirm the volume exists and its mountpoint on disk
+docker volume inspect club_data
+
+# See what is inside
+docker exec club ls -la /data/
+docker exec club du -sh /data/
+```
+
+Before a major change, you can always take a quick snapshot — see the
+[Backups](#backups) section below.
+
+### Using a bind mount
+
+If you prefer to store data in a specific host directory instead of a Docker named volume:
+
+```yaml
+volumes:
+  - /var/lib/club:/data
+```
+
+Make sure the directory is owned by UID 1000 (the `club` user inside the container):
+
+```bash
+sudo mkdir -p /var/lib/club
+sudo chown 1000:1000 /var/lib/club
+```
+
+## Health Checks
+
+The built-in Docker health check issues a raw TCP `GET /api/v1/health` against `localhost:8080` inside the container — no `curl` or `wget` dependency — and marks the container unhealthy if the endpoint fails 3 consecutive times.
+
+Check container health status:
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' club
+```
+
+Check the health endpoint directly:
+
+```bash
+curl -sf http://localhost:8080/api/v1/health | jq .
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "checks": {
+    "metadata_store": {"status": "ok", "latencyMs": 2},
+    "blob_store":     {"status": "ok", "latencyMs": 1},
+    "search_index":   {"status": "ok", "latencyMs": 1}
+  }
+}
+```
+
+Possible `status` values: `ok` (all checks pass) or `degraded` (at least one dependency failing — endpoint returns HTTP 503).
+
+For external monitoring (Datadog, Prometheus, Uptime Kuma, etc.), monitor:
+
+```
+https://packages.example.com/api/v1/health
+```
+
+Alert if the response status is not `ok` or the endpoint is unreachable.
+
+## Day-to-Day Operations
+
+### Starting the server
+
+```bash
+cd /opt/club
+docker compose up -d
+```
+
+### Stopping the server
+
+```bash
+docker compose stop
+```
+
+### Restarting
+
+```bash
+docker compose restart
+```
+
+### Viewing logs
+
+```bash
+# Follow logs in real time
+docker compose logs -f club
+
+# Last 100 lines
+docker compose logs --tail 100 club
+
+# Logs since a specific time
+docker compose logs --since "2025-01-15T10:00:00" club
+```
+
+### Checking disk usage
+
+```bash
+docker exec club du -sh /data/
+docker exec club du -sh /data/blobs/           # package tarballs + screenshots + (blob-mode dartdoc)
+docker exec club du -sh /data/cache/           # re-derivable: sdks, pub-cache, dartdoc
+docker exec club ls -la /data/db/club.db
+```
+
+### Backing up
+
+The runtime image is minimal and does **not** include the `sqlite3` CLI. Run backups either via a short-lived sidecar container or by snapshotting the whole `/data` volume.
+
+```bash
+# SQLite online backup via a sidecar alpine container that shares the volume
+docker run --rm --volumes-from club -v "$PWD:/backup" alpine:latest sh -c '
+  apk add --no-cache sqlite >/dev/null &&
+  sqlite3 /data/db/club.db ".backup /backup/club-$(date +%Y%m%d).db"
+'
+
+# Package tarballs + screenshots (direct copy of the blobs tier)
+docker cp club:/data/blobs ./blobs-backup/
+
+# Or snapshot only the primary tiers at once (db + blobs). `cache/` is
+# re-derivable so skipping it makes the tarball much smaller.
+docker run --rm -v club_data:/data -v "$PWD:/backup" \
+  alpine:latest tar czf /backup/club-data-$(date +%Y%m%d).tar.gz \
+  -C /data db blobs
+```
+
+<Aside type="tip">
+  Set up a cron job for automated daily backups. Volume snapshots of just the primary tiers are the simplest robust option:
+  ```bash
+  0 2 * * * docker run --rm -v club_data:/data -v /opt/backups:/backup alpine:latest \
+    tar czf /backup/club-$(date +\%Y\%m\%d).tar.gz -C /data db blobs
+  ```
+</Aside>
+
+### Restoring from backup
+
+```bash
+# Stop the server
+docker compose stop club
+
+# Restore database
+docker cp club-backup.db club:/data/db/club.db
+
+# Restore blobs tier (tarballs + screenshots + any blob-mode dartdoc)
+docker cp blobs-backup/. club:/data/blobs/
+
+# Start the server
+docker compose start club
+```
+
+## Upgrading
+
+Safe rebuild sequence — your data is preserved:
+
+```bash
+cd /opt/club
+
+# 1. (Optional but recommended) snapshot the data volume
+docker run --rm -v club_data:/data -v "$PWD:/backup" alpine:latest \
+  tar czf /backup/club-pre-upgrade.tar.gz -C /data .
+
+# 2. Pull the new image (or rebuild from source)
+docker compose pull
+# Or if building from source: docker compose build
+
+# 3. Recreate the container — the club_data volume is re-mounted, not recreated
+docker compose up -d
+
+# 4. Verify
+docker compose logs --tail 20 club
+curl -sf https://packages.example.com/api/v1/health
+```
+
+Database migrations run automatically on startup. No manual migration steps are needed.
+
+<Aside type="caution">
+Do not pass `-v` to `docker compose down` during upgrades — that deletes
+the `club_data` volume. The standard `docker compose up -d` (with or
+without `--build`) is the safe upgrade path.
+</Aside>
+
+## Building the Image Locally
+
+If you want to build the Docker image from the repository source:
+
+```bash
+git clone https://github.com/BirjuVachhani/club.git
+cd club
+docker build -f docker/Dockerfile -t club:latest .
+```
+
+The three-stage Dockerfile:
+
+1. **`dart:stable`** -- installs Dart dependencies, runs `dart build cli` to produce an AOT-compiled server binary at `/app/build/server/bundle/bin/server`
+2. **`node:22-alpine`** -- installs npm dependencies, builds the SvelteKit frontend to static HTML/JS/CSS via `adapter-static`
+3. **`debian:bookworm-slim`** -- copies the binary + dynamic libraries and the web build, installs runtime dependencies (`ca-certificates`, `curl`, `git`, `unzip`, `webp`) needed by pana for scoring, creates the non-root `club` user (UID 1000)
+
+## Production Checklist
+
+- [ ] Generate a strong `JWT_SECRET` (`openssl rand -hex 32`) and back it up
+- [ ] Set `SERVER_URL` to your public HTTPS URL
+- [ ] Set up a reverse proxy with TLS ([Caddy or nginx](/self-hosting/reverse-proxy/))
+- [ ] Set `TRUST_PROXY=true` so club honours the proxy's forwarded headers
+- [ ] Complete admin setup at `/setup` using the code from the logs
+- [ ] Bind port 8080 to localhost only (`127.0.0.1:8080:8080`) or use `expose:` when Caddy is a sidecar
+- [ ] Set up automated backups (daily cron recommended)
+- [ ] Monitor the health endpoint
+- [ ] Configure log aggregation
+- [ ] Consider [PostgreSQL](/self-hosting/docker-postgres/) for concurrent access
+- [ ] Consider [S3 storage](/self-hosting/docker-s3/) for large or numerous packages
+- [ ] Set Docker container resource limits (memory, CPU)

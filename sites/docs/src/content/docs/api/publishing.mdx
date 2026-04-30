@@ -1,0 +1,173 @@
+---
+title: Publishing Endpoints
+description: The 3-step package publish flow used by dart pub publish.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Publishing a package to club follows the 3-step flow mandated by the Dart Pub Repository Specification v2. The `dart pub publish` command and the `club` CLI handle this automatically; this page documents the underlying HTTP calls.
+
+## Flow Overview
+
+<Steps>
+
+1. **Initiate upload** — `GET /api/packages/versions/new` returns an upload URL and an `uploadId`.
+
+2. **Upload the tarball** — `POST` to the upload URL (multipart or raw tarball), carrying the `upload_id`.
+
+3. **Finalize** — `GET /api/packages/versions/newUploadFinish` validates the tarball, creates the records, and returns a success message.
+
+</Steps>
+
+All three endpoints require authentication (`write` scope).
+
+---
+
+## Step 1: Initiate Upload
+
+```http
+GET /api/packages/versions/new
+Authorization: Bearer club_pat_...
+```
+
+**Response: `200 OK`**
+
+```json
+{
+  "success": {
+    "uploadUrl": "https://club.example.com/api/packages/versions/upload",
+    "uploadId": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `success.uploadUrl` | Where the client must POST the tarball |
+| `success.uploadId` | Identifier for this upload session; include it in Step 2 and Step 3 |
+
+---
+
+## Step 2: Upload the Tarball
+
+```http
+POST /api/packages/versions/upload
+Authorization: Bearer club_pat_...
+```
+
+The upload endpoint accepts either of:
+
+- **Multipart form** (`multipart/form-data`) with a `file` part containing the `.tar.gz` bytes and an `upload_id` field (or the `upload_id` may be passed as a query parameter).
+- **Raw tarball body** (`application/octet-stream`), with `upload_id` passed as a query parameter.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "upload_id=$UPLOAD_ID" \
+  -F "file=@package.tar.gz;type=application/gzip" \
+  "$UPLOAD_URL"
+```
+
+On success the server responds with a `302 Found` redirect whose `Location` header points at Step 3:
+
+```http
+Location: /api/packages/versions/newUploadFinish?upload_id=<uploadId>
+```
+
+<Aside type="tip">
+  The tarball is streamed to a temp file on disk rather than buffered in memory.
+</Aside>
+
+---
+
+## Step 3: Finalize
+
+```http
+GET /api/packages/versions/newUploadFinish?upload_id=<uploadId>
+Authorization: Bearer club_pat_...
+```
+
+The `upload_id` can also be passed as a path segment: `/api/packages/versions/newUploadFinish/<uploadId>`.
+
+The server validates the archive, extracts `pubspec.yaml`, `README`, `CHANGELOG`, and `example/`, enforces authorization, and persists the version.
+
+**Response: `200 OK`**
+
+```json
+{
+  "success": {
+    "message": "Successfully uploaded my_package version 2.1.0."
+  }
+}
+```
+
+### Validation
+
+| Check | Failure behavior |
+|-------|------------------|
+| Archive is a valid gzipped tar | `400 BadRequest` |
+| Top-level `pubspec.yaml` is parseable | `400 BadRequest` |
+| Package name is lowercase alphanumeric with underscores | `400 BadRequest` |
+| Version is canonical semver | `400 BadRequest` |
+| Caller is an uploader or publisher admin | `403 Forbidden` |
+| Nested `pubspec.yaml` files (e.g. `example/pubspec.yaml`) are not treated as the package | Rejected, `400 BadRequest` |
+| Duplicate version with matching SHA-256 | Treated as an idempotent success |
+| Duplicate version with different SHA-256 | `409 Conflict` |
+| Archive within the configured size limit | `400 BadRequest` if exceeded |
+
+### What Happens on Success
+
+1. The `Package` record is created if this is the first version.
+2. A `PackageVersion` record is written with extracted metadata.
+3. The `latest` and latest-prerelease pointers are recomputed.
+4. The tarball is moved from temp storage to permanent blob storage.
+5. The search index is updated.
+6. An audit log entry is appended.
+7. The upload session is cleaned up.
+
+---
+
+## Error Responses
+
+| Status | Code | When |
+|--------|------|------|
+| 400 | `BadRequest` | Invalid archive, pubspec, name, or version |
+| 401 | `MissingAuthentication` | No or invalid credentials |
+| 403 | `Forbidden` | Caller is not authorized to publish this package |
+| 404 | `NotFound` | Upload session expired or not found |
+| 409 | `Conflict` | Version already exists with different content |
+
+Errors use the standard envelope:
+
+```json
+{
+  "error": {
+    "code": "Conflict",
+    "message": "Version 2.1.0 already exists with a different archive hash."
+  }
+}
+```
+
+---
+
+## Manual Publish with `curl`
+
+```bash
+# Step 1: initiate
+RESP=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  https://club.example.com/api/packages/versions/new)
+
+UPLOAD_URL=$(echo "$RESP" | jq -r '.success.uploadUrl')
+UPLOAD_ID=$(echo "$RESP" | jq -r '.success.uploadId')
+
+# Step 2: upload (capture the redirect target)
+FINISH_URL=$(curl -s -D - -o /dev/null \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "upload_id=$UPLOAD_ID" \
+  -F "file=@package.tar.gz;type=application/gzip" \
+  "$UPLOAD_URL" | awk 'BEGIN{IGNORECASE=1}/^location:/{print $2}' | tr -d '\r')
+
+# Step 3: finalize
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://club.example.com${FINISH_URL}"
+```

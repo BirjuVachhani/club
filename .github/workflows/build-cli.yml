@@ -1,0 +1,424 @@
+# =============================================================================
+# Build the club CLI for every supported platform / architecture and
+# attach the archives to a GitHub Release.
+#
+# Triggers
+# ────────
+#   - release: [published]   — fires when a release is published (via the
+#     GitHub UI, gh CLI, or API). GitHub populates
+#     `github.event.release.tag_name` which is what we build against.
+#   - workflow_dispatch      — manual retrigger. The `tag` input names the
+#     existing release to attach artifacts to. Use this when the auto-run
+#     failed partway and you need to rebuild + re-upload.
+#
+# Both triggers build from the default branch (latest main) — we do NOT
+# check out the tagged commit. That matches the ops model where main is
+# the source of truth; tags only mark which release a build belongs to.
+#
+# Build matrix
+# ────────────
+#   linux-x64     ubuntu-latest
+#   linux-arm64   ubuntu-22.04-arm        (native arm64 runner; public preview)
+#   macos-x64     macos-15-intel                (last Intel Mac runner)
+#   macos-arm64   macos-latest            (Apple silicon)
+#   windows-x64   windows-latest
+#
+# `dart build cli` compiles for the host architecture only — it does not
+# cross-compile yet — so every target gets its own runner.
+#
+# Security notes
+# ──────────────
+# Any user-supplied input (workflow_dispatch input, release tag that may
+# have been created by a collaborator) is read into `env:` at the step
+# level and only ever referenced from shell as "$VAR". This avoids the
+# `${{ }}`-into-shell injection vector documented at
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+# =============================================================================
+name: Build CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to attach artifacts to (e.g. v0.1.0).'
+        required: true
+        type: string
+  release:
+    types: [published]
+
+# Scope concurrency by the release tag so two runs for the same release
+# don't race, but runs for different releases don't cancel each other.
+concurrency:
+  group: build-cli-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # required by softprops/action-gh-release for the upload job
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────
+  # Resolve + validate the tag once, share with every downstream job.
+  # ───────────────────────────────────────────────────────────────────────
+  resolve:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.r.outputs.tag }}
+      version: ${{ steps.r.outputs.version }}
+      is_prerelease: ${{ steps.r.outputs.is_prerelease }}
+    steps:
+      - name: Resolve
+        id: r
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            tag="$RELEASE_TAG"
+          elif [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            echo "Neither a release event nor a dispatch tag input was provided." >&2
+            exit 1
+          fi
+
+          # The tag must look like semver with an optional leading `v`;
+          # reject anything shell-nasty.
+          if ! echo "$tag" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9._+-]+)?$'; then
+            echo "Refusing to use unsafe tag: $tag" >&2
+            exit 1
+          fi
+          version="${tag#v}"
+
+          # Release events carry an explicit prerelease flag; workflow_dispatch
+          # does not, so fall back to detecting a pre-release suffix on the tag
+          # itself (e.g. 1.2.3-beta.1, 1.2.3-rc.2). The Homebrew bump is gated
+          # on this — a prerelease must not move the `brew install club`
+          # default forward.
+          if [ "$RELEASE_PRERELEASE" = "true" ]; then
+            is_prerelease="true"
+          elif echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-'; then
+            is_prerelease="true"
+          else
+            is_prerelease="false"
+          fi
+
+          echo "tag=$tag"                     >> "$GITHUB_OUTPUT"
+          echo "version=$version"             >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$tag version=$version is_prerelease=$is_prerelease"
+
+  build:
+    name: ${{ matrix.target }}
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+            archive: tar.gz
+            exec: club
+          - target: linux-arm64
+            os: ubuntu-22.04-arm
+            archive: tar.gz
+            exec: club
+          - target: macos-x64
+            os: macos-15-intel
+            archive: tar.gz
+            exec: club
+          - target: macos-arm64
+            os: macos-latest
+            archive: tar.gz
+            exec: club
+          - target: windows-x64
+            os: windows-latest
+            archive: zip
+            exec: club.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      # `dart build cli` is in preview and does not yet accept --define,
+      # so we patch the version constant directly. The runner is
+      # ephemeral so this never leaks back into git. The version was
+      # validated in the resolve job.
+      - name: Burn version into source
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          {
+            echo "// GENERATED at build time by .github/workflows/build-cli.yml"
+            echo "// — do not commit changes here."
+            echo "// ignore_for_file: prefer_const_declarations"
+            echo "const String clubCliVersion = '$VERSION';"
+          } > packages/club_cli/lib/src/version.dart
+
+      - name: Resolve dependencies
+        run: dart pub get
+
+      - name: Build CLI
+        run: dart build cli --target packages/club_cli/bin/club.dart --output build/cli
+
+      # Make sure the binary actually runs on its host and reports the
+      # version we burned in. Catches "binary builds but won't link"
+      # bugs early instead of letting them surface for users.
+      #
+      # `--version` is intercepted before any subcommand loads, so we
+      # also run `--help` to force every subcommand's imports to resolve
+      # — that's where a broken top-level `import` would first surface.
+      - name: Smoke-test the binary
+        shell: bash
+        env:
+          EXEC: ${{ matrix.exec }}
+          EXPECTED: ${{ needs.resolve.outputs.version }}
+        run: |
+          binary="build/cli/bundle/bin/$EXEC"
+          if [ ! -x "$binary" ]; then
+            echo "Expected binary missing: $binary" >&2
+            ls -laR build/cli || true
+            exit 1
+          fi
+          actual="$("$binary" --version | tr -d '\r')"
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "Version mismatch — wanted '$EXPECTED', got '$actual'" >&2
+            exit 1
+          fi
+          if ! "$binary" --help >/dev/null; then
+            echo "--help exited non-zero — the binary loads but subcommands failed to register." >&2
+            exit 1
+          fi
+          echo "Smoke test passed: $actual"
+
+      # Lay out the bundle under a versioned top-level directory so that
+      # extracting the archive produces `club-1.2.3-linux-x64/bin/club`
+      # rather than dropping `bin/` into the user's CWD.
+      - name: Stage bundle for packaging
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          EXEC: ${{ matrix.exec }}
+        run: |
+          stage="dist/club-cli-${VERSION}-${TARGET}"
+          mkdir -p "$stage"
+          cp -R build/cli/bundle/bin "$stage/bin"
+          if [ -d build/cli/bundle/lib ]; then
+            cp -R build/cli/bundle/lib "$stage/lib"
+          fi
+          # Drop a tiny README inside so users know what they have.
+          {
+            echo "club CLI ${VERSION} for ${TARGET}"
+            echo ""
+            echo "Run:   ./bin/${EXEC} --help"
+            echo "Site:  https://github.com/BirjuVachhani/club"
+          } > "$stage/README.txt"
+
+      - name: Pack archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          name="club-cli-${VERSION}-${TARGET}"
+          tar -C dist -czf "dist/${name}.tar.gz" "$name"
+          ls -la "dist/${name}.tar.gz"
+
+      - name: Pack archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          $name = "club-cli-$env:VERSION-$env:TARGET"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+          Get-ChildItem "dist/$name.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: club-cli-${{ needs.resolve.outputs.version }}-${{ matrix.target }}
+          path: dist/club-cli-${{ needs.resolve.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Attach every matrix artifact + a SHA256SUMS file to the existing
+  # GitHub Release identified by the resolved tag.
+  # ───────────────────────────────────────────────────────────────────────
+  upload:
+    name: Upload artifacts to release
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      # Each artifact downloads into its own subdirectory; flatten so the
+      # release upload glob picks up the archives directly.
+      - name: Flatten into a single release/ directory
+        shell: bash
+        run: |
+          mkdir -p release
+          find dist -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec mv {} release/ \;
+          ls -la release/
+
+      # SHA256 is the de-facto verification hash for downloaded binaries.
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd release
+          sha256sum club-cli-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # The release already exists (either the user created it, or the
+      # release event triggered us). softprops/action-gh-release updates
+      # the named release in place and overwrites any existing assets
+      # with the same names — that's what makes manual retrigger work.
+      - name: Attach assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          files: |
+            release/*.tar.gz
+            release/*.zip
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Bump the Homebrew formula on main so `brew upgrade club` picks up the
+  # new version. Runs only after the release assets are up — we pull
+  # SHA256SUMS.txt straight from the published release and rewrite the
+  # four Unix sha256 lines (Windows isn't packaged via brew).
+  #
+  # All user-influenced inputs (tag, version, repo) are fed through env:
+  # and referenced as "$VAR" in shell — never interpolated into run
+  # blocks via ${{ }} — to stay clear of the GHA script-injection class
+  # of bugs.
+  # ───────────────────────────────────────────────────────────────────────
+  tap:
+    name: Update Homebrew formula
+    needs: [resolve, upload]
+    # Prereleases publish artifacts to the GitHub release but must not
+    # bump the Homebrew formula — `brew install club` tracks stable only.
+    if: needs.resolve.outputs.is_prerelease != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          # Needed for `git pull --rebase` before push below.
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download SHA256SUMS from release
+        shell: bash
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          url="https://github.com/${REPO}/releases/download/${TAG}/SHA256SUMS.txt"
+          curl -fsSL -o /tmp/SHA256SUMS.txt "$url"
+          cat /tmp/SHA256SUMS.txt
+
+      - name: Rewrite Formula/club.rb
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          sums=/tmp/SHA256SUMS.txt
+          get() { awk -v f="$1" '$2==f {print $1}' "$sums"; }
+          SHA_MAC_ARM64="$(get "club-cli-${VERSION}-macos-arm64.tar.gz")"
+          SHA_MAC_X64="$(get "club-cli-${VERSION}-macos-x64.tar.gz")"
+          SHA_LINUX_ARM64="$(get "club-cli-${VERSION}-linux-arm64.tar.gz")"
+          SHA_LINUX_X64="$(get "club-cli-${VERSION}-linux-x64.tar.gz")"
+
+          # Refuse to write anything that isn't a real 64-hex-char sha so
+          # a partial SHA256SUMS.txt can't corrupt the formula.
+          for var in SHA_MAC_ARM64 SHA_MAC_X64 SHA_LINUX_ARM64 SHA_LINUX_X64; do
+            val="${!var}"
+            if ! [[ "$val" =~ ^[a-f0-9]{64}$ ]]; then
+              echo "Missing or malformed checksum for $var: '$val'" >&2
+              exit 1
+            fi
+          done
+
+          export VERSION SHA_MAC_ARM64 SHA_MAC_X64 SHA_LINUX_ARM64 SHA_LINUX_X64
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+
+          p = pathlib.Path('Formula/club.rb')
+          text = p.read_text()
+
+          version = os.environ['VERSION']
+          text, n = re.subn(
+              r'(\n\s*version\s+)"[^"]+"',
+              lambda m: m.group(1) + f'"{version}"',
+              text,
+              count=1,
+          )
+          if n != 1:
+              sys.exit('Could not find `version "..."` line')
+
+          targets = {
+              'macos-arm64': os.environ['SHA_MAC_ARM64'],
+              'macos-x64':   os.environ['SHA_MAC_X64'],
+              'linux-arm64': os.environ['SHA_LINUX_ARM64'],
+              'linux-x64':   os.environ['SHA_LINUX_X64'],
+          }
+          # Anchor each substitution on the url line immediately above the
+          # sha256, so we can't accidentally swap shas between platforms.
+          for target, sha in targets.items():
+              pat = re.compile(
+                  rf'(url\s+"[^"]*-{re.escape(target)}\.tar\.gz"\s*\n\s*sha256\s+)"[^"]+"'
+              )
+              text, n = pat.subn(lambda m, s=sha: m.group(1) + f'"{s}"', text)
+              if n != 1:
+                  sys.exit(f'Could not update sha256 for {target} (matches: {n})')
+
+          p.write_text(text)
+          print('Formula/club.rb updated.')
+          PY
+
+      - name: Commit and push
+        shell: bash
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Formula/club.rb; then
+            echo "Formula already matches this release — nothing to commit."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Formula/club.rb
+          # `[skip ci]` keeps this bot commit from triggering any other
+          # workflow that listens on push-to-main.
+          git commit -m "Update Homebrew formula for ${TAG} [skip ci]"
+
+          # Main may have advanced during the build. Rebase once; if
+          # that still fails we'd rather error out than force-push.
+          git pull --rebase origin main
+          git push origin HEAD:main

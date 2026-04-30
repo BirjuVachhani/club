@@ -1,0 +1,473 @@
+---
+title: Validation & Scoring Specifications
+description: Authoritative reference for every check, limit, and sandbox layer club applies during package publish and analysis.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This page is the authoritative reference for what club enforces at two points in a package's life:
+
+1. **Publish time** — every `dart pub publish` is validated against a large catalogue of structural, semantic, and security checks before the tarball is accepted.
+2. **Analysis time** — after publish, each version is scored by `pana` running inside an isolated subprocess with optional OS-level sandbox layers applied.
+
+All numbers on this page stay in sync with what the server actually enforces.
+
+<Aside type="note">
+If a rule below rejects a package you believe should be accepted, open an issue with the archive (or a reduced repro). Several checks are deliberately strict because a misbehaving pubspec will often break `dart pub get` downstream.
+</Aside>
+
+---
+
+## Publish-Time Validation
+
+Every archive goes through these checks, in order. The first failing layer rejects the upload with HTTP `400 Bad Request`.
+
+### Archive transport
+
+Applied before the tar is parsed. Protects against gzip bombs, empty uploads, and pre-flight corruption.
+
+| Check | Limit |
+|---|---|
+| Compressed archive size | **100 MB** |
+| Uncompressed size | **256 MB** |
+| Empty archive | **Rejected** (0-byte file or 0-byte gzip stream) |
+| Malformed gzip / trailing junk | **Rejected** |
+
+### Tar structure
+
+Applied during tar parsing. Each entry is scrutinised individually.
+
+| Check | Behaviour |
+|---|---|
+| Max file count in archive | **65 536** |
+| Max total entry size | **100 MB** |
+| Absolute paths (e.g. `/etc/passwd`) | **Rejected** |
+| `..` in path (path traversal) | **Rejected** |
+| Symlinks | **Rejected** |
+| Duplicate tar entries | **Rejected** |
+| Non-default mode bits (non-644 for files, non-exec bits for dirs) | **Rejected** |
+| Case-insensitive filename collisions (e.g. `Foo.dart` + `foo.dart`) | **Rejected** — would break on Windows/macOS |
+
+### pubspec.yaml
+
+| Check | Limit / Rule |
+|---|---|
+| Presence at archive root | **Required** |
+| Content size | **≤ 128 KB** |
+| YAML aliases / anchors | **Rejected** — cannot round-trip to JSON |
+| JSON serialisability | Must round-trip via JSON encode/decode |
+| Parse failure | Retries in lenient mode before giving up |
+| `author` **and** `authors` both present | **Rejected** |
+
+### Package name
+
+| Check | Rule |
+|---|---|
+| Length | **1 – 64 characters** |
+| Characters | **Lowercase letters, digits, underscores only** |
+| Must start with a letter or underscore | — |
+| Must not be a Dart reserved word | List: `abstract`, `as`, `assert`, … `yield` |
+
+<Aside type="note">
+pub.dev additionally enforces collision rules against legacy mixed-case packages (`Babylon`, `Pong`, etc.). club drops those tables — they exist to grandfather pre-existing pub.dev packages and have no meaning on a fresh private registry.
+</Aside>
+
+### Package version
+
+| Check | Rule |
+|---|---|
+| Length | **≤ 64 characters** |
+| Format | **Strict SemVer** (`MAJOR.MINOR.PATCH[-prerelease][+build]`) |
+| All dependency constraints | Must also follow strict SemVer |
+| Dart SDK constraint | Must specify **both** `min` and `max` (neither `any`) |
+| SDK lower bound `<2.12.0` combined with upper `≥3.0.0` | **Rejected** (Dart 3 requires null-safety) |
+| SDK allowing `4.0.0` | **Rejected** (Dart 4 doesn't exist) |
+
+### Description
+
+| Check | Rule |
+|---|---|
+| Presence | **Required** and non-empty after trimming |
+| Max length | **512 characters** |
+| Max word length | **64 characters per whitespace-separated token** |
+| Emoji characters | **Allowed on club** · Rejected on pub.dev |
+| Zalgo / combining diacritical marks | **Rejected** (two consecutive diacritics) |
+| Boilerplate from `dart create` / `flutter create` | **Allowed on club** · Rejected on pub.dev |
+
+### URLs
+
+Applied to `homepage`, `repository`, `documentation`, and `issue_tracker` fields.
+
+| Check | Rule |
+|---|---|
+| Parse as URI | Must succeed |
+| Scheme | **Must be `http` or `https`** |
+| Host | Must be non-empty and contain a `.` |
+| Invalid host blocklist | Rejects `example.com`, `example.org`, `example.net`, `google.com`, `none`, and the `www.` variants |
+
+### Dependencies
+
+Applied to top-level `dependencies` only. `dev_dependencies` and `dependency_overrides` are exempt from the below.
+
+| Check | Rule |
+|---|---|
+| Max direct dependencies | **100** |
+| Each dependency name | Must be a valid package name (same rules as top-level) |
+| Git dependencies (`git:` key) | **Rejected** |
+| `hosted:` with `url:` not in the allowlist | **Rejected** |
+| `hosted.name` ≠ dependency key | **Rejected** |
+| SDK dependencies (`sdk:` key) | **Allowed** |
+
+#### Hosted-URL allowlist
+
+A published package can legitimately depend on packages from trusted registries. The allowlist covers the common cases and includes this server's own public URL so packages on the same club instance can depend on each other.
+
+| Dependency form | Example | Allowed? |
+|---|---|---|
+| Default pub.dev (no `hosted:` key) | `http: ^1.0.0` | **Yes** |
+| Explicit pub.dev | `hosted: https://pub.dev` | **Yes** |
+| Legacy pub.dev alias | `hosted: https://pub.dartlang.org` | **Yes** |
+| This club server | `hosted: url: https://packages.example.com` (matching `SERVER_URL`) | **Yes** |
+| Any other host | `hosted: https://other-registry.example.com` | **Rejected** |
+
+URLs are compared **origin-only** — scheme + host + non-default port. Trailing slashes, letter case, and the default port (`:443` for `https`) are normalised away, so `https://pub.dev`, `https://pub.dev/`, `HTTPS://PUB.DEV`, and `https://pub.dev:443` all match. A non-default port (e.g. `https://pub.dev:8443`) does not match.
+
+A rejection from this check names the unacceptable host and lists every allowed one so the publisher can see at a glance whether they meant to use a different form:
+
+```
+Package dependency foo is hosted on https://other-registry.example.com,
+which is not in the allowed-hosts list
+(https://pub.dev, https://pub.dartlang.org, https://packages.example.com).
+```
+
+<Aside type="caution">
+The allowlist is the only gate between the registry and arbitrary third-party pub servers. Broadening it lets club packages transitively pull from a server the consumer never opted into. Only add hosts you trust.
+</Aside>
+
+### Environment constraints
+
+| Check | Rule |
+|---|---|
+| Allowed keys in `environment:` | **Only** `sdk`, `flutter`, `fuchsia` |
+| Any other key | **Rejected** |
+
+### Topics
+
+Applied to the `topics:` list in pubspec.
+
+| Check | Rule |
+|---|---|
+| Max topics | **5** |
+| Topic length | **2 – 32 characters** |
+| Characters | Lowercase alphanumeric with single `-` (no double-dash) |
+| First/last character | Must be alphanumeric |
+| Duplicates | **Rejected** |
+
+### Funding
+
+Applied to the `funding:` list in pubspec.
+
+| Check | Rule |
+|---|---|
+| Must be a list of strings | Otherwise rejected |
+| Each URL scheme | **Must be `https`** |
+| Each URL length | **≤ 255 characters** |
+
+### Screenshots
+
+Structural rules applied to each entry in the pubspec `screenshots:` list:
+
+| Check | Rule |
+|---|---|
+| Referenced path must exist in archive | **Rejected otherwise** |
+| Path must be normalised (no `./`, no trailing slashes) | **Rejected if not** |
+| Description length | **10 – 200 characters** |
+| Description Zalgo | **Rejected** |
+| Duplicate paths in the list | **Rejected** |
+
+Plus extraction caps applied to the screenshot bytes before they're persisted:
+
+| Check | Rule |
+|---|---|
+| Supported extensions | `png`, `jpg`, `jpeg`, `gif`, `webp` |
+| Per-image size cap | **4 MiB** |
+| Screenshots per version | **10** (overflow silently ignored) |
+
+### Build hooks
+
+Applied to `hook/*.dart` files in the archive.
+
+| Check | Rule |
+|---|---|
+| Allowed hook filenames | Only `hook/build.dart` and `hook/link.dart` |
+| Any other `hook/*.dart` | **Rejected** |
+| Minimum SDK lower bound | **`3.6.0-0`** |
+
+### Flutter plugin schema
+
+Only applied when `flutter.plugin` is present in pubspec.
+
+| Check | Rule |
+|---|---|
+| Old (`androidPackage`/`iosPrefix`/`pluginClass`) + new (`platforms:`) in same pubspec | **Rejected** |
+| Uses `platforms:` without `flutter: ^1.10.0` constraint | **Rejected** |
+| Uses `platforms:` without `flutter: ^2.20.0` **and** no `ios/` folder | **Rejected** |
+
+### LICENSE
+
+| Check | Rule on club | Rule on pub.dev |
+|---|---|---|
+| Presence | **Not required** | Required |
+| Filename | `LICENSE` at archive root | `LICENSE` at archive root |
+| Non-empty after trimming | Checked if present | Required |
+| Generic `TODO: Add your license here` boilerplate | Checked if present | Rejected |
+
+### README / CHANGELOG / example
+
+| File | Filename match | Required on club |
+|---|---|---|
+| README | `README.md` at archive root | **No** |
+| CHANGELOG | `CHANGELOG.md` at archive root | No (never required) |
+| example | Priority list: `example/example.md` → `example/lib/main.dart` → `example/main.dart` → `example/lib/<pkg>.dart` → `example/<pkg>.dart` → `example/lib/<pkg>_example.dart` → `example/<pkg>_example.dart` → `example/lib/example.dart` → `example/example.dart` → `example/README.md` | No |
+
+### `publish_to` field
+
+| Rule on club | Rule on pub.dev |
+|---|---|
+| **Not checked** | Must be absent or `none` |
+
+---
+
+## club vs pub.dev defaults
+
+club ships with a relaxed policy for private-registry reality. Every other rule on this page applies identically under both.
+
+| Check | club default | pub.dev |
+|---|---|---|
+| LICENSE file required | No | Yes |
+| README file required | No | Yes |
+| `publish_to` field checked | No | Yes |
+| Git dependencies forbidden | Yes | Yes |
+| Hosted dependencies outside the allowlist forbidden | Yes | Yes |
+| Default hosted-URL allowlist | pub.dev, pub.dartlang.org, and this server's own URL | pub.dev, pub.dartlang.org |
+| Emoji in description rejected | No | Yes |
+| Template description (e.g. `A new Flutter project.`) rejected | No | Yes |
+| Template README (leftover `TODO:` markers) rejected | No | Yes |
+| Mixed-case package name collision check | No | Yes (legacy tables stripped) |
+
+The two strict hardening rules (Git dependencies and hosted-URL allowlist) stay on under both — they're universally correct for a package repository. What differs is the allowlist contents: club appends the server's own URL so publishers on the same instance can depend on each other.
+
+---
+
+## Transport Limits Recap
+
+One more table purely for ops planning — everything a single `dart pub publish` can push to disk:
+
+| Dimension | Limit | Notes |
+|---|---|---|
+| HTTP upload body | **100 MB** | Enforced by the publish endpoint in addition to the archive-layer check |
+| Compressed tarball | **100 MB** | — |
+| Uncompressed tarball | **256 MB** | — |
+| Files in tarball | **65 536** | — |
+| pubspec.yaml | **128 KB** | — |
+| README / CHANGELOG / example / LICENSE content persisted | **256 KB each** | — |
+| Screenshot size | **4 MiB each** | — |
+| Screenshots per version | **10** | Overflow silently dropped |
+
+---
+
+## Scoring Subsystem
+
+After publish, each version is handed to the scoring system, which runs `pana` on the tarball inside an isolated subprocess. The primary reason for subprocess (rather than in-process) execution is the **trust model**:
+
+<Aside type="caution" title="Trust model">
+`pana` transitively executes uploader-authored code: `dart pub get` runs any `hook/build.dart` / `hook/link.dart` in every dep, analyzer plugins are spawned as subprocesses, and dartdoc partially evaluates the package's code. A malicious package could, from inside the analyser, reach any file descriptor the server process holds — including the SQLite database, JWT secrets, blob store, and the HTTP listener.
+
+The subprocess architecture puts all of that code behind a process boundary. Add the OS-level sandbox layers below for deeper isolation when warranted.
+</Aside>
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────┐
+│ Server (scoring coordinator)                 │
+│   queues jobs, spawns subprocesses           │
+│                                              │
+│   parent writes:  /tmp/…/job.json            │
+│   parent reads:   /tmp/…/result.json         │
+│   parent drains:  child stdout (pana noise)  │
+│   parent routes:  child stderr → scoring.log │
+└──────────────┬───────────────────────────────┘
+               │ spawns per job
+               ▼
+┌──────────────────────────────────────────────┐
+│ scoring subprocess (separate OS process, may │
+│ run under setpriv + ulimits + custom prefix) │
+│                                              │
+│   • Reads job JSON                           │
+│   • Extracts tarball to a temp dir           │
+│   • Invokes pana                             │
+│   • Writes result JSON                       │
+│   • Exits 0 on success, 1 on uncaught error  │
+└──────────────────────────────────────────────┘
+```
+
+### IPC protocol
+
+Files, not stdio. The child's stdout is deliberately drained because `dart pub get` emits build-hook chatter there that would otherwise corrupt a stdout-based protocol.
+
+| Direction | Channel | Payload |
+|---|---|---|
+| Parent → child | File path passed as argument | Job description as JSON |
+| Child → parent | File path passed as argument | Scoring result as JSON |
+| Child → logger | Stderr (line-buffered) | Human-readable progress |
+| Child → `/dev/null` | Stdout | `dart pub get` build-hook output (discarded) |
+
+### Concurrency
+
+| Setting | Default | Notes |
+|---|---|---|
+| Max in-flight subprocesses | **1** | Bump in configuration if host can handle more parallel analyses |
+| Queue | FIFO, in-memory | Pending rows persisted in the DB so restarts resume cleanly |
+| Duplicate-job suppression | Active-key set | Same `<pkg>@<ver>` can't be queued twice simultaneously |
+
+### Timeouts
+
+| Phase | Duration |
+|---|---|
+| Dartdoc generation | **10 min** |
+| Full pana analysis (outer) | **50 min** |
+| Subprocess wall-clock | **55 min** — parent sends `SIGKILL` if the child hasn't exited by then |
+
+The 5-minute delta between pana and subprocess timeouts gives the child room to serialise its failure result before the parent force-kills it.
+
+### Report caps
+
+| Check | Limit | Behaviour |
+|---|---|---|
+| Pana report JSON size | **256 KB** | Replaced with a placeholder preserving granted points, max points, and original byte count. Prevents one bloated report from ballooning the scores table. |
+
+### Required external tools
+
+The scoring system fails the server boot if any of these are missing from `PATH`. All of them ship with Debian's `webp` package (already in the runtime Docker image):
+
+- `webpinfo`
+- `cwebp`
+- `dwebp`
+- `gif2webp`
+- `webpmux`
+
+---
+
+## Sandbox Layers
+
+Three optional layers of OS-level hardening compose on top of the subprocess boundary. Each is opt-in via env vars; any combination is valid.
+
+Composition order, outermost → innermost:
+
+```
+command prefix  →  setpriv  →  bash -c 'ulimit …; exec'  →  scoring subprocess
+```
+
+### Layer 1 — UID / GID drop
+
+Drops the subprocess to a dedicated unprivileged user via `setpriv --reuid --regid --clear-groups`. Linux only; silently skipped on macOS (dev).
+
+| Env var | Example | Effect |
+|---|---|---|
+| `SCORING_SANDBOX_UID` | `1001` | Numeric UID to drop to. Empty = no drop. |
+| `SCORING_SANDBOX_GID` | `1001` | Numeric GID to drop to. Empty = no drop. |
+
+Requires `CAP_SETUID` when the server isn't running as root. When the server runs as root (the container default), no extra capability is needed.
+
+### Layer 2 — Resource limits (`ulimit`)
+
+Caps applied via a `bash -c 'ulimit …; exec "$@"'` wrapper. Works everywhere `bash` does.
+
+| Env var | Format | Example |
+|---|---|---|
+| `SCORING_SANDBOX_RLIMITS` | Comma-separated `flag=value` pairs | `v=4194304,t=3600,n=1024` |
+
+`flag` is the `ulimit` short letter (without the leading dash). Supported by bash:
+
+| Flag | Meaning | Typical unit |
+|---|---|---|
+| `v` | Virtual memory / address space | KB |
+| `t` | CPU time | seconds |
+| `n` | Open file descriptors | count |
+| `u` | User processes | count |
+| `f` | Max file size | KB |
+| `c` | Core dump size | KB |
+
+### Layer 3 — Command prefix (ops escape hatch)
+
+An arbitrary argv prefix applied outermost. Ops tooling of choice — `bwrap`, `firejail`, `systemd-run --scope`, `nsenter`, `runc exec`, `runsc`, …
+
+| Env var | Example |
+|---|---|
+| `SCORING_SANDBOX_PREFIX` | `bwrap --unshare-all --ro-bind / / --dev /dev --proc /proc` |
+
+The value is split on whitespace to form the argv prefix. Quoting is not respected — if you need spaces inside an argument, either invoke a wrapper script or set the prefix from Docker with careful escaping.
+
+---
+
+## Environment Variables
+
+Env vars that affect validation, scoring, and sandboxing, read once at server bootstrap.
+
+### Validation
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SERVER_URL` | *(unset)* | Public URL of this club instance. Automatically added to the [hosted-URL allowlist](#hosted-url-allowlist) so packages on this instance can depend on each other. When unset, only pub.dev is allowlisted. |
+
+### Scoring & sandbox
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SCORING_SUBPROCESS_BINARY` | *(unset)* | Absolute path to the AOT-compiled scoring subprocess binary. When unset, the server falls back to running the subprocess via the Dart SDK on `PATH` — acceptable in dev, too slow for prod cold-starts. |
+| `SCORING_SANDBOX_PREFIX` | *(unset)* | See [Layer 3](#layer-3--command-prefix-ops-escape-hatch). |
+| `SCORING_SANDBOX_UID` | *(unset)* | See [Layer 1](#layer-1--uid--gid-drop). |
+| `SCORING_SANDBOX_GID` | *(unset)* | See [Layer 1](#layer-1--uid--gid-drop). |
+| `SCORING_SANDBOX_RLIMITS` | *(unset)* | See [Layer 2](#layer-2--resource-limits-ulimit). |
+
+Unset / empty values always mean "layer off". Empty strings are treated the same as missing.
+
+---
+
+## Docker Image Defaults
+
+The official runtime image ships with all three sandbox layers pre-configured. No extra setup needed at `docker run` time.
+
+| Setting | Default value |
+|---|---|
+| `SCORING_SUBPROCESS_BINARY` | `/app/scoring_subprocess/bin/scoring_subprocess` |
+| `SCORING_SANDBOX_UID` | `1001` |
+| `SCORING_SANDBOX_GID` | `1001` |
+| `SCORING_SANDBOX_RLIMITS` | `v=4194304,t=3600,n=1024` (4 GB VM, 1 h CPU, 1024 fds) |
+| `SCORING_SANDBOX_PREFIX` | *(unset — escape hatch, not enabled by default)* |
+
+An unprivileged `scoring` user/group is created in the image at the listed UID/GID. The entrypoint prepares `/data/tmp/uploads`, `/data/cache/pub-cache`, and `/data/cache/dartdoc` with sticky-bit world-writable perms (`1777`) so both the server and the dropped UID can write to them.
+
+### Opting out
+
+To disable a layer for a single container run, pass the env var set to empty:
+
+```bash
+docker run -e SCORING_SANDBOX_UID= -e SCORING_SANDBOX_GID= club:latest
+```
+
+To override the rlimits:
+
+```bash
+docker run -e SCORING_SANDBOX_RLIMITS='v=8388608,t=7200,n=2048' club:latest
+```
+
+To layer a custom sandbox on top:
+
+```bash
+docker run \
+  --cap-add SYS_ADMIN \
+  -e SCORING_SANDBOX_PREFIX='bwrap --unshare-all --ro-bind / / --dev /dev --proc /proc' \
+  club:latest
+```

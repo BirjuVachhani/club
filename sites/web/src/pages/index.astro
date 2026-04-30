@@ -1,0 +1,533 @@
+---
+// Landing page (production)
+// Assembled block-by-block — every feature is an isolated component
+// in src/components/features/* so iteration is easy.
+//
+// Build log:
+//   · Hero             — Approach A (Showcase), re-skinned dark
+//   · Publish module   — Approach A ("commands your team already knows")
+//   · Feature sections — 9 isolated components, ordered to match /dev/features
+//   · FAQ              — Variant G (Pinboard) from /dev/faq
+//   · Donate           — Variant E (Split monthly / one-time) from /dev/donate
+//   · CTA              — Variant E3 (Orange / ink split) from /dev/cta
+import Base from "../layouts/Base.astro";
+import Footer from "../components/Footer.astro";
+import FloatingPillHeader from "../components/header/HeaderC-FloatingPill.astro";
+import { RubiksCube } from "$lib/motion-core";
+import { docsUrl, GITHUB_URL } from "../lib/config";
+import { PITCH, GROUP_LABELS, byGroup } from "../lib/landing-copy";
+
+// ─── Feature sections (each is a standalone component) ───
+import PrivateByDefault from "../components/features/PrivateByDefault.astro";
+import ControlMatrix    from "../components/features/ControlMatrix.astro";
+import UserRoles        from "../components/features/UserRoles.astro";
+import PanaTerminal     from "../components/features/scoring/PanaTerminal.astro";
+import Dartdoc          from "../components/features/Dartdoc.astro";
+import Backends         from "../components/features/Backends.astro";
+import Publishers       from "../components/features/Publishers.astro";
+import CliAndCi         from "../components/features/CliAndCi.astro";
+import Compatibility    from "../components/features/Compatibility.astro";
+
+// ─── FAQ ───
+import FaqPinboard      from "../components/faq/FaqG-Pinboard.astro";
+
+// ─── Donate ───
+import DonateSplit      from "../components/donate/DonateE-Split.astro";
+
+// ─── CTA ───
+import OrangeSplit      from "../components/cta/OrangeSplit.astro";
+
+const workflowFeatures = byGroup("workflow");
+---
+
+<Base
+  title="CLUB — Self-hosted Dart & Flutter package repository"
+  description={PITCH.elevator}
+  path="/"
+>
+  <!-- Nav — floating pill (from /dev/header variant C) -->
+  <FloatingPillHeader />
+
+  <main>
+    <!-- ═══════ HERO — from Approach A (Showcase), dark reskin ═══════ -->
+    <section class="hero">
+      <!-- subtle orange bleed top-right -->
+      <div class="hero-bleed" aria-hidden="true"></div>
+
+      <div class="wrap">
+        <div class="hero-split">
+          <!-- LEFT: text + CTAs -->
+          <div class="hero-copy">
+            <span class="chip" data-enter style="--enter-delay: 80ms;">
+              <span class="chip-dot"></span>
+              Open source · Self-hosted
+            </span>
+            <h1 class="display" data-enter style="--enter-delay: 180ms;">
+              Your private <a href="https://pub.dev" class="accent">pub.dev</a>,
+              <br class="md-only" />
+              running on your own stack.
+            </h1>
+            <p class="lede" data-enter style="--enter-delay: 320ms;">
+              CLUB is a private package repository for <a href="https://dart.dev">Dart</a> and <a href="https://flutter.dev">Flutter</a> teams.
+              Same commands your developers already use — <span class="ink">dart pub get</span>,
+              <span class="ink">dart pub add</span>, <span class="ink">dart pub publish</span> —
+              pointed at a server you own.
+            </p>
+            <div class="cta-row" data-enter style="--enter-delay: 440ms;">
+              <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+                Get started
+                <span class="btn-arrow">→</span>
+              </a>
+              <a href={GITHUB_URL} class="btn btn-ghost">View on GitHub</a>
+            </div>
+          </div>
+
+          <!-- RIGHT: Rubik's cube (WebGL, motion-core) -->
+          <div class="hero-cube" data-enter style="--enter-delay: 560ms;">
+            <RubiksCube
+              client:load
+              size={1.6}
+              duration={1.4}
+              gap={0.02}
+              radius={0.14}
+              fresnelConfig={{
+                color: "#3c1205",
+                rimColor: "#FF4F18",
+                rimPower: 3,
+                rimIntensity: 1.5,
+              }}
+              class="cube-canvas"
+            />
+          </div>
+        </div>
+
+        <div class="hero-grid">
+          <div class="hero-card" data-enter style="--enter-delay: 720ms;">
+            <div class="hero-card-tag">1 · Add to pubspec</div>
+            <pre class="hero-card-code"><code><span class="dim">dependencies:</span>
+  <span class="dim">acme_ui:</span>
+    <span class="dim">hosted:</span> <span class="orange">https://club.acme.com</span>
+    <span class="dim">version:</span> <span class="dim">^2.4.0</span></code></pre>
+          </div>
+          <div class="hero-card dark" data-enter style="--enter-delay: 840ms;">
+            <div class="hero-card-tag orange">2 · Install as usual</div>
+            <pre class="hero-card-code"><code><span class="prompt">$</span> dart pub get
+<span class="dim">+ acme_ui 2.4.0 (from club.acme.com)</span>
+<span class="dim">Changed 1 dependency.</span></code></pre>
+          </div>
+          <div class="hero-card" data-enter style="--enter-delay: 960ms;">
+            <div class="hero-card-tag">3 · Publish a new version</div>
+            <pre class="hero-card-code"><code><span class="prompt">$</span> club publish
+<span class="dim">✓ uploading acme_ui-2.4.1.tar.gz</span>
+<span class="dim">✓ 2.4.1 live at club.acme.com</span></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <a href="#publish" class="scroll-hint" aria-label="Scroll to next section">
+        <span class="scroll-hint-label">Scroll</span>
+        <span class="scroll-hint-track" aria-hidden="true">
+          <span class="scroll-hint-dot"></span>
+        </span>
+      </a>
+    </section>
+
+    <!-- ═══════ PUBLISH MODULE — "commands your team already knows" ═══════ -->
+    <section id="publish" class="module">
+      <div class="wrap">
+        <div class="module-head" data-reveal>
+          <div class="eyebrow orange">§ Publish</div>
+          <h2 class="h2">{GROUP_LABELS.workflow.title}.</h2>
+          <p class="lede narrow">{GROUP_LABELS.workflow.sub}</p>
+        </div>
+
+        <div class="feature-row" data-reveal-children data-reveal-step="90">
+          {workflowFeatures.map((f, i) => (
+            <article class="feature-card">
+              <div class="feature-num">{String(i + 1).padStart(2, "0")}</div>
+              <div class="feature-key">{f.key}</div>
+              <h3 class="h3">{f.title}</h3>
+              <p class="feature-body">{f.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         FEATURE SECTIONS — order mirrors /dev/features
+         Each is a self-contained component in
+         src/components/features/*.astro — edit or re-order freely.
+         ════════════════════════════════════════════════════════════ -->
+
+    <!-- 01 · Private by default -->
+    <PrivateByDefault />
+
+    <!-- 02 · Admin powers pub.dev won't give you -->
+    <ControlMatrix />
+
+    <!-- 03 · User roles · Admin · Editor · Viewer -->
+    <UserRoles />
+
+    <!-- 04 · Pub Scoring on every publish (pana terminal) -->
+    <PanaTerminal />
+
+    <!-- 05 · Auto-hosted dartdoc API reference -->
+    <Dartdoc />
+
+    <!-- 06 · Storage backends — FS · S3 · GCS -->
+    <Backends />
+
+    <!-- 07 · Publishers — verified + unverified -->
+    <Publishers />
+
+    <!-- 08 · CLI & CI -->
+    <CliAndCi />
+
+    <!-- 09 · Compatibility matrix (dart pub / club) -->
+    <Compatibility />
+
+    <!-- ═══════ FAQ — Pinboard ═══════ -->
+    <FaqPinboard />
+
+    <!-- ═══════ DONATE — Split monthly / one-time ═══════ -->
+    <DonateSplit />
+
+    <!-- ═══════ CTA — Orange / ink split ═══════ -->
+    <OrangeSplit />
+  </main>
+
+  <Footer />
+</Base>
+
+<!--
+  Paint html/body dark on this page so the floating pill sits on a
+  black backdrop. Fixes the white strip on either side of the pill
+  and makes browser overscroll black too.
+-->
+<style is:global>
+  html, body { background: var(--color-ink-dark); }
+</style>
+
+<style>
+  /* ───── Shared ───── */
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 1024px) { .wrap { padding: 0 2rem; } }
+  @media (max-width: 640px) { .wrap { padding: 0 1.5rem; } }
+  .orange { color: var(--color-stamp); }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; white-space: nowrap; }
+  .mute { color: var(--color-mute); }
+  .mono { font-family: var(--font-mono); }
+  .dim { color: var(--color-mute); }
+  .prompt { color: var(--color-stamp); }
+
+  .md-only { display: none; } @media (min-width: 768px) { .md-only { display: block; } }
+
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-mute);
+  }
+  .eyebrow.orange { color: var(--color-stamp); }
+
+  .display {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.1rem, 4.25vw + 0.25rem, 3.85rem);
+    letter-spacing: -0.03em; line-height: 1.02; margin: 1.25rem 0 0;
+    max-width: 22ch;
+  }
+  .display.small {
+    font-size: clamp(2rem, 3.5vw + 0.25rem, 3.25rem);
+    max-width: 24ch; margin: 0 auto;
+  }
+  .accent { color: var(--color-stamp); }
+
+  .lede {
+    font-size: 1.1rem; line-height: 1.55; color: var(--color-mute);
+    margin: 1.5rem 0 0; max-width: 40rem;
+  }
+  .lede.narrow { max-width: 32rem; }
+  .lede.light { color: var(--color-mute-dark); }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+
+  .tag { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; }
+
+  /* ───── Hero (dark) ───── */
+  .hero {
+    position: relative; overflow: hidden;
+    /* Top padding clears the floating pill header (~4rem incl. 1rem
+       offset) AND provides the visual drop-in space. Bottom padding
+       reserves room for the scroll-hint so flex-centering respects
+       its territory and doesn't overlap. */
+    padding: 6rem 0 5rem;
+    background: var(--color-ink-dark); color: #EDEDED;
+    /* Hero size = min(viewport height, 1000px) — whichever is smaller.
+       Caps dead space on tall monitors while remaining full-height on
+       shorter screens. */
+    height: min(100svh, 1000px);
+    /* Center the .wrap within the hero. */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  @media (max-width: 1200px) {
+    /* On stacked layouts (mobile + tablet), content naturally exceeds
+       the viewport; let the hero grow so the cube + text + code cards
+       all flow without clipping. */
+    .hero { height: auto; min-height: 100svh; max-height: none; }
+  }
+
+  /* Two-column split: text left, WebGL cube right. Stacks at ≤1200px so
+     narrow desktops (where a 2fr:1fr cube column would squeeze below
+     28rem and cause the rotating cube to clip its canvas edges) always
+     show the cube at a proper square size. */
+  .hero-split {
+    display: grid; gap: 3rem;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: center;
+  }
+  @media (max-width: 1200px) {
+    .hero-split { grid-template-columns: 1fr; gap: 2rem; }
+    /* Cube goes ABOVE text on stacked layouts (tablet + mobile) */
+    .hero-cube { order: 1; justify-self: center; min-height: 26rem; max-width: 34rem; }
+    .hero-copy { order: 2; }
+  }
+  @media (max-width: 640px) {
+    .hero-split { gap: 1.5rem; }
+    .hero-cube { min-height: 20rem; max-width: 22rem; }
+  }
+
+  /* Desktop base: no min-height — let aspect-ratio keep the cube a
+     perfect square at whatever column width the grid gives it. This
+     guarantees the canvas is square so the rotating cube never clips. */
+  .hero-cube {
+    position: relative;
+    aspect-ratio: 1;
+    width: 100%;
+    justify-self: stretch;
+  }
+  /* Soft radial glow behind the cube */
+  /* Cinematic halo — layered bloom behind the cube.
+     ::before = soft outer aura (extends beyond the cube bounds)
+     ::after  = tighter hot core directly behind the cube body */
+  .hero-cube::before {
+    content: ""; position: absolute; inset: -25% -25%;
+    border-radius: 50%; pointer-events: none;
+    background: radial-gradient(
+      circle at 50% 52%,
+      color-mix(in oklab, var(--color-stamp) 18%, transparent) 0%,
+      color-mix(in oklab, var(--color-stamp) 24%, transparent) 22%,
+      color-mix(in oklab, var(--color-stamp) 10%, transparent) 42%,
+      transparent 68%
+    );
+    filter: blur(60px);
+    z-index: 0;
+    animation: cube-halo-breathe 7s ease-in-out infinite alternate;
+  }
+  .hero-cube::after {
+    content: ""; position: absolute; inset: 15% 15%;
+    border-radius: 50%; pointer-events: none;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--color-stamp) 25%, transparent) 0%,
+      color-mix(in oklab, var(--color-stamp) 18%, transparent) 38%,
+      transparent 72%
+    );
+    filter: blur(32px);
+    z-index: 0;
+    mix-blend-mode: screen;
+    animation: cube-halo-breathe 5.5s ease-in-out -1.2s infinite alternate;
+  }
+  @keyframes cube-halo-breathe {
+    from { opacity: 0.78; transform: scale(0.97); }
+    to   { opacity: 1.0;  transform: scale(1.05); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-cube::before,
+    .hero-cube::after { animation: none; }
+  }
+  .hero-cube :global(.cube-canvas) {
+    position: relative; z-index: 1;
+    width: 100%; height: 100%;
+  }
+  .hero-bleed {
+    position: absolute; pointer-events: none;
+    right: -8rem; top: -10rem;
+    width: 28rem; height: 28rem; border-radius: 999px;
+    background: radial-gradient(circle, #FF4F18 0%, transparent 70%);
+    opacity: 0.10; filter: blur(48px);
+    animation: hero-bleed-drift 14s ease-in-out infinite alternate;
+  }
+  @keyframes hero-bleed-drift {
+    from { transform: translate3d(0, 0, 0) scale(1);    opacity: 0.10; }
+    to   { transform: translate3d(-2rem, 1.5rem, 0) scale(1.12); opacity: 0.14; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-bleed { animation: none; }
+  }
+  .hero .wrap { position: relative; }
+
+  /* Subtle scroll hint at the bottom of the hero */
+  .scroll-hint {
+    position: absolute; left: 50%; bottom: 1.25rem;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+    color: color-mix(in oklab, #EDEDED 55%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase;
+    text-decoration: none;
+    transition: color 200ms ease, transform 200ms ease;
+  }
+  .scroll-hint:hover { color: #EDEDED; }
+  .scroll-hint-track {
+    position: relative;
+    width: 1px; height: 2.25rem;
+    background: color-mix(in oklab, #EDEDED 22%, transparent);
+    overflow: hidden;
+  }
+  .scroll-hint-dot {
+    position: absolute; left: 50%; top: 0;
+    width: 1px; height: 0.75rem;
+    background: var(--color-stamp);
+    transform: translateX(-50%);
+    animation: scroll-hint-fall 1.8s ease-in-out infinite;
+  }
+  @keyframes scroll-hint-fall {
+    0%   { top: -0.75rem; opacity: 0; }
+    35%  { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { top: 2.25rem; opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-hint-dot { animation: none; top: 0.75rem; opacity: 1; }
+  }
+  @media (max-width: 768px) { .scroll-hint { bottom: 1rem; } }
+
+  /* Dark-theme overrides for hero content */
+  .hero .display { color: #EDEDED; }
+  .hero .lede { color: var(--color-mute-dark); }
+  .hero .lede .ink {
+    color: #EDEDED;
+    background: color-mix(in oklab, var(--color-stamp) 22%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-stamp) 35%, transparent);
+  }
+
+  .hero-grid {
+    display: grid; 
+    gap: 1rem; 
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 64rem;
+    margin-top: 2rem;
+  }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .hero-grid { margin-top: 2.5rem; gap: 0.75rem; }
+  }
+  .hero-card {
+    position: relative;
+    background: var(--color-ink-dark-raise); color: #EDEDED;
+    border: 1px solid var(--color-border-dark); border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 14px 32px -20px rgba(0,0,0,0.5);
+    transform-style: preserve-3d;
+    transition:
+      transform 420ms var(--ease-out-quart),
+      box-shadow 420ms var(--ease-out-quart),
+      border-color 200ms ease-out;
+    will-change: transform;
+  }
+  .hero-card:hover {
+    transform: translate3d(0, -6px, 0);
+    border-color: color-mix(in oklab, var(--color-stamp) 38%, var(--color-border-dark));
+    box-shadow:
+      0 24px 48px -20px rgba(0,0,0,0.65),
+      0 0 0 1px color-mix(in oklab, var(--color-stamp) 22%, transparent);
+  }
+  .hero-card.dark {
+    background: var(--color-ink-dark);
+    border-color: color-mix(in oklab, var(--color-stamp) 35%, var(--color-border-dark));
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-stamp) 12%, transparent), 0 14px 32px -20px rgba(0,0,0,0.5);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-card:hover { transform: none; }
+  }
+  .hero-card-tag {
+    font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-mute-dark); margin-bottom: 0.75rem;
+  }
+  .hero-card-tag.orange { color: var(--color-stamp); }
+  .hero-card-code {
+    font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.65;
+    white-space: pre-wrap; word-break: break-word; margin: 0;
+    color: #EDEDED;
+  }
+  .hero .dim { color: var(--color-mute-dark); }
+
+  /* ───── Publish module ───── */
+  .module { padding: 6rem 0; background: var(--color-bg); }
+  @media (max-width: 768px) { .module { padding: 3.5rem 0; } }
+  .module-head { max-width: 50rem; }
+  .module-head .h2 { margin-top: 1rem; }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.75rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .h3 {
+    font-family: var(--font-sans); font-weight: 640;
+    font-size: 1.2rem; letter-spacing: -0.015em; line-height: 1.3; margin: 0.5rem 0 0;
+  }
+
+  .feature-row {
+    display: grid; gap: 1.5rem; margin-top: 3.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .feature-row { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .feature-row { margin-top: 2rem; gap: 1rem; }
+  }
+  .feature-card {
+    padding: 2rem 1.75rem; background: var(--color-bg);
+    border: 1px solid var(--color-border); border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 320ms var(--ease-out-quart),
+      border-color 200ms ease-out,
+      box-shadow 320ms var(--ease-out-quart);
+  }
+  @media (max-width: 768px) { .feature-card { padding: 1.5rem 1.25rem; } }
+  .feature-card::before {
+    content: ""; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--color-stamp);
+    transform: scaleY(0); transform-origin: top;
+    transition: transform 380ms var(--ease-out-quart);
+  }
+  .feature-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--color-stamp) 30%, var(--color-border));
+    box-shadow: 0 18px 36px -24px rgba(20,21,23,0.22);
+  }
+  .feature-card:hover::before { transform: scaleY(1); }
+  .feature-card:hover .feature-num { transform: translateX(-2px) rotate(-3deg); }
+
+  .feature-num {
+    position: absolute; top: 1.25rem; right: 1.25rem;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.18em; color: var(--color-stamp);
+    transition: transform 320ms var(--ease-out-quart);
+  }
+  .feature-key {
+    font-family: var(--font-mono); font-size: 0.64rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .feature-body {
+    margin: 0.65rem 0 0; font-size: 0.94rem; line-height: 1.55; color: var(--color-mute);
+  }
+</style>
+

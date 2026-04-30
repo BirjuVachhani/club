@@ -1,0 +1,196 @@
+---
+title: Auth & Tokens
+description: Authenticate and manage API tokens programmatically using the club_api client SDK, including login, API key CRUD, and error handling.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ClubClient` exposes authentication and API key management directly as methods on the client. All auth methods return untyped `Map<String, dynamic>` — you extract fields by key.
+
+## Login
+
+Authenticate with email and password to obtain session information:
+
+```dart
+final result = await client.login('jane@example.com', 'password123');
+
+// Inspect whatever the server returns. Typical fields include user info
+// and, where applicable, a session cookie already set on the http client.
+print(result);
+```
+
+The return type is `Map<String, dynamic>`. Treat it as a plain JSON payload and pull fields by name.
+
+<Aside>
+`login()` establishes a session. For persistent programmatic access (CI, scripts, SDK usage), create an API key using `createApiKey()` and pass it as the `token` parameter to `ClubClient`.
+</Aside>
+
+## Creating API Keys
+
+Create a named API key with specific scopes and optional expiry:
+
+```dart
+final key = await client.createApiKey(
+  name: 'CI - GitHub Actions',
+  scopes: ['read', 'write'],
+  expiresInDays: 90,
+);
+
+print(key);
+// The raw token is in the response and is shown ONLY ONCE.
+// It has the format: club_pat_<random-hex>
+final rawToken = key['token'] as String;
+```
+
+Parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `String` | Human-readable label |
+| `scopes` | `List<String>` | Defaults to `['read', 'write']`. Clamped to the user's role on the server. |
+| `expiresInDays` | `int?` | Optional expiry window. Omit for a non-expiring key. |
+
+<Aside type="caution">
+The raw token is returned only at creation time. Copy it immediately — the server does not keep the plaintext value, so a lost token cannot be recovered, only revoked.
+</Aside>
+
+### Scope Reference
+
+| Scope | Allows |
+|-------|--------|
+| `read` | Fetch metadata, download archives, search |
+| `write` | Publish, manage own packages (retract, options, uploaders), like |
+| `admin` | User management, delete packages, ownership transfer |
+
+The server clamps requested scopes to the requesting user's role. A viewer cannot create a write-scoped key; a non-admin cannot create an admin-scoped key.
+
+### Scope Combinations
+
+```dart
+// Read-only (for CI build pipelines)
+await client.createApiKey(
+  name: 'CI Build',
+  scopes: ['read'],
+);
+
+// Read + write (for publishing pipelines)
+await client.createApiKey(
+  name: 'CI Publish',
+  scopes: ['read', 'write'],
+);
+
+// Full admin access
+await client.createApiKey(
+  name: 'Admin Script',
+  scopes: ['read', 'write', 'admin'],
+);
+```
+
+## Listing API Keys
+
+List all API keys for the current user:
+
+```dart
+final keys = await client.listApiKeys();
+for (final key in keys) {
+  print(key); // Map<String, dynamic>
+  // Typical fields: id, name, prefix, scopes, createdAt, expiresAt, lastUsedAt
+}
+```
+
+<Aside type="note">
+Only the prefix (first 8 characters) and metadata are returned. The full token value is never available after creation.
+</Aside>
+
+## Revoking API Keys
+
+Revoke a key by its ID. The key is immediately invalidated:
+
+```dart
+await client.revokeApiKey('tok_e5f6');
+print('Key revoked.');
+```
+
+### Revoking All Keys Except a Known Prefix
+
+A useful pattern for "log out everywhere except this host":
+
+```dart
+final keys = await client.listApiKeys();
+final currentPrefix = 'club_pat'; // match by prefix as needed
+
+for (final key in keys) {
+  if (key['prefix'] != currentPrefix) {
+    await client.revokeApiKey(key['id'] as String);
+    print('Revoked: ${key['name']}');
+  }
+}
+```
+
+## Token Format
+
+All API keys use the format:
+
+```
+club_pat_<random-hex>
+```
+
+The server keeps only a hashed form of the secret. A short prefix is stored alongside the hash so you can recognize a token in the UI and in audit output.
+
+## Error Handling
+
+### Exception Hierarchy
+
+All client methods throw typed exceptions:
+
+```
+ClubApiException              Base class for all API errors
+  ├── ClubBadRequestException     400 — Invalid input
+  ├── ClubAuthException           401 — Authentication failed
+  ├── ClubForbiddenException      403 — Insufficient permissions
+  ├── ClubNotFoundException       404 — Resource not found
+  ├── ClubConflictException       409 — Conflict (e.g., duplicate version)
+  └── ClubServerException         500 — Server error
+```
+
+### Common Patterns
+
+**Catch specific errors:**
+
+```dart
+try {
+  await client.login('jane@example.com', 'wrong-password');
+} on ClubAuthException catch (e) {
+  print('Login failed: ${e.message}');
+}
+```
+
+**Catch all API errors:**
+
+```dart
+try {
+  final key = await client.createApiKey(name: 'test');
+  print(key['token']);
+} on ClubApiException catch (e) {
+  print('API error ${e.code}: ${e.message}');
+}
+```
+
+**Token expiration check:**
+
+```dart
+try {
+  await client.listVersions('my_package');
+} on ClubAuthException {
+  print('Token expired or revoked. Please re-authenticate.');
+}
+```
+
+### Error Properties
+
+Every `ClubApiException` has:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `code` | `int` | HTTP status code |
+| `message` | `String` | Human-readable error message from the server |

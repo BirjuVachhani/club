@@ -1,0 +1,329 @@
+---
+title: CI/CD Integration
+description: Set up automated package publishing and dependency resolution with GitHub Actions, GitLab CI, Bitbucket Pipelines, and CircleCI using club.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+club integrates cleanly with CI/CD pipelines. The basic recipe is:
+
+1. Create a Personal Access Token (PAT) scoped to exactly what the job needs.
+2. Store it as a CI secret (e.g. `CLUB_TOKEN`).
+3. Register it with `dart pub` using `--env-var` so the token never touches disk.
+4. Run `dart pub get`, `dart pub publish`, or `club publish` as usual.
+
+## Creating CI Tokens
+
+Create a dedicated PAT from the web UI at **`/settings/keys`** with the minimum scopes:
+
+| Job type | Scopes |
+|----------|--------|
+| Read-only (build, test, `dart pub get`) | `read` |
+| Publishing (`dart pub publish`, `club publish`) | `read` + `write` |
+
+Optionally set an expiry (e.g. 90 days) so forgotten keys don't linger. The full secret (`club_pat_...`) is shown **once** — copy it straight into your CI provider's secrets store.
+
+<Aside type="caution">
+The token secret is displayed only at creation time. Copy it immediately and store it as a secret in your CI provider.
+</Aside>
+
+## `dart pub token add --env-var`
+
+The `--env-var` flag registers a token **by environment variable name** — the token itself is not written to disk. At resolution time `dart pub` reads the named env var:
+
+```bash
+dart pub token add https://club.example.com --env-var CLUB_TOKEN
+```
+
+With `CLUB_TOKEN` exported to the value `club_pat_...`, `dart pub get` and `dart pub publish` will attach it as a Bearer token automatically.
+
+<Aside type="tip">
+The `club` CLI also honors `CLUB_TOKEN` directly — when set, it is used as the bearer token for `club` commands without needing `club login`. Handy for one-shot CI jobs.
+</Aside>
+
+## GitHub Actions
+
+The `BirjuVachhani/club/actions/setup-club` action installs the CLI
+and registers the token with `dart pub` in a single step, on Linux,
+macOS, and Windows runners. It is the recommended path for GitHub
+Actions workflows. If you'd rather wire up the underlying commands
+yourself, the [manual approach](#manual-github-actions-without-the-action)
+below is equivalent.
+
+### Fetching Packages
+
+<Code code={`name: Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - uses: BirjuVachhani/club/actions/setup-club@v1
+        with:
+          server: https://club.example.com
+          token: \${{ secrets.CLUB_TOKEN }}
+
+      - run: dart pub get
+      - run: dart test`} lang="yaml" title=".github/workflows/build.yml" />
+
+### Publishing Packages
+
+<Code code={`name: Publish
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - uses: BirjuVachhani/club/actions/setup-club@v1
+        with:
+          server: https://club.example.com
+          token: \${{ secrets.CLUB_TOKEN }}
+
+      - run: dart pub publish --force`} lang="yaml" title=".github/workflows/publish.yml" />
+
+### Flutter Projects
+
+`subosito/flutter-action` puts `dart` on `PATH` (Flutter bundles its
+own Dart SDK), so `setup-club` works without an extra `setup-dart`
+step:
+
+<Code code={`name: Flutter Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+
+      - uses: BirjuVachhani/club/actions/setup-club@v1
+        with:
+          server: https://club.example.com
+          token: \${{ secrets.CLUB_TOKEN }}
+
+      - run: flutter pub get
+      - run: flutter test`} lang="yaml" title=".github/workflows/flutter.yml" />
+
+### Action inputs
+
+| Input | Required | Default | Description |
+|---|:---:|---|---|
+| `server` | yes | — | club server URL. |
+| `token` | yes | — | A `club_pat_...` token. Pass via `secrets`. |
+| `version` | no | latest | CLI release tag to install (e.g. `0.1.0`). |
+| `set-default-registry` | no | `false` | When `true`, exports `PUB_HOSTED_URL=<server>` so club becomes the default registry for unscoped dependencies. |
+
+After the action runs, `CLUB_TOKEN` is exported to `$GITHUB_ENV`, so
+subsequent `dart pub get`, `dart pub publish`, and `club publish`
+steps authenticate automatically — no need to repeat the `env:` block
+on each step.
+
+<Aside>
+  The action does **not** install the Dart SDK. Run
+  `dart-lang/setup-dart@v1` (or a Flutter setup action) first.
+</Aside>
+
+### Manual GitHub Actions (without the action)
+
+If you'd rather not depend on the action — for example to pin every
+step to first-party tooling — wire it up directly:
+
+<Code code={`name: Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - name: Configure club token
+        run: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+        env:
+          CLUB_TOKEN: \${{ secrets.CLUB_TOKEN }}
+
+      - name: Get dependencies
+        run: dart pub get
+        env:
+          CLUB_TOKEN: \${{ secrets.CLUB_TOKEN }}
+
+      - name: Run tests
+        run: dart test`} lang="yaml" title=".github/workflows/build.yml" />
+
+The `CLUB_TOKEN` env var must be present on every step that runs
+`dart pub` because, unlike the action, this approach doesn't write it
+to `$GITHUB_ENV`.
+
+## GitLab CI
+
+<Code code={`stages:
+  - build
+  - publish
+
+variables:
+  CLUB_SERVER: https://club.example.com
+
+build:
+  image: dart:stable
+  stage: build
+  before_script:
+    - dart pub token add $CLUB_SERVER --env-var CLUB_TOKEN
+  script:
+    - dart pub get
+    - dart test
+  cache:
+    key: dart-packages
+    paths:
+      - .dart_tool/
+
+publish:
+  image: dart:stable
+  stage: publish
+  only:
+    - tags
+  before_script:
+    - dart pub token add $CLUB_SERVER --env-var CLUB_TOKEN
+  script:
+    - dart pub publish --force`} lang="yaml" title=".gitlab-ci.yml" />
+
+<Aside type="tip">
+In GitLab, add `CLUB_TOKEN` as a CI/CD variable under **Settings > CI/CD > Variables**. Mark it as **masked** and **protected**.
+</Aside>
+
+## Bitbucket Pipelines
+
+<Code code={`image: dart:stable
+
+pipelines:
+  default:
+    - step:
+        name: Build and Test
+        caches:
+          - dart-packages
+        script:
+          - dart pub token add https://club.example.com --env-var CLUB_TOKEN
+          - dart pub get
+          - dart test
+
+  tags:
+    'v*':
+      - step:
+          name: Publish
+          script:
+            - dart pub token add https://club.example.com --env-var CLUB_TOKEN
+            - dart pub publish --force
+
+definitions:
+  caches:
+    dart-packages: .dart_tool/`} lang="yaml" title="bitbucket-pipelines.yml" />
+
+<Aside type="tip">
+In Bitbucket, add `CLUB_TOKEN` as a repository variable under **Repository settings > Pipelines > Repository variables**. Mark it as **Secured**.
+</Aside>
+
+## CircleCI
+
+<Code code={`version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/dart:stable
+    steps:
+      - checkout
+      - run:
+          name: Configure club token
+          command: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+      - run: dart pub get
+      - run: dart test
+
+  publish:
+    docker:
+      - image: cimg/dart:stable
+    steps:
+      - checkout
+      - run:
+          name: Configure club token
+          command: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+      - run: dart pub publish --force
+
+workflows:
+  test-and-publish:
+    jobs:
+      - build
+      - publish:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/`} lang="yaml" title=".circleci/config.yml" />
+
+<Aside type="tip">
+Store `CLUB_TOKEN` as a project-level environment variable under **Project Settings > Environment Variables**. CircleCI automatically masks env-var values in logs.
+</Aside>
+
+## Caching Strategies
+
+Caching Dart dependencies speeds up CI builds significantly:
+
+| Directory | Contents |
+|-----------|----------|
+| `.dart_tool/` | Resolved package config and cached build artifacts |
+| `~/.pub-cache/` | Downloaded package archives |
+
+### GitHub Actions Caching
+
+<Code code={`      - name: Cache Dart packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool/
+          key: dart-\${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            dart-`} lang="yaml" title=".github/workflows/build.yml (cache step)" />
+
+### GitLab CI Caching
+
+```yaml
+cache:
+  key: dart-$CI_COMMIT_REF_SLUG
+  paths:
+    - .dart_tool/
+    - $PUB_CACHE
+```
+
+## Security Best Practices
+
+<Steps>
+
+1. **Use minimal scopes.** Read-only build jobs should use `read` only. Add `write` only for publish jobs.
+
+2. **Set an expiry.** Short-lived tokens (e.g. 90 days) limit the blast radius of a leak.
+
+3. **Always use `--env-var`.** Never hardcode tokens in pipeline files, Dockerfiles, or committed scripts.
+
+4. **Mark secrets as masked.** All major CI providers support masking secrets in logs.
+
+5. **Separate read and write tokens.** One token for build jobs (read-only), another for publish jobs (read + write).
+
+6. **Revoke promptly.** When a pipeline is decommissioned or a developer leaves, revoke the associated PATs from `/settings/keys`.
+
+</Steps>

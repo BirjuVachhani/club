@@ -1,0 +1,196 @@
+---
+title: Client SDK Overview
+description: Get started with club_api, the Dart client SDK for programmatic access to any club server.
+---
+
+import { Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+`club_api` is a publishable Dart package that provides a typed client for interacting with any club server programmatically. It is the same library that powers the `club` CLI.
+
+## When to Use the SDK
+
+Use `club_api` when you need to interact with a club server from Dart code:
+
+- **CI/CD pipelines** — Publish packages, create tokens, or check package status as part of automated workflows
+- **Custom dashboards** — Build internal web UIs or CLI tools that display package metrics
+- **Automation scripts** — Batch operations like retracting versions, discontinuing packages, or managing users
+- **IDE plugins** — Build editor integrations for browsing and publishing to club
+- **Monitoring** — Check package health, version counts, or upload activity
+
+<Aside>
+For simple publishing and dependency resolution, you do not need the SDK. The `club` CLI and `dart pub` handle those workflows directly. The SDK is for building custom tooling.
+</Aside>
+
+## Installation
+
+<Tabs>
+  <TabItem label="pubspec.yaml">
+  <Code code={`dependencies:
+  club_api: ^1.0.0`} lang="yaml" title="pubspec.yaml" />
+  </TabItem>
+  <TabItem label="Command line">
+  ```bash
+  dart pub add club_api
+  ```
+  </TabItem>
+</Tabs>
+
+## Quick Start
+
+```dart
+import 'package:club_api/club_api.dart';
+
+Future<void> main() async {
+  final client = ClubClient(
+    serverUrl: Uri.parse('https://club.example.com'),
+    token: 'club_pat_a1b2c3d4e5f6...',
+  );
+
+  // List all versions of a package
+  final pkg = await client.listVersions('my_package');
+  print('Latest: ${pkg.latest.version}');
+
+  // Search for packages
+  final results = await client.search('http');
+  print(results);
+
+  // Always close when done
+  client.close();
+}
+```
+
+## ClubClient
+
+`ClubClient` is a flat client — all API methods live directly on the client instance. There are no sub-clients or fluent builders.
+
+```dart
+final client = ClubClient(
+  serverUrl: Uri.parse('https://club.example.com'),
+  token: 'club_pat_...',
+);
+
+// Package reads
+await client.listVersions('my_package');
+await client.getVersion('my_package', '1.2.0');
+await client.downloadArchive('my_package', '1.2.0');
+
+// Publishing
+await client.publishFile('build/my_package-1.0.0.tar.gz');
+
+// Auth
+await client.login('jane@example.com', 'password123');
+await client.createApiKey(name: 'CI token');
+
+// Search, likes, admin, and more...
+```
+
+See [Package Operations](/sdk/packages/), [Publishing](/sdk/publishing/), and [Auth & Tokens](/sdk/auth/) for the full method list.
+
+### Constructor Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `serverUrl` | Yes | The club server URL as a `Uri` |
+| `token` | No | API token (`club_pat_...`) or session cookie value. Required for most operations but not for `login()`. |
+| `httpClient` | No | Custom `http.Client` for testing or proxies |
+
+### Token from Environment Variable
+
+A common pattern for scripts and CI tools:
+
+```dart
+import 'dart:io';
+import 'package:club_api/club_api.dart';
+
+final client = ClubClient(
+  serverUrl: Uri.parse(Platform.environment['SERVER_URL']!),
+  token: Platform.environment['CLUB_TOKEN']!,
+);
+```
+
+### Custom HTTP Client
+
+Pass a custom `http.Client` for proxy support, logging, or testing:
+
+```dart
+import 'package:http/http.dart' as http;
+
+final httpClient = http.Client();
+final client = ClubClient(
+  serverUrl: Uri.parse('https://club.example.com'),
+  token: 'club_pat_...',
+  httpClient: httpClient,
+);
+```
+
+### Closing the Client
+
+Always call `client.close()` when you are done to release HTTP connections:
+
+```dart
+try {
+  // ... use the client
+} finally {
+  client.close();
+}
+```
+
+## Method Groups
+
+All of these methods are called directly on `ClubClient`. The groupings below are purely for documentation — there are no sub-clients.
+
+| Area | Methods | Docs |
+|------|---------|------|
+| Packages | `listVersions`, `getVersion`, `downloadArchive`, `getOptions`, `setOptions`, `getVersionOptions`, `setVersionOptions`, `getScore`, `getLikeCount`, `listAllNames` | [Package Operations](/sdk/packages/) |
+| Publishing | `publishFile`, `publish` | [Publishing](/sdk/publishing/) |
+| Auth | `login`, `createApiKey`, `listApiKeys`, `revokeApiKey` | [Auth & Tokens](/sdk/auth/) |
+| Search | `search` | Used via the search API |
+| Likes | `like`, `unlike`, `likedPackages` | Used via the likes API |
+| Admin | `listUsers`, `createUser`, `updateUser`, `deleteUser`, `resetUserPassword`, `transferOwnership`, `deletePackage` | Requires admin scope |
+
+## Exposed Models
+
+The following typed models are re-exported from `club_core`:
+
+- `PackageData` — listing of all versions of a package (pub spec v2 format)
+- `VersionInfo` — metadata for a specific version
+- `UploadInfo` — upload session info returned by the publish flow
+- `SuccessMessage` — success response wrapper
+- `PkgOptions` — package-level options (`isDiscontinued`, `isUnlisted`, `replacedBy`)
+- `VersionOptions` — version-level options (`isRetracted`)
+- `VersionScore` — pana analysis score
+- `PackagePublisherInfo` — publisher associated with a package
+
+<Aside type="note">
+The auth and admin methods return untyped `Map<String, dynamic>` — extract fields by key. There are no typed DTOs like `LoginResult` or `NewTokenResult`.
+</Aside>
+
+## Error Handling
+
+All client methods throw typed exceptions on failure:
+
+```dart
+try {
+  await client.listVersions('nonexistent');
+} on ClubNotFoundException catch (e) {
+  print('Package not found: ${e.message}');
+} on ClubAuthException catch (e) {
+  print('Auth failed: ${e.message}');
+} on ClubApiException catch (e) {
+  print('API error ${e.code}: ${e.message}');
+}
+```
+
+The full exception hierarchy:
+
+```
+ClubApiException                Base class for all API errors
+  ├── ClubBadRequestException     400 — Invalid input
+  ├── ClubAuthException           401 — Authentication failed
+  ├── ClubForbiddenException      403 — Insufficient permissions
+  ├── ClubNotFoundException       404 — Resource not found
+  ├── ClubConflictException       409 — Conflict (e.g., duplicate version)
+  └── ClubServerException         500 — Server error
+```
+
+See [Auth & Tokens](/sdk/auth/) for error-handling patterns.

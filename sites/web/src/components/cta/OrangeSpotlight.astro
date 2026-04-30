@@ -1,0 +1,135 @@
+---
+// CTA variant E6 — "Orange spotlight"
+// Orange band with layered radial gradients that create a centered
+// "stage spotlight" — lighter in the middle, darker at the edges.
+// Feels polished and premium; no hatch, no blocks — pure light and
+// typography.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+---
+
+<section class="cta">
+  <div class="halo-a" aria-hidden="true"></div>
+  <div class="halo-b" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <div class="pill mono">
+      <span class="dot"></span>
+      Ready when you are
+    </div>
+
+    <h2 class="h2">
+      Host your own <em>pub</em>,<br/>
+      today.
+    </h2>
+
+    <p class="lede">
+      One container on your laptop in five minutes. Then scale it
+      to the storage and ingress you already operate.
+    </p>
+
+    <div class="cta-row">
+      <a href={docsUrl("/getting-started/quick-start/")} class="btn-light">
+        Read the quick start
+        <span class="arrow">→</span>
+      </a>
+      <a href={GITHUB_URL} class="btn-glass">GitHub ↗</a>
+    </div>
+
+    <div class="meta mono">
+      <span>Apache 2.0</span>
+      <span class="sep">·</span>
+      <span>multi-arch Docker</span>
+      <span class="sep">·</span>
+      <span>no telemetry, ever</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative; overflow: hidden;
+    padding: 8rem 0 7rem;
+    background: var(--color-stamp); color: #fff;
+    text-align: center;
+  }
+
+  /* Top-center warm highlight */
+  .halo-a {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 70% 55% at 50% 10%, #FFB094 0%, transparent 70%);
+    opacity: 0.85;
+  }
+  /* Lower ambient glow */
+  .halo-b {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 55% 40% at 50% 75%, #FFE4DA 0%, transparent 65%);
+    opacity: 0.45;
+  }
+  /* Edge vignette pulls the stage forward */
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 95% 85% at 50% 50%, transparent 55%, rgba(142, 36, 8, 0.55) 100%);
+  }
+
+  .wrap { position: relative; z-index: 2; max-width: 56rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  /* Pill */
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 0.85rem; border-radius: 999px;
+    background: color-mix(in oklab, #fff 18%, transparent);
+    border: 1px solid color-mix(in oklab, #fff 35%, transparent);
+    backdrop-filter: blur(6px);
+    font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase;
+    color: #fff; font-weight: 700;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 999px; background: #fff; box-shadow: 0 0 8px #fff; }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2.75rem, 5vw + 0.5rem, 5rem);
+    letter-spacing: -0.035em; line-height: 0.98;
+    margin: 1.75rem auto 0; max-width: 14ch; color: #fff;
+  }
+  .h2 em { font-style: italic; font-weight: 580; color: var(--color-ink); }
+
+  .lede {
+    font-size: 1.1rem; line-height: 1.55;
+    color: #FFE4DA; margin: 1.5rem auto 0; max-width: 38rem;
+  }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 2.25rem; }
+
+  .btn-light, .btn-glass {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    padding: 0.85em 1.4em; border-radius: 999px;
+    font-family: var(--font-sans); font-size: 0.92rem; font-weight: 680;
+    transition: transform 150ms, box-shadow 150ms, background 150ms;
+  }
+  .btn-light {
+    background: #fff; color: var(--color-stamp-hover);
+    border: 1px solid #fff;
+    box-shadow: 0 14px 32px -12px rgba(0,0,0,0.35), 0 0 0 6px color-mix(in oklab, #fff 20%, transparent);
+  }
+  .btn-light:hover { transform: translateY(-1px); box-shadow: 0 20px 42px -14px rgba(0,0,0,0.45), 0 0 0 8px color-mix(in oklab, #fff 28%, transparent); }
+  .btn-glass {
+    background: color-mix(in oklab, #fff 14%, transparent);
+    color: #fff; border: 1px solid color-mix(in oklab, #fff 45%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .btn-glass:hover { background: color-mix(in oklab, #fff 22%, transparent); border-color: #fff; }
+  .arrow { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+  .btn-light:hover .arrow { transform: translateX(2px); }
+
+  .meta {
+    margin-top: 2.25rem;
+    display: inline-flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; justify-content: center; align-items: baseline;
+    font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #FFE4DA; font-weight: 600;
+  }
+  .meta .sep { color: #fff; opacity: 0.55; }
+
+  .mono { font-family: var(--font-mono); }
+</style>

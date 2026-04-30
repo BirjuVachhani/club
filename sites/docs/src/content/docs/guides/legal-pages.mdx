@@ -1,0 +1,127 @@
+---
+title: Legal Pages
+description: Customize the Privacy Policy and Terms of Use shown on your club server. Defaults ship out-of-the-box; the server owner can replace them from the admin UI.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+club serves two public legal pages — **Privacy Policy** at `/privacy` and **Terms of Use** at `/terms`. They are linked from the footer of every page.
+
+Both pages ship with sensible, self-hosting-aware default text so every instance has something usable on day one. The **server owner** can replace either document with custom markdown at any time from `/admin/settings/legal`.
+
+<Aside type="caution" title="Not legal advice">
+  The defaults are a reasonable baseline written for a generic CLUB deployment. They are **not a substitute for legal counsel**. If your deployment handles regulated data, faces specific jurisdictions, or has unusual integrations, have a lawyer review the text and replace it via the admin UI.
+</Aside>
+
+## What the defaults cover
+
+The bundled Privacy Policy describes the data the software actually stores — account records, hashed credentials, sessions, published content, likes, audit log entries, aggregate download counts — and is clear that the **instance operator is the data controller**, not the CLUB project.
+
+The bundled Terms of Use describe a reasonable baseline for any CLUB instance: the contract is between the user and the operator (not the CLUB maintainers), acceptable-use rules for a package registry, the publish/serve license grant needed to host packages, and standard disclaimers.
+
+Both documents tell the reader to contact the instance administrator for anything deployment-specific.
+
+## Editing the pages
+
+<Steps>
+
+1. **Sign in as the server owner.**
+
+   Only the **owner** role can edit the legal pages. Regular admins can see the screen but every mutation is rejected server-side.
+
+2. **Open Admin > Legal.**
+
+   The sidebar entry sits alongside Scoring and Ownership. Both documents share a single screen; use the top tabs to switch between Privacy and Terms.
+
+3. **Edit the markdown.**
+
+   The editor is a plain markdown textarea. Flip to the **Preview** tab to see the rendered output — it uses the same renderer as package READMEs, so anything that works in a README works here (headings, links, lists, tables, code, etc.).
+
+4. **Save changes.**
+
+   Click **Save changes** to publish. Visitors at `/privacy` or `/terms` see your version immediately on their next request. The tab for the customized document picks up a **Custom** pill so you can see at a glance which pages are no longer on the default.
+
+5. **Revert if needed.**
+
+   **Reset to default** (guarded by a confirmation dialog) discards the saved custom copy and brings the bundled default back. **Discard changes** throws away unsaved edits in the textarea only — the live page is not affected.
+
+</Steps>
+
+<Aside type="tip">
+  Saving an empty textarea is treated the same as "Reset to default", so clearing the editor and hitting **Save** will revert to the bundled copy.
+</Aside>
+
+## Where the content is stored
+
+Custom copy lives in the `server_settings` table under two keys:
+
+| Key | Contents |
+|-----|----------|
+| `legal.privacy_md` | Custom Privacy Policy markdown. Absent when using the default. |
+| `legal.terms_md` | Custom Terms of Use markdown. Absent when using the default. |
+
+The public API falls back to the defaults whenever the row is absent, so there is no "blank page" failure mode. The editor caps each document at **256 KiB**, which is more than enough for any realistic legal text and keeps the row cheap to serve.
+
+## API
+
+The same endpoints power the public pages, the admin editor, and any automation you might want to build (GitOps, scheduled review reminders, etc.).
+
+### Public reads
+
+Available to every visitor, authenticated or not:
+
+```http
+GET /api/legal/privacy
+GET /api/legal/terms
+```
+
+Response:
+
+```json
+{
+  "markdown": "# Privacy Policy\n\n…",
+  "isCustom": false
+}
+```
+
+`isCustom` is `true` when the response is a server-owner override, `false` when the bundled default is being served.
+
+### Owner-only writes
+
+Authenticated as the server **owner** (session cookie + CSRF, or a personal access token):
+
+```http
+PUT /api/admin/legal/privacy
+Content-Type: application/json
+
+{ "markdown": "# Privacy Policy\n\n…" }
+```
+
+```http
+PUT /api/admin/legal/terms
+Content-Type: application/json
+
+{ "markdown": "# Terms of Use\n\n…" }
+```
+
+Both return the freshly-saved content in the same `{ markdown, isCustom }` shape. Submitting an empty string removes the override and reverts to the default.
+
+### Owner-only reset
+
+```http
+DELETE /api/admin/legal/privacy
+DELETE /api/admin/legal/terms
+```
+
+Deletes the override and returns the default content in the response body, so the editor can repaint immediately.
+
+## Recommended reviews
+
+When you first stand up an instance, walk through the defaults and decide whether to adopt, amend, or replace them:
+
+- **Change the "Who we are" / "Who the agreement is with" sections** if your organization has a specific legal entity, contact address, or DPO that users should be able to reach.
+- **Add an SSO / SCIM / error-reporting disclosure** if you've wired any of those integrations in — the defaults explicitly say to list them.
+- **Set governing law** to your actual jurisdiction if you intend to rely on it.
+- **Publish a retention schedule** if you're subject to records rules that require it.
+
+Consider adding a **"Last updated: &lt;date&gt;"** line near the top of each document when you save your first custom version, and bumping it on every material change — it's the simplest way for users to tell when your terms changed.

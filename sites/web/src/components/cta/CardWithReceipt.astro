@@ -1,0 +1,124 @@
+---
+// CTA variant F — "Card with receipt"
+// A centered, bordered card holds the CTA. A "receipt" strip across
+// the bottom of the card reinforces what's included — license, runtime,
+// time-to-run. Contained and reassuring without being loud.
+import { docsUrl, GITHUB_URL } from "../../lib/config";
+
+const receipt = [
+  { k: "License",   v: "Apache 2.0" },
+  { k: "Runtime",   v: "One Docker image" },
+  { k: "Arch",      v: "amd64 + arm64" },
+  { k: "Time to run", v: "~5 min" },
+];
+---
+
+<section class="cta">
+  <div class="wrap">
+    <article class="card">
+      <div class="card-stamp mono">✦ Get started</div>
+
+      <h2 class="h2">
+        Ready to host your own <span class="accent">pub</span>?
+      </h2>
+      <p class="lede">
+        One container on your laptop in five minutes. Point
+        <span class="ink">dart pub</span> at it — that's the whole install.
+      </p>
+
+      <div class="cta-row">
+        <a href={docsUrl("/getting-started/quick-start/")} class="btn btn-primary">
+          Read the quick start
+          <span class="btn-arrow">→</span>
+        </a>
+        <a href={GITHUB_URL} class="btn btn-ghost">GitHub</a>
+      </div>
+
+      <!-- Receipt -->
+      <div class="receipt">
+        {receipt.map((r) => (
+          <div class="r-cell">
+            <div class="r-k mono">{r.k}</div>
+            <div class="r-v">{r.v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div class="r-foot mono">
+        <span class="dot"></span>
+        Audit the source · no telemetry · no ads · ever.
+      </div>
+    </article>
+  </div>
+</section>
+
+<style>
+  .cta {
+    padding: 6rem 0;
+    background: var(--color-paper-mute);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 56rem; margin: 0 auto; padding: 0 2rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } }
+
+  .accent { color: var(--color-stamp); }
+  .mono { font-family: var(--font-mono); }
+  .ink { color: var(--color-ink); font-family: var(--font-mono); background: var(--color-stamp-soft); padding: 0 0.3em; border-radius: 4px; font-size: 0.92em; }
+
+  .card {
+    position: relative; padding: 3rem 2.5rem 2.25rem;
+    background: var(--color-bg); border: 1px solid var(--color-border);
+    border-radius: 22px; text-align: center;
+    box-shadow: 0 30px 60px -30px rgba(5,5,5,0.18), 0 2px 0 0 var(--color-border);
+  }
+  @media (max-width: 560px) { .card { padding: 2rem 1.5rem 1.5rem; } }
+
+  .card-stamp {
+    position: absolute; top: -0.85rem; left: 50%; transform: translateX(-50%);
+    background: var(--color-stamp); color: #fff;
+    padding: 0.35rem 0.75rem; border-radius: 999px;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  }
+
+  .h2 {
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: clamp(2rem, 3vw + 0.5rem, 2.75rem);
+    letter-spacing: -0.028em; line-height: 1.08;
+    margin: 0 auto; max-width: 22ch; color: var(--color-ink);
+  }
+  .lede { font-size: 1.05rem; line-height: 1.55; color: var(--color-mute); margin: 1.25rem auto 0; max-width: 36rem; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 1.75rem; }
+
+  /* Receipt */
+  .receipt {
+    margin: 2.25rem -2.5rem 0;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-top: 1px dashed var(--color-border);
+  }
+  @media (max-width: 560px) { .receipt { grid-template-columns: repeat(2, 1fr); margin: 1.5rem -1.5rem 0; } }
+
+  .r-cell {
+    padding: 1rem 0.75rem; border-right: 1px dashed var(--color-border);
+    display: flex; flex-direction: column; gap: 0.25rem; align-items: center;
+  }
+  .r-cell:last-child { border-right: 0; }
+  @media (max-width: 560px) {
+    .r-cell:nth-child(2) { border-right: 0; }
+    .r-cell:nth-child(-n+2) { border-bottom: 1px dashed var(--color-border); }
+  }
+  .r-k { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-mute); font-weight: 700; }
+  .r-v { font-family: var(--font-sans); font-weight: 640; font-size: 0.92rem; color: var(--color-ink); letter-spacing: -0.01em; }
+
+  .r-foot {
+    margin-top: 0.5rem; padding-top: 0.9rem;
+    border-top: 1px dashed var(--color-border);
+    margin-left: -2.5rem; margin-right: -2.5rem;
+    padding-bottom: 0;
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  @media (max-width: 560px) { .r-foot { margin-left: -1.5rem; margin-right: -1.5rem; } }
+  .r-foot .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--color-stamp); }
+</style>

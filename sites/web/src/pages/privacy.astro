@@ -1,0 +1,124 @@
+---
+import Legal from "../layouts/Legal.astro";
+import { GITHUB_URL } from "../lib/config";
+---
+
+<Legal
+  title="Privacy — CLUB"
+  description="How the CLUB project website handles visitor data. No cookies, no analytics, no telemetry."
+  path="/privacy"
+  ogImage="/og/privacy.png"
+  eyebrow="Legal — Website privacy"
+  heading="Privacy on the CLUB website."
+  updated="April 19, 2026"
+>
+  <p>
+    This page describes how the open-source CLUB project handles information
+    collected through its public website. It applies only to this site —
+    the pages served at this domain and their subpaths. It does not apply
+    to CLUB instances that organizations run for themselves; each operator
+    of a self-hosted CLUB instance publishes its own privacy notice, and
+    that notice controls for users of that instance.
+  </p>
+
+  <h2>1. Who this is about</h2>
+  <p>
+    "CLUB," "the project," "we," and "us" refer to the maintainers and
+    contributors of the open-source CLUB software. "You" refers to a
+    visitor to this website. Source code, issues, and maintainer contact
+    live in the project's public repository at
+    <a href={GITHUB_URL}>GitHub</a>.
+  </p>
+
+  <h2>2. What the website collects</h2>
+  <p>
+    The CLUB website is a static marketing and documentation site. It is
+    designed to be readable without accounts, cookies, or third-party
+    scripts.
+  </p>
+  <ul>
+    <li>
+      <strong>No cookies.</strong> We do not set cookies from this site.
+      Your browser is not asked to store anything identifying you.
+    </li>
+    <li>
+      <strong>No analytics or telemetry.</strong> We do not run Google
+      Analytics, Plausible, Fathom, Segment, or any equivalent service.
+      No tracking pixels, heatmaps, or session recorders are embedded.
+    </li>
+    <li>
+      <strong>No advertising.</strong> We do not serve ads and do not
+      share data with ad networks.
+    </li>
+    <li>
+      <strong>No user accounts.</strong> There is nothing to sign up for
+      on this website, so no account, password, or profile is created.
+    </li>
+  </ul>
+
+  <h2>3. Information our host sees</h2>
+  <p>
+    This site is served through a static hosting provider and a content
+    delivery network. Those providers automatically receive standard
+    request data — your IP address, user-agent string, the URL you
+    requested, and a timestamp — in order to deliver the page and to
+    protect the service from abuse. That data is handled under the
+    provider's own policy, is retained briefly in operational logs, and
+    is not joined with any profile maintained by the CLUB project.
+  </p>
+  <p>
+    If you install or update CLUB using the helper scripts hosted at
+    <code>/install.sh</code> or <code>/uninstall.sh</code>, those
+    requests are transparently proxied to the public source repository.
+    They follow the same pattern as any other page request described
+    above and are not tied to a user identity by us.
+  </p>
+
+  <h2>4. Outbound links</h2>
+  <p>
+    This site links to third-party destinations — primarily the project's
+    GitHub repository, its documentation site, and the Dart and Flutter
+    websites. When you follow such a link, the destination applies its
+    own privacy practices. We have no visibility into what those
+    services collect.
+  </p>
+
+  <h2>5. Children</h2>
+  <p>
+    CLUB is a developer tool. The website is not directed to children
+    under 13 (or the equivalent minimum age in your jurisdiction) and we
+    do not knowingly collect information from them.
+  </p>
+
+  <h2>6. Security</h2>
+  <p>
+    The site is served over HTTPS. Because no accounts or cookies exist,
+    there is no personal dataset to breach on the website itself. If you
+    believe you have found a security issue in the CLUB software,
+    please report it through the project's public repository so it can
+    be addressed for every deployment.
+  </p>
+
+  <h2>7. Changes to this notice</h2>
+  <p>
+    If this notice materially changes, the "Last updated" date at the top
+    of this page will change, and the update will be reflected in the
+    public source repository's history alongside the website content.
+  </p>
+
+  <h2>8. Contact</h2>
+  <p>
+    Questions about this privacy notice — or about privacy on the CLUB
+    software itself — can be filed as an issue in the project's public
+    repository at <a href={GITHUB_URL}>GitHub</a>. Operators of
+    individual CLUB instances handle questions about data stored on
+    those instances.
+  </p>
+
+  <hr />
+
+  <p class="eyebrow-inline">
+    This notice covers the project's marketing site only. It is not the
+    privacy policy of any particular CLUB deployment.
+  </p>
+</Legal>

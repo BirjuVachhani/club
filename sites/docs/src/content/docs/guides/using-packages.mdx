@@ -1,0 +1,199 @@
+---
+title: Using Packages
+description: How to add packages from your club server to Dart and Flutter projects, including hosted syntax, PUB_HOSTED_URL, and mixed setups.
+---
+
+import { Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+Once packages are published to your club server, any authenticated team member can use them in their Dart or Flutter projects.
+
+## Prerequisites
+
+Before you can fetch packages from club, you need a Personal Access Token registered with `dart pub`. A `read` scope is sufficient for consumers.
+
+```bash
+# Option 1: Use the club CLI (recommended)
+club login https://club.example.com
+club setup
+
+# Option 2: Register a token directly (interactive — paste the PAT)
+dart pub token add https://club.example.com
+
+# Option 3: Register a token by env var (CI — token stays out of disk)
+dart pub token add https://club.example.com --env-var CLUB_TOKEN
+```
+
+## Adding Packages from club
+
+### Per-Package `hosted` Syntax
+
+The recommended approach is to specify the hosted URL for each club dependency individually:
+
+<Code code={`dependencies:
+  # Short form (Dart 2.19+)
+  my_package:
+    hosted: https://club.example.com
+    version: ^1.0.0
+
+  # Long form (all Dart versions)
+  my_package:
+    hosted:
+      name: my_package
+      url: https://club.example.com
+    version: ^1.0.0`} lang="yaml" title="pubspec.yaml" />
+
+<Aside type="tip">
+The short form (`hosted: https://...`) is cleaner and works with Dart 2.19 and later. Use the long form only if you need to support older Dart SDKs.
+</Aside>
+
+### Resolving Dependencies
+
+After adding dependencies, resolve them with:
+
+<Tabs>
+  <TabItem label="Dart">
+  ```bash
+  dart pub get
+  ```
+  </TabItem>
+  <TabItem label="Flutter">
+  ```bash
+  flutter pub get
+  ```
+  </TabItem>
+</Tabs>
+
+`dart pub` automatically sends `Authorization: Bearer <token>` to your club server for any dependency with a matching hosted URL.
+
+## Using `PUB_HOSTED_URL`
+
+If **all** your dependencies come from club (no pub.dev packages), you can set `PUB_HOSTED_URL` to make club the default registry:
+
+```bash
+export PUB_HOSTED_URL=https://club.example.com
+dart pub get
+```
+
+With this set, you can use plain dependency syntax without `hosted:`:
+
+<Code code={`dependencies:
+  my_package: ^1.0.0
+  another_package: ^2.0.0`} lang="yaml" title="pubspec.yaml" />
+
+<Aside type="caution">
+Setting `PUB_HOSTED_URL` overrides pub.dev as the default registry. Standard packages like `http`, `path`, or `provider` will be looked up on your club server instead of pub.dev. Only use this if your club server mirrors everything you need, or if you exclusively use private packages.
+</Aside>
+
+## Mixed Setups (pub.dev + club)
+
+Most teams use a mix of public packages from pub.dev and private packages from club. Use per-package `hosted` URLs for this:
+
+<Code code={`dependencies:
+  # Public packages from pub.dev (default)
+  http: ^1.2.0
+  path: ^1.9.0
+  provider: ^6.0.0
+
+  # Private packages from club
+  my_shared_utils:
+    hosted: https://club.example.com
+    version: ^1.0.0
+
+  my_design_system:
+    hosted: https://club.example.com
+    version: ^3.2.0
+
+  internal_api_client:
+    hosted: https://club.example.com
+    version: ^2.1.0`} lang="yaml" title="pubspec.yaml" />
+
+This is the most common and recommended setup. Public packages resolve from pub.dev as usual, and private packages resolve from your club server.
+
+## Dependency Resolution
+
+The Dart resolver handles dependencies from multiple sources seamlessly:
+
+- **Version constraints** work the same way regardless of the source (`^1.0.0`, `>=2.0.0 <3.0.0`, etc.)
+- **Transitive dependencies** are resolved automatically. If `my_package` on club depends on `http` from pub.dev, both are resolved correctly.
+- **Lockfile** (`pubspec.lock`) records the exact source URL for each dependency, so builds are reproducible.
+
+### A Private Package Depending on pub.dev Packages
+
+Private packages published to club can declare dependencies on pub.dev packages normally:
+
+<Code code={`# pubspec.yaml of a package hosted on club
+name: my_shared_utils
+version: 1.0.0
+publish_to: https://club.example.com
+
+dependencies:
+  http: ^1.2.0
+  path: ^1.9.0`} lang="yaml" title="my_shared_utils/pubspec.yaml" />
+
+When a consumer runs `dart pub get`, the resolver fetches `my_shared_utils` from club and `http`/`path` from pub.dev.
+
+### A Private Package Depending on Other Private Packages
+
+If one club package depends on another club package, both must use the `hosted` syntax:
+
+<Code code={`name: my_app_core
+version: 2.0.0
+publish_to: https://club.example.com
+
+dependencies:
+  my_shared_utils:
+    hosted: https://club.example.com
+    version: ^1.0.0`} lang="yaml" title="my_app_core/pubspec.yaml" />
+
+## Upgrading Dependencies
+
+```bash
+# Upgrade all dependencies to latest allowed versions
+dart pub upgrade
+
+# Upgrade a specific package
+dart pub upgrade my_package
+
+# Check for available updates
+dart pub outdated
+```
+
+These commands work identically for club packages and pub.dev packages.
+
+<Aside type="tip">
+Retracted versions are automatically excluded from resolution, so `dart pub upgrade` will never land on a version that has been retracted by the package maintainer. Existing `pubspec.lock` entries are preserved, so already-resolved builds keep working.
+</Aside>
+
+## Troubleshooting
+
+### `401 Unauthorized` on `dart pub get`
+
+Your token is missing or expired. Re-register it:
+
+```bash
+club login https://club.example.com
+club setup
+```
+
+Or add the token directly:
+
+```bash
+dart pub token add https://club.example.com
+```
+
+### Package Not Found
+
+Verify the package exists on your club server and that the URL matches exactly (including trailing slash behavior):
+
+```bash
+# Check if the package is accessible
+curl -H "Authorization: Bearer club_pat_..." \
+  https://club.example.com/api/packages/my_package
+```
+
+### Version Resolution Failures
+
+If `dart pub get` fails to resolve versions, check:
+- The version constraint in your `pubspec.yaml` matches an available version
+- The package is not discontinued or retracted
+- Run `dart pub deps` to see the full dependency tree

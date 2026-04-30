@@ -1,0 +1,247 @@
+---
+title: Quick Start
+description: Get club running in 5 minutes with Docker, publish a test package, and use it in another project.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide gets you from zero to a working private package repository in about 5 minutes. You will start the server with Docker, create your owner account through the web setup wizard, publish a package, and use it in another project.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed
+- [Dart SDK](https://dart.dev/get-dart) installed (for publishing and using packages)
+
+## Start club
+
+<Steps>
+
+1. **Clone the repository and enter the Docker directory**
+
+   ```bash
+   git clone https://github.com/BirjuVachhani/club.git
+   cd club/docker
+   ```
+
+2. **Create the environment file**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Edit `.env` and set the required values:
+
+   ```bash
+   # Generate a secure JWT secret (must be at least 32 characters)
+   JWT_SECRET=$(openssl rand -hex 32)
+
+   cat > .env << EOF
+   SERVER_URL=http://localhost:8080
+   JWT_SECRET=$JWT_SECRET
+   EOF
+   ```
+
+   <Aside type="caution">
+     This uses `http://localhost:8080` for local testing. For production, you must use an HTTPS URL. See the [TLS guide](/self-hosting/tls/) for setup instructions.
+   </Aside>
+
+3. **Start the server**
+
+   ```bash
+   docker compose up -d
+   ```
+
+   Wait a few seconds for the container to start, then verify:
+
+   ```bash
+   curl http://localhost:8080/api/v1/health
+   ```
+
+   You should see:
+
+   ```json
+   {"status":"ok"}
+   ```
+
+4. **Grab the one-time setup code from the logs**
+
+   On first startup, club prints a one-time setup code to the server logs. Find it with:
+
+   ```bash
+   docker compose logs club | grep -i "setup code"
+   ```
+
+   Copy this code. You will use it in the next step.
+
+</Steps>
+
+## Create the owner account
+
+club ships without any users. The first account is created through a one-shot web setup wizard, which is disabled automatically once it completes.
+
+<Steps>
+
+1. **Open the setup page**
+
+   Navigate to [http://localhost:8080/setup](http://localhost:8080/setup) in your browser.
+
+2. **Verify the setup code**
+
+   Enter your email address and the one-time setup code from the logs, then submit. Verification is IP-pinned -- only the same browser/IP can complete the second step.
+
+3. **Create your owner account**
+
+   Fill in your display name and password (and confirm the password), then submit. The first user is created with the `owner` role.
+
+</Steps>
+
+<Aside>
+  Once setup completes, the `/setup` endpoints return 404 forever. Subsequent users are either invited by an owner/admin via the web UI or -- if `SIGNUP_ENABLED=true` -- can self-register as `member` accounts.
+</Aside>
+
+## Login with the CLI
+
+<Steps>
+
+1. **Install the club CLI**
+
+   ```bash
+   curl -fsSL https://club.birju.dev/install.sh | bash
+   ```
+
+   Installs `club` to `~/.local/bin`. Windows and manual-download options are in the [CLI installation guide](/cli/installation/).
+
+   <Aside>
+     If the `club` command isn't found after installation, add `~/.local/bin` to your `PATH` — the installer prints the exact line for your shell.
+   </Aside>
+
+2. **Login to your server**
+
+   ```bash
+   club login http://localhost:8080
+   ```
+
+   By default this opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE. Approve the request in the browser and the CLI receives a scoped personal access token automatically.
+
+   <Aside>
+     If you prefer a non-browser flow (for example, on a headless machine), use `club login http://localhost:8080 --no-browser` to fall back to a terminal email/password prompt, or pass an existing token with `--key club_pat_...`.
+   </Aside>
+
+3. **Configure dart pub to use your server**
+
+   ```bash
+   club setup
+   ```
+
+   This runs `dart pub token add http://localhost:8080` behind the scenes, registering your credentials with the Dart SDK's native token store. (`club login` already does this automatically; `club setup` is useful for switching to `--env-var` mode in CI.)
+
+</Steps>
+
+## Publish a test package
+
+<Steps>
+
+1. **Create a simple Dart package**
+
+   ```bash
+   mkdir -p /tmp/hello_club && cd /tmp/hello_club
+   ```
+
+   Create `pubspec.yaml`:
+
+   ```yaml
+   name: hello_club
+   version: 1.0.0
+   description: A test package for club.
+   publish_to: http://localhost:8080
+
+   environment:
+     sdk: ^3.0.0
+   ```
+
+   Create `lib/hello_club.dart`:
+
+   ```dart
+   /// A friendly greeting from club.
+   String greet(String name) => 'Hello, $name! Welcome to club.';
+   ```
+
+2. **Publish the package**
+
+   ```bash
+   dart pub publish --force
+   ```
+
+   <Aside>
+     The `--force` flag skips the confirmation prompt. Remove it if you want to review the package contents before publishing.
+   </Aside>
+
+3. **Verify on the web UI**
+
+   Open [http://localhost:8080](http://localhost:8080) in your browser. You should see `hello_club` listed on the packages page. Click it to see the full package detail page with metadata, the README, and installation instructions.
+
+</Steps>
+
+## Use it in another project
+
+<Steps>
+
+1. **Create a new Dart project**
+
+   ```bash
+   mkdir -p /tmp/my_app && cd /tmp/my_app
+   dart create -t console .
+   ```
+
+2. **Add the private package as a dependency**
+
+   Edit `pubspec.yaml` and add:
+
+   ```yaml
+   dependencies:
+     hello_club:
+       hosted: http://localhost:8080
+       version: ^1.0.0
+   ```
+
+3. **Fetch the dependency**
+
+   ```bash
+   dart pub get
+   ```
+
+4. **Use the package**
+
+   Edit `bin/my_app.dart`:
+
+   ```dart
+   import 'package:hello_club/hello_club.dart';
+
+   void main() {
+     print(greet('Developer'));
+   }
+   ```
+
+   Run it:
+
+   ```bash
+   dart run
+   ```
+
+   Output:
+
+   ```
+   Hello, Developer! Welcome to club.
+   ```
+
+</Steps>
+
+## What's next
+
+You now have a working private Dart package repository. Here is what to do next:
+
+- **[Installation guide](/getting-started/installation/)** -- explore all installation options in detail
+- **[First Package guide](/getting-started/first-package/)** -- learn the full publishing workflow with troubleshooting tips
+- **[Docker deployment](/self-hosting/docker/)** -- set up a production deployment with persistent volumes and health checks
+- **[TLS / HTTPS](/self-hosting/tls/)** -- required for production; `dart pub` will not send auth tokens over plain HTTP to non-localhost URLs
+- **[Reverse proxy](/self-hosting/reverse-proxy/)** -- put club behind Caddy or nginx for TLS termination

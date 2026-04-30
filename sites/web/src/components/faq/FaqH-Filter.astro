@@ -1,0 +1,263 @@
+---
+// FAQ — Variant H · Filter pills (zero-JS)
+// CSS-only category filter. Hidden radio inputs drive `:checked + label`
+// styling AND filter the visible list via sibling selectors. Compact,
+// modern SaaS energy — picks up where Linear / Vercel left off.
+import { FAQS, FAQ_CATEGORIES, type FaqCategory } from "../../lib/landing-copy";
+
+const cats = (Object.keys(FAQ_CATEGORIES) as FaqCategory[]);
+---
+
+<section id="faq" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="head-row">
+        <div>
+          <div class="eyebrow orange">§ FAQ</div>
+          <h2 class="h2">Filter by topic, get on with your day.</h2>
+        </div>
+        <p class="lede">
+          {FAQS.length} answers in five lanes. Click a pill to filter,
+          tap a question to read. No JavaScript required.
+        </p>
+      </div>
+    </header>
+
+    <!-- Hidden radios — order matters; sibling selectors below depend on it -->
+    <div class="filter-root">
+      <input type="radio" name="faq-cat" id="faq-cat-all" class="r" checked />
+      {cats.map((c) => (
+        <input type="radio" name="faq-cat" id={`faq-cat-${c}`} class="r" />
+      ))}
+
+      <!-- Pill bar (labels target the radios above) -->
+      <nav class="pills" role="tablist" aria-label="Filter FAQs">
+        <label for="faq-cat-all" class="pill">
+          <span class="pill-dot" style="--dot: var(--color-stamp)"></span>
+          All
+          <span class="pill-count">{FAQS.length}</span>
+        </label>
+        {cats.map((c) => (
+          <label for={`faq-cat-${c}`} class="pill">
+            <span class={`pill-dot d-${c}`}></span>
+            {FAQ_CATEGORIES[c].label}
+            <span class="pill-count">{FAQS.filter((f) => f.cat === c).length}</span>
+          </label>
+        ))}
+      </nav>
+
+      <!-- The list -->
+      <ul class="list">
+        {FAQS.map((f, i) => (
+          <li class={`row row-${f.cat}`}>
+            <details>
+              <summary>
+                <span class="meta">
+                  <span class={`bar d-${f.cat}`}></span>
+                  <span class="num">{String(i + 1).padStart(2, "0")}</span>
+                  <span class="cat">{FAQ_CATEGORIES[f.cat].label}</span>
+                </span>
+                <span class="q">{f.q}</span>
+                <span class="chev" aria-hidden="true">+</span>
+              </summary>
+              <div class="a">{f.a}</div>
+            </details>
+          </li>
+        ))}
+      </ul>
+
+      <p class="empty" aria-hidden="true">No questions in this category yet.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 80rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 4.5rem 0; } }
+
+  .head { margin-bottom: 2.5rem; }
+  .head-row {
+    display: grid; gap: 2rem;
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr);
+    align-items: end;
+  }
+  @media (max-width: 800px) { .head-row { grid-template-columns: 1fr; align-items: start; } }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 0.85rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .lede {
+    font-size: 0.96rem; line-height: 1.6; color: var(--color-mute); margin: 0;
+  }
+
+  /* Hide the radios — they only drive state via :checked */
+  .r {
+    position: absolute; opacity: 0; pointer-events: none;
+    width: 1px; height: 1px;
+  }
+
+  /* ─ Pills ─ */
+  .pills {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    padding: 0.55rem;
+    background: var(--color-paper-mute);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    margin-bottom: 1.5rem;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    padding: 0.55rem 0.95rem;
+    background: transparent;
+    color: var(--color-mute);
+    border-radius: 10px;
+    font-family: var(--font-sans); font-weight: 580; font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 150ms, color 150ms, box-shadow 150ms;
+    user-select: none;
+  }
+  .pill:hover { background: var(--color-bg); color: var(--color-ink); }
+
+  .pill-dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: var(--dot, var(--color-mute));
+    opacity: 0.65;
+    transition: opacity 150ms;
+  }
+  .d-basics   { --dot: var(--color-stamp); }
+  .d-workflow { --dot: #3B82F6; }
+  .d-control  { --dot: #A855F7; }
+  .d-deploy   { --dot: #10B981; }
+  .d-trust    { --dot: #EAB308; }
+  .pill-dot.d-basics   { background: var(--color-stamp); }
+  .pill-dot.d-workflow { background: #3B82F6; }
+  .pill-dot.d-control  { background: #A855F7; }
+  .pill-dot.d-deploy   { background: #10B981; }
+  .pill-dot.d-trust    { background: #EAB308; }
+
+  .pill-count {
+    font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+    color: var(--color-mute); letter-spacing: 0.1em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+  }
+
+  /* ─ Active pill (driven by checked radio) ─ */
+  #faq-cat-all:checked       ~ .pills label[for="faq-cat-all"],
+  #faq-cat-basics:checked    ~ .pills label[for="faq-cat-basics"],
+  #faq-cat-workflow:checked  ~ .pills label[for="faq-cat-workflow"],
+  #faq-cat-control:checked   ~ .pills label[for="faq-cat-control"],
+  #faq-cat-deploy:checked    ~ .pills label[for="faq-cat-deploy"],
+  #faq-cat-trust:checked     ~ .pills label[for="faq-cat-trust"] {
+    background: var(--color-ink);
+    color: #FFFFFF;
+    box-shadow: 0 6px 18px -10px rgba(20,21,23,0.5);
+  }
+  #faq-cat-all:checked       ~ .pills label[for="faq-cat-all"]      .pill-count,
+  #faq-cat-basics:checked    ~ .pills label[for="faq-cat-basics"]   .pill-count,
+  #faq-cat-workflow:checked  ~ .pills label[for="faq-cat-workflow"] .pill-count,
+  #faq-cat-control:checked   ~ .pills label[for="faq-cat-control"]  .pill-count,
+  #faq-cat-deploy:checked    ~ .pills label[for="faq-cat-deploy"]   .pill-count,
+  #faq-cat-trust:checked     ~ .pills label[for="faq-cat-trust"]    .pill-count {
+    background: rgba(255,255,255,0.12);
+    color: #FFFFFF;
+    border-color: transparent;
+  }
+  #faq-cat-all:checked       ~ .pills label[for="faq-cat-all"]      .pill-dot,
+  #faq-cat-basics:checked    ~ .pills label[for="faq-cat-basics"]   .pill-dot,
+  #faq-cat-workflow:checked  ~ .pills label[for="faq-cat-workflow"] .pill-dot,
+  #faq-cat-control:checked   ~ .pills label[for="faq-cat-control"]  .pill-dot,
+  #faq-cat-deploy:checked    ~ .pills label[for="faq-cat-deploy"]   .pill-dot,
+  #faq-cat-trust:checked     ~ .pills label[for="faq-cat-trust"]    .pill-dot {
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.18);
+  }
+
+  /* ─ Filter the list ─ */
+  /* Default: show all */
+  .list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--color-border); }
+  .row  { display: block; border-bottom: 1px solid var(--color-border); }
+
+  /* When a specific category is selected, hide non-matching rows */
+  #faq-cat-basics:checked   ~ .list .row:not(.row-basics)   { display: none; }
+  #faq-cat-workflow:checked ~ .list .row:not(.row-workflow) { display: none; }
+  #faq-cat-control:checked  ~ .list .row:not(.row-control)  { display: none; }
+  #faq-cat-deploy:checked   ~ .list .row:not(.row-deploy)   { display: none; }
+  #faq-cat-trust:checked    ~ .list .row:not(.row-trust)    { display: none; }
+
+  /* Hide the empty hint by default; show only if a specific cat is checked AND list collapses (defensive) */
+  .empty {
+    display: none;
+    margin: 1.5rem 0 0; padding: 1.5rem;
+    background: var(--color-paper-mute);
+    border-radius: 10px;
+    color: var(--color-mute); font-size: 0.9rem; text-align: center;
+  }
+
+  /* ─ Row internals ─ */
+  details { width: 100%; }
+  summary {
+    display: grid;
+    grid-template-columns: minmax(11rem, auto) 1fr auto;
+    align-items: center; gap: 1.25rem;
+    padding: 1.15rem 0.25rem;
+    cursor: pointer; list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+
+  .meta {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    font-family: var(--font-mono); font-size: 0.66rem;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+  }
+  .bar {
+    width: 3px; height: 18px; border-radius: 2px;
+    background: var(--dot, var(--color-mute));
+  }
+  .bar.d-basics   { background: var(--color-stamp); }
+  .bar.d-workflow { background: #3B82F6; }
+  .bar.d-control  { background: #A855F7; }
+  .bar.d-deploy   { background: #10B981; }
+  .bar.d-trust    { background: #EAB308; }
+  .num { color: var(--color-ink); }
+  .cat { color: var(--color-mute); }
+
+  .q {
+    font-family: var(--font-sans); font-weight: 580;
+    font-size: 1rem; color: var(--color-ink); letter-spacing: -0.012em;
+  }
+  .chev {
+    font-family: var(--font-mono); font-size: 1.1rem; color: var(--color-mute);
+    width: 1.25rem; height: 1.25rem; display: grid; place-items: center;
+    transition: transform 200ms ease, color 150ms;
+  }
+  summary:hover .q { color: var(--color-stamp); }
+  summary:hover .chev { color: var(--color-stamp); }
+  details[open] .chev { transform: rotate(45deg); color: var(--color-stamp); }
+  details[open] .q { color: var(--color-stamp); }
+
+  .a {
+    padding: 0 0.25rem 1.25rem 12.25rem;
+    color: var(--color-mute); font-size: 0.94rem; line-height: 1.6;
+    max-width: 60ch;
+  }
+  @media (max-width: 720px) {
+    summary { grid-template-columns: 1fr auto; gap: 0.75rem; }
+    .meta { grid-column: 1 / -1; }
+    .a { padding-left: 0.25rem; }
+  }
+</style>

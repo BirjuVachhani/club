@@ -1,0 +1,110 @@
+---
+// FAQ — Variant B · Open catalog
+// Two-column grid, every answer visible. No accordion, no JS.
+// Reads like a brochure spread — best when you trust people will scan.
+import { FAQS, FAQ_CATEGORIES } from "../../lib/landing-copy";
+---
+
+<section id="faq" class="sec">
+  <div class="wrap">
+    <header class="head">
+      <div class="head-l">
+        <div class="eyebrow orange">§ FAQ</div>
+        <h2 class="h2">Everything we get asked, answered in the open.</h2>
+      </div>
+      <p class="head-r">
+        No hidden answers, no contact-sales gating. Skim the column,
+        find what's relevant, get on with your day.
+      </p>
+    </header>
+
+    <div class="grid">
+      {FAQS.map((f, i) => (
+        <article class="card">
+          <header class="card-head">
+            <span class="num">{String(i + 1).padStart(2, "0")}</span>
+            <span class="cat">{FAQ_CATEGORIES[f.cat].label}</span>
+          </header>
+          <h3 class="q">{f.q}</h3>
+          <p class="a">{f.a}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .sec {
+    padding: 6rem 0;
+    background: var(--color-paper-mute);
+    border-top: 1px solid var(--color-border);
+  }
+  .wrap { max-width: 84rem; margin: 0 auto; padding: 0 2.5rem; }
+  @media (max-width: 768px) { .wrap { padding: 0 1.25rem; } .sec { padding: 4.5rem 0; } }
+
+  .head {
+    display: grid; gap: 2rem;
+    grid-template-columns: minmax(0, 0.6fr) minmax(0, 0.4fr);
+    align-items: end;
+    padding-bottom: 2.5rem; margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  @media (max-width: 800px) { .head { grid-template-columns: 1fr; align-items: start; } }
+
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--color-stamp);
+  }
+  .h2 {
+    font-family: var(--font-sans); font-weight: 680;
+    font-size: clamp(1.85rem, 2.5vw + 0.75rem, 2.6rem);
+    letter-spacing: -0.022em; line-height: 1.1; margin: 0.85rem 0 0;
+    max-width: 22ch; color: var(--color-ink);
+  }
+  .head-r {
+    font-size: 0.96rem; line-height: 1.6; color: var(--color-mute);
+    margin: 0; max-width: 32rem;
+  }
+
+  .grid {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    padding: 1.5rem 1.5rem 1.65rem;
+    transition: border-color 150ms, transform 150ms;
+  }
+  .card:hover { border-color: var(--color-stamp); transform: translateY(-2px); }
+
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.75rem; margin-bottom: 0.85rem;
+  }
+  .num {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 0.16em; color: var(--color-stamp); font-weight: 600;
+  }
+  .cat {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--color-mute); font-weight: 600;
+    background: var(--color-paper-mute);
+    padding: 0.2rem 0.5rem; border-radius: 999px;
+    border: 1px solid var(--color-border);
+  }
+
+  .q {
+    font-family: var(--font-sans); font-weight: 640;
+    font-size: 1.08rem; letter-spacing: -0.014em; line-height: 1.3;
+    margin: 0; color: var(--color-ink);
+  }
+  .a {
+    margin: 0.6rem 0 0;
+    font-size: 0.94rem; line-height: 1.6; color: var(--color-mute);
+  }
+</style>
