@@ -34,6 +34,7 @@ class ArchiveContent {
     this.dartImports = const {},
     this.screenshots = const [],
     this.readmeAssets = const [],
+    this.hasBuildHooks = false,
   });
 
   final String pubspecYaml;
@@ -80,6 +81,11 @@ class ArchiveContent {
   /// [PublishService] only needs to persist the bytes under the asset
   /// key `<version>/readme-assets/<index>.<extension>`.
   final List<ExtractedReadmeAsset> readmeAssets;
+
+  /// True when the archive contains any `hook/*.dart` file (Dart Build
+  /// hooks — e.g. `hook/build.dart`, `hook/link.dart`). Drives the
+  /// `has:build-hooks` derived tag and the matching UI chip.
+  final bool hasBuildHooks;
 }
 
 /// One screenshot entry pulled out of the tarball at publish time.
@@ -265,6 +271,7 @@ class PublishService {
       final tags = TagDerivation.deriveTags(
         pubspec,
         dartImports: content.dartImports,
+        hasBuildHooks: content.hasBuildHooks,
       );
 
       // Create package if new, or update existing

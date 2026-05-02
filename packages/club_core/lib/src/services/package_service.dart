@@ -11,6 +11,7 @@ import '../models/package_version.dart';
 import '../repositories/metadata_store.dart';
 import '../validation/version_validator.dart';
 import 'download_service.dart';
+import 'tag_derivation.dart';
 
 /// Handles package queries, options, and uploader management.
 class PackageService {
@@ -285,9 +286,15 @@ class PackageService {
 
     if (resolvedVersion != null) {
       final pv = await _store.lookupVersion(name, resolvedVersion);
-      if (pv != null) tags = pv.tags;
-
       final score = await _store.lookupScore(name, resolvedVersion);
+      // Pana wins per-namespace when scoring has produced tags; otherwise
+      // we fall through to publish-time heuristics (`pv.tags` alone).
+      // See [TagDerivation.mergeWithPana] for the precedence contract.
+      tags = TagDerivation.mergeWithPana(
+        pv?.tags ?? const [],
+        score?.panaTags ?? const [],
+      );
+
       if (score != null && score.status == ScoreStatus.completed) {
         granted = score.grantedPoints;
         max = score.maxPoints;

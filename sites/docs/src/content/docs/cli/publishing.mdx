@@ -21,13 +21,22 @@ why it exists, and how it compares to `dart pub publish`, read the
 [Smart Publishing guide](/guides/smart-publishing/).
 </Aside>
 
+<Aside type="note" title="Multi-package monorepos">
+This page covers the **single-package** publish flow. For a monorepo or
+pub workspace where one publish should cascade through several packages
+(rewriting `path:` deps to hosted refs in topological order, with no
+source-file changes), see
+[`club publish --auto`](/cli/auto-publish/) and the
+[Monorepo Publishing guide](/guides/monorepo-publishing/).
+</Aside>
+
 ## Quick start
 
 ```bash
 $ cd path/to/your/package
 $ club publish
 Publishing my_package 1.2.0 from /Users/me/code/my_package
-Target server: https://club.example.com  (auto-selected (only logged-in server))
+Target server: myclub.birju.dev  (auto-selected (only logged-in server))
 
 Building package archive...
 Created /tmp/club-publish-...tar.gz (12.4 KiB, 18 files)
@@ -35,9 +44,9 @@ Created /tmp/club-publish-...tar.gz (12.4 KiB, 18 files)
 Running 25 validators...
 ✓ All validators passed.
 
-Publish my_package 1.2.0 to https://club.example.com? [Y/n] y
+Publish my_package 1.2.0 to myclub.birju.dev? [Y/n] y
 
-Uploading to https://club.example.com...
+Uploading to myclub.birju.dev...
 ✓ Successfully uploaded my_package version 1.2.0.
 ```
 
@@ -56,7 +65,7 @@ plus `--server`.
 | `--ignore-warnings` | | With `--dry-run` only: do not exit non-zero on warnings. |
 | `--to-archive <path>` | | Write the produced `.tar.gz` to `<path>` instead of uploading. |
 | `--from-archive <path>` | | Upload an existing `.tar.gz` instead of building one. Implies `--skip-validation`. |
-| `--server <url>` | `-s` | Override `publish_to` and the auto-picker. Must be a server you have logged in to with `club login`. |
+| `--server <host>` | `-s` | Override `publish_to` and the auto-picker. Accepts a bare host (`myclub.birju.dev`) or a full URL. Must be a server you have logged in to with `club login`. |
 | `--version <semver>` | | Override the version being published. Rewrites the version inside the tarball's `pubspec.yaml` without modifying source files. Must be valid semver. |
 
 ## How the target server is resolved
@@ -66,16 +75,17 @@ plus `--server`.
 
 <Steps>
 
-1. **`--server <url>`** flag (highest priority). The URL must be in your
-   logged-in credentials, otherwise the command exits with a hint to run
-   `club login`.
+1. **`--server <host>`** flag (highest priority). The server must be in
+   your logged-in credentials, otherwise the command exits with a hint to
+   run `club login`. Accepts a bare host (`myclub.birju.dev`) or a full
+   URL — both forms map to the same credential.
 2. **`publish_to:` in pubspec.yaml**, when present and not `none`. The URL
    must be in your logged-in credentials.
 3. **Auto-pick from logged-in servers**:
    - 1 server: used automatically (with confirmation, unless `--force`).
    - 2+ servers: an arrow-key TUI picker appears (in CI, this fails with
      a clear error directing you to use `--server`).
-   - 0 servers: exits with a hint to run `club login <url>`.
+   - 0 servers: exits with a hint to run `club login <host>`.
 
 </Steps>
 
@@ -101,7 +111,7 @@ club publish
 club publish
 
 # Force a specific server regardless of pubspec.
-club publish --server https://internal.club.example.com
+club publish --server internal.myclub.birju.dev
 
 # Try a publish without uploading.
 club publish --dry-run
@@ -157,9 +167,87 @@ The full list of validators (in run order):
 
 ## CI usage
 
-`club publish` is fully CI-friendly:
+`club publish` is fully CI-friendly. Two rules to remember:
 
-- **All confirmation prompts can be skipped** with `--force`.
+<Steps>
+
+1. **Set `CLUB_TOKEN`** as a secret. `--server <host>` plus
+   `CLUB_TOKEN` is enough to authorise the run — **no prior `club
+   login` step is required.** When the URL passed to `--server` is
+   not in the local credentials file, the env-token is used directly.
+2. **Pass `--server <host>`** so the multi-server picker doesn't fire.
+   If your pubspec already has `publish_to:` set to a server you have
+   logged in to (or have `CLUB_TOKEN` for), you can omit `--server`.
+
+</Steps>
+
+CI auto-detection: when `CI`, `CONTINUOUS_INTEGRATION`, or `BUILD_NUMBER`
+env vars are set (the convention every major CI provider follows),
+`club publish` automatically skips the final publish confirmation. You
+**don't** need `--force` in those environments. Use `--force` only
+when running in a non-TTY shell that's not detected as CI.
+
+```yaml title=".github/workflows/publish.yml"
+- name: Publish
+  run: club publish --server myclub.birju.dev
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+That's the entire publish step. No `club login`, no `--force`, no
+`dart pub token add`.
+
+### Other CI providers
+
+<Tabs>
+  <TabItem label="GitHub Actions">
+  ```yaml title=".github/workflows/publish.yml"
+  - name: Publish
+    run: club publish --server myclub.birju.dev
+    env:
+      CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+  ```
+  </TabItem>
+  <TabItem label="GitLab CI">
+  ```yaml title=".gitlab-ci.yml"
+  publish:
+    rules:
+      - if: $CI_COMMIT_TAG
+    image: dart:stable
+    script:
+      - club publish --server myclub.birju.dev
+    variables:
+      CLUB_TOKEN: $CLUB_TOKEN  # masked CI variable
+  ```
+  </TabItem>
+  <TabItem label="Other / non-TTY shell">
+  When the runner doesn't set the standard `CI` env vars, add `--force`
+  so the publish prompt is skipped:
+
+  ```bash
+  CLUB_TOKEN="$pat" \
+  club publish \
+    --force \
+    --server myclub.birju.dev
+  ```
+
+  Or set `CI=true` yourself before invoking the CLI.
+  </TabItem>
+</Tabs>
+
+### CI flag matrix
+
+| Flag / env var | When it's needed | What it controls |
+|---|---|---|
+| `CLUB_TOKEN` | Always | Auth. Shadows stored creds; no `club login` needed. |
+| `--server <host>` | Recommended in CI | Skips the multi-server picker; the env-token authorises this URL. |
+| `--force` | Only when CI auto-detection misses | Skip the publish confirm. CI envs are auto-detected — you usually don't need this. |
+| `--dry-run` | Optional | Plan + validators without uploading. Useful as a pre-merge gate. |
+| `--ignore-warnings` | Optional, with `--dry-run` | Don't exit non-zero on validator warnings. |
+| `--skip-validation` | Discouraged | Bypasses the 25 validators. Server still validates. |
+
+### CI behaviour reference
+
 - **Server picker fails fast** in non-interactive shells with an error
   pointing to `--server`.
 - **Color output is auto-disabled** when stdout is not a TTY (or when
@@ -170,22 +258,11 @@ The full list of validators (in run order):
   - `66` — pubspec/package not found
   - `78` — config / server resolution / aborted
 
-A typical CI step looks like:
-
-```yaml
-- name: Publish
-  run: club publish --force --server https://club.example.com
-  env:
-    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
-```
-
-`CLUB_TOKEN` shadows any stored credentials, so there is no need to pre-seed a credentials file. Alternatively, run `club login --key club_pat_... https://club.example.com` as a previous step to materialise the credentials file.
-
 ## Comparing with `dart pub publish`
 
 | Aspect | `club publish` | `dart pub publish` |
 |--------|-----------------|---------------------|
-| Server resolution | `--server` → `publish_to` → logged-in picker | `--server` (deprecated) → `publish_to` → `PUB_HOSTED_URL` |
+| Server resolution | `--server <host>` → `publish_to` → logged-in picker | `--server` (deprecated) → `publish_to` → `PUB_HOSTED_URL` |
 | Works without `publish_to` | ✅ | ❌ — refuses if `none` or missing |
 | Picks from multiple logins | ✅ arrow-key TUI | ❌ |
 | Validators | All 25, mirrored from upstream | All 25 |
@@ -195,13 +272,13 @@ A typical CI step looks like:
 
 ## Troubleshooting
 
-### `Not logged in to <url>`
+### `Not logged in to <host>`
 
 Either `--server` or `publish_to:` points at a server you have not logged
 in to:
 
 ```bash
-club login https://club.example.com
+club login myclub.birju.dev
 ```
 
 ### `No club server is configured.`
@@ -211,7 +288,7 @@ You have not run `club login` yet. Do that first.
 ### `Cannot prompt in a non-interactive shell.`
 
 You are in CI (or piping output) but the runner needs to confirm
-something. Pass `--force` (and/or `--server <url>` if there are multiple
+something. Pass `--force` (and/or `--server <host>` if there are multiple
 logins).
 
 ### `Found N error(s).`

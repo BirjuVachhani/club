@@ -7,6 +7,12 @@ import 'package:path/path.dart' as p;
 ///
 /// Credentials are stored in `~/.config/club/credentials.json` (Unix)
 /// or `%APPDATA%\club\credentials.json` (Windows).
+///
+/// All `serverUrl` arguments must already be in canonical URL form (run
+/// the input through `util/url.dart`'s `parseServerInput` first). The
+/// credentials file keys live in URL form so the same map can drive
+/// both `dart pub token add` (which requires a URL) and lookups from
+/// host-style CLI input.
 class CredentialStore {
   static String get _configDir {
     if (Platform.isWindows) {
@@ -146,6 +152,12 @@ class CredentialStore {
 abstract class CredentialReader {
   Map<String, Map<String, dynamic>> listServers();
   String? tokenFor(String serverUrl);
+
+  /// Just the env-token (`CLUB_TOKEN`), independent of any stored
+  /// credentials. Used by the server resolver to support the CI flow
+  /// where the operator passes `--server <host>` and sets `CLUB_TOKEN`
+  /// without running `club login` first.
+  String? envToken();
 }
 
 /// Default implementation backed by [CredentialStore].
@@ -156,4 +168,9 @@ class DefaultCredentialReader implements CredentialReader {
       CredentialStore.listServers();
   @override
   String? tokenFor(String serverUrl) => CredentialStore.getToken(serverUrl);
+  @override
+  String? envToken() {
+    final v = Platform.environment[CredentialStore.envVar];
+    return (v != null && v.isNotEmpty) ? v : null;
+  }
 }

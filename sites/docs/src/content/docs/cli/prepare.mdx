@@ -1,0 +1,579 @@
+---
+title: club prepare
+description: Discover every package in a Dart monorepo, resolve their inter-package dependencies, and rewrite path/workspace references to hosted refs in topological publish order — without uploading anything.
+sidebar:
+  order: 5
+---
+
+import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+`club prepare` rewrites the `pubspec.yaml` files in a Dart monorepo so that
+every internal-package reference points at the **published** version on a
+club server, in the correct topological order. It does **not** publish
+anything — it only sets up the source tree so that a subsequent `dart pub
+publish` (or `club publish`) on each package will succeed.
+
+If you want the rewriting **and** the publishing to happen in one
+command, use [`club publish --auto`](/cli/auto-publish/) instead. The two
+commands share the same discovery, conflict resolution, and tree visualisation;
+`prepare` just stops before the upload step.
+
+<Aside type="tip" title="When to use prepare">
+Use `club prepare` when you want to inspect or commit the rewrite as a
+discrete step — for example, in a release branch where the rewritten
+pubspecs are reviewed before publishing.
+</Aside>
+
+## Example workspace
+
+Every example on this page uses the same hypothetical 4-package monorepo
+so you can map the terminal output back to a concrete dep graph:
+
+```text
+   ┌─────────────────────┐
+   │   core_interface    │  v1.0.0   (no internal deps)
+   └──────────┬──────────┘
+              │  depended on by
+              ▼
+   ┌─────────────────────┐
+   │        core         │  v1.2.0
+   └──────────┬──────────┘
+              │  depended on by
+              ▼
+       ┌──────┴──────┐
+       ▼             ▼
+   ┌─────────┐   ┌─────────┐
+   │  pkg_a  │   │  pkg_b  │   ◀ user-selected targets
+   │ v0.5.0  │   │ v0.3.0  │
+   └─────────┘   └─────────┘
+
+Cross-edges (not drawn): pkg_a and pkg_b also depend directly on
+core_interface — the dep is a path: in pkg_a's pubspec and a hosted-by-
+name (workspace shadowed) reference in pkg_b's. `prepare` detects both.
+
+Publish order (topological, leaves first):
+  1. core_interface  →  2. core  →  3. pkg_a  +  4. pkg_b
+```
+
+Filesystem layout:
+
+```text
+my_monorepo/
+├── pubspec.yaml                    # workspace umbrella (skipped — no version)
+└── packages/
+    ├── core_interface/pubspec.yaml # name: core_interface  version: 1.0.0
+    ├── core/pubspec.yaml           # depends on core_interface (path:)
+    ├── pkg_a/pubspec.yaml          # depends on core, core_interface (path:)
+    └── pkg_b/pubspec.yaml          # depends on core, core_interface (hosted-by-name)
+```
+
+## Quick start
+
+From the workspace root:
+
+```bash
+$ club prepare
+🛠  club prepare
+   root: /Users/me/code/my_monorepo
+   discovered 4 packages
+   server: myclub.birju.dev (auto-selected (only logged-in server))
+
+Measuring tarballs ──────────────────────────────────────────
+   measuring core_interface…
+   measuring core…
+   measuring pkg_a…
+   measuring pkg_b…
+
+Publish stack (top-to-bottom) ───────────────────────────────
+  ▶ [1] core_interface  1.0.0  ✓ publish    · 4.5 KiB
+       depended on by  → core, pkg_a, pkg_b
+
+  ▶ [2] core            1.2.0  ✓ publish    · 12.3 KiB
+       depends on      ↑ core_interface ^1.0.0
+       depended on by  → pkg_a, pkg_b
+
+  ▶ [3] pkg_a ◀ target  0.5.0  ✓ publish    · 24.1 KiB
+       depends on      ↑ core ^1.2.0, core_interface ^1.0.0
+
+  ▶ [4] pkg_b ◀ target  0.3.0  ✓ publish    · 18.7 KiB
+       depends on      ↑ core ^1.2.0, core_interface ^1.0.0
+
+   Total: 4 packages · 149 files · 59.6 KiB
+
+Planned rewrites
+   core — packages/core/pubspec.yaml
+      dependencies.core_interface  (path)  →  hosted ^1.0.0
+   pkg_a — packages/pkg_a/pubspec.yaml
+      dependencies.core            (path)  →  hosted ^1.2.0
+      dependencies.core_interface  (path)  →  hosted ^1.0.0
+   pkg_b — packages/pkg_b/pubspec.yaml
+      dependencies.core            (hosted-by-name)  →  hosted ^1.2.0
+      dependencies.core_interface  (hosted-by-name)  →  hosted ^1.0.0
+
+Apply 5 dep rewrites to 3 pubspec.yaml files? [Y/n] y
+
+✓ Prepared 3 pubspec.yaml files (5 dep rewrites).
+```
+
+Pass package names as positional arguments to skip the picker:
+
+```bash
+club prepare pkg_a pkg_b
+```
+
+Or pass `--dry-run` first to see what would change without writing anything:
+
+```bash
+club prepare --dry-run
+```
+
+## What it does
+
+`club prepare` runs the same pipeline as `club publish --auto` up to (but
+not including) the upload step:
+
+<Steps>
+
+1. **Discover packages.** Walks the workspace tree from the current
+   directory (or `--directory <dir>`) and collects every `pubspec.yaml`
+   that has a `name:` field. Workspace umbrella manifests (root pubspecs
+   that list `workspace:` members) are skipped — only publishable
+   packages are considered. Standard ignored directories (`.git`,
+   `.dart_tool`, `build`, `node_modules`, hidden dirs) are not descended
+   into.
+
+2. **Pick targets.** If you pass package names as positional arguments
+   (`club prepare pkg_a pkg_b`), those are the targets. Otherwise an
+   interactive multi-select picker shows every discovered package with
+   its current version — use `↑/↓` to move, `Space` to toggle, `Enter`
+   to confirm.
+
+3. **Build a dependency graph.** For every selected target, walks
+   `dependencies` and `dev_dependencies`. A dep counts as **internal**
+   when its name matches another discovered package — both `path:` deps
+   and hosted-by-name shadowed deps are detected (pub workspaces let you
+   write `core: ^1.0.0` and have pub resolve it locally; `prepare`
+   handles both shapes).
+
+4. **Resolve the publish target server.** Same rules as `club publish` —
+   `--server` flag, then `publish_to:` in the first selected target's
+   pubspec, then auto-pick from logged-in servers. The resolved server
+   URL is what gets written into the rewritten dep entries.
+
+5. **Check for version conflicts.** Concurrently queries the server's
+   `/api/packages/<name>` endpoint for every package in the closure. If
+   the local version of a package is already published, prompts you per
+   conflict (or honours `--on-conflict <mode>`).
+
+6. **Plan the rewrites.** For each non-skipped package, computes the
+   list of dep entries to rewrite. Skipped packages keep their on-disk
+   pubspec untouched (they're using the already-published version, so no
+   rewrite is needed).
+
+7. **Measure tarball sizes.** Builds each package's would-be `.tar.gz` to
+   a temp file, captures the compressed size, and deletes the temp file.
+   Surfaces oversized packages **before** any rewrite is applied to
+   disk, so you don't end up with a half-prepared workspace blocked by
+   a server-side size limit.
+
+8. **Render the dependency tree.** A "publish stack" listing every
+   package in topological order with its size, status, and inline
+   `depends on ↑` / `depended on by →` references.
+
+9. **Confirm and apply.** With `--dry-run` the run stops here. Otherwise,
+   the CLI prompts for one final confirmation, then writes the rewritten
+   `pubspec.yaml` files using
+   [`yaml_edit`](https://pub.dev/packages/yaml_edit) so comments,
+   formatting, and key order are preserved.
+
+</Steps>
+
+## Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--directory <path>` | `-C` | Workspace root to discover from. Defaults to the current directory. |
+| `--dry-run` | `-n` | Print the plan and exit without modifying any pubspec.yaml. |
+| `--force` | `-f` | Skip the final apply confirmation prompt. Required in non-interactive shells when you're using positional args. |
+| `--server <host>` | `-s` | Target server (e.g. `myclub.birju.dev`). Accepts a full URL too. The canonical URL is written into the rewritten dep entries. Must be a server you have logged in to. |
+| `--on-conflict <mode>` | | How to resolve packages whose local version is already published. See below. Default: `prompt`. |
+| `--tree <style>` | | Visual style for the dependency tree. `stacked` (default) or `nested`. |
+| `--no-tree` | | Suppress the dependency tree entirely. The standalone tarball-size table is shown instead so size info is never lost. |
+
+### Positional arguments
+
+Package names to prepare. When omitted, an interactive multi-select
+picker shows all discovered packages.
+
+```bash
+club prepare pkg_a pkg_b
+```
+
+Listed packages don't have to be leaves — `prepare` automatically pulls
+in their transitive internal dependencies.
+
+## Internal-dep detection
+
+A package is treated as an internal dependency of another (and is
+therefore eligible for rewriting) when:
+
+- The dep is declared with `path:` and that path resolves to the
+  directory of another discovered package.
+- The dep is declared by name (`pkg: ^1.0.0`) and the name matches
+  another discovered package — this catches the **pub workspace
+  shadowing** case where pub resolves the dep locally even though the
+  syntax looks hosted.
+- The dep is declared with `hosted: <url>` and the name matches
+  another discovered package — the `hosted:` URL gets rewritten to the
+  resolved target server (so a stale URL pointing at a different
+  registry is corrected as a side-effect).
+
+External `path:` dependencies (paths that resolve outside the discovered
+set) are surfaced as a hard error before anything is written. That
+matches the behaviour of the standard `DependencyValidator` and prevents
+publishing a package that references files outside its own tree.
+
+`dependency_overrides` is **never** rewritten. That section is intended
+for local-only overrides and should not appear in the published
+pubspec.
+
+## Version conflict resolution
+
+When `prepare` queries the server, it checks whether each package's
+**local** version is already published. If so, you have three options:
+
+<Tabs>
+  <TabItem label="Overwrite">
+  Force-publish the version, replacing whatever is currently on the
+  server. The local pubspec is rewritten as if it were a fresh publish.
+  When `prepare` is followed by `club publish --auto` (or a manual
+  `club publish -f`), the upload uses `force=true`.
+  </TabItem>
+  <TabItem label="Skip">
+  Reuse the already-published version as-is. The local pubspec for the
+  skipped package is **not** rewritten — it stays exactly as it was on
+  disk. Dependents still rewrite to point at the existing published
+  version, since the local pubspec version equals the published version
+  in a conflict.
+  </TabItem>
+  <TabItem label="Abort">
+  Exit cleanly without writing anything. Useful when you spot a conflict
+  you weren't expecting and want to bump versions in source first.
+  </TabItem>
+</Tabs>
+
+The `--on-conflict <mode>` flag picks one of these for the whole run.
+Without the flag, `prepare` prompts you per conflict via an arrow-key
+picker:
+
+```text
+core_interface 1.0.0 is already published to myclub.birju.dev.
+❯ Overwrite   force-push, replacing the existing version
+  Skip        leave the existing version in place
+  Abort       cancel the run
+```
+
+Allowed `--on-conflict` values:
+
+| Value | Behaviour |
+|-------|-----------|
+| `prompt` (default) | Ask interactively for each conflict. |
+| `overwrite` | Force-publish every conflict. |
+| `skip` | Reuse the already-published version for every conflict. |
+| `abort` | Exit if any conflict is detected. |
+
+In a non-interactive shell with conflicts present, `prompt` mode fails
+with an error pointing at `--on-conflict`.
+
+## Tree visualisation
+
+The dependency tree section reads top-down in the order packages will be
+published. Two styles are available; pick with `--tree=<style>`.
+
+<Tabs>
+  <TabItem label="Stacked (default)">
+  ```text
+  Publish stack (top-to-bottom)
+    ▶ [1] core_interface  1.0.0  ✓ publish    · 4.5 KiB
+         depended on by  → core, pkg_a, pkg_b
+
+    ▶ [2] core            1.2.0  ✓ publish    · 12.3 KiB
+         depends on      ↑ core_interface ^1.0.0
+         depended on by  → pkg_a, pkg_b
+
+    ▶ [3] pkg_a ◀ target  0.5.0  ⚠ overwrite · 24.1 KiB
+         depends on      ↑ core ^1.2.0, core_interface ^1.0.0
+
+    ▶ [4] pkg_b ◀ target  0.3.0  ✓ publish    · 18.7 KiB
+         depends on      ↑ core ^1.2.0, core_interface ^1.0.0
+
+     Total: 4 packages · 149 files · 59.6 KiB
+  ```
+  Each package appears exactly once. Inline `depends on ↑` /
+  `depended on by →` lines flatten the DAG. Order numbers `[N]` show
+  the publish sequence; the status badge shows what action will be
+  taken; the tarball size is what the server will receive.
+  </TabItem>
+  <TabItem label="Nested">
+  ```text
+  Dependency tree
+     ● [1] core_interface 1.0.0   ✓ publish · 4.5 KiB
+         ├── [2] core 1.2.0   ✓ publish · 12.3 KiB
+         │   ├── [3] pkg_a 0.5.0 ◀ target   ⚠ overwrite · 24.1 KiB
+         │   └── [4] pkg_b 0.3.0 ◀ target   ✓ publish · 18.7 KiB
+         ├── [3] pkg_a   ↑ shown above
+         └── [4] pkg_b   ↑ shown above
+  ```
+  Familiar `tree`-style indented rendering. Subsequent occurrences of a
+  multi-parent node fall back to `↑ shown above`. Same information
+  density as `stacked`, just a different visual.
+  </TabItem>
+  <TabItem label="No tree">
+  Pass `--no-tree` to skip the tree entirely. Useful in scripted
+  environments where the rewrite preview alone is enough. Tarball sizes
+  are still printed in a fallback table so size info is never silent.
+  </TabItem>
+</Tabs>
+
+## What the rewrite looks like
+
+Before:
+
+```yaml title="packages/core/pubspec.yaml"
+name: core
+version: 1.2.0
+
+dependencies:
+  # Pre-existing comment — preserved by yaml_edit.
+  core_interface:
+    path: ../core_interface
+```
+
+After `club prepare`:
+
+```yaml title="packages/core/pubspec.yaml"
+name: core
+version: 1.2.0
+
+dependencies:
+  # Pre-existing comment — preserved by yaml_edit.
+  core_interface:
+    hosted: https://myclub.birju.dev
+    version: ^1.0.0
+```
+
+The version constraint is `^<dep's pubspec version>` — same shape as
+`dart pub add` writes. Comments, blank lines, and surrounding entries
+are preserved by [`yaml_edit`](https://pub.dev/packages/yaml_edit).
+
+## Examples
+
+<Tabs>
+  <TabItem label="Interactive picker">
+  ```bash
+  $ club prepare
+  Select packages to prepare:
+  ❯ [x] pkg_a    0.5.0
+    [x] pkg_b    0.3.0
+    [ ] core     1.2.0
+    [ ] core_interface 1.0.0
+    ↑/↓ to move, Space to toggle, Enter to confirm, q to cancel.
+  ```
+  </TabItem>
+  <TabItem label="Positional args">
+  ```bash
+  club prepare pkg_a pkg_b
+  ```
+
+  No picker. Transitive workspace deps are still pulled in.
+  </TabItem>
+  <TabItem label="Dry-run">
+  ```bash
+  club prepare --dry-run
+  ```
+
+  Prints the plan, never writes. Exits zero unless something fails.
+  </TabItem>
+  <TabItem label="Non-interactive (CI)">
+  ```bash
+  club prepare \
+    pkg_a pkg_b \
+    --force \
+    --on-conflict abort \
+    --server myclub.birju.dev
+  ```
+
+  Positional args (no picker), `--force` (no apply confirm), and
+  `--on-conflict abort` (fail fast on duplicate versions).
+  </TabItem>
+</Tabs>
+
+## CI usage
+
+`club prepare` is fully CI-friendly. Three rules to remember:
+
+<Steps>
+
+1. **Pass package names as positional args.** Without args, the
+   interactive multi-select picker fires; in a non-TTY shell the
+   command exits with a clear hint to add positional args.
+2. **Pin the conflict policy** with `--on-conflict <abort|skip|overwrite>`.
+   Without it, the default is `prompt` — which fails fast with
+   `Version conflicts detected but stdin is non-interactive` if any
+   conflict turns up. Setting `abort` is the safest CI default; it
+   surfaces a forgotten version bump as a build failure.
+3. **Set `CLUB_TOKEN`** as a secret. `--server <host>` plus
+   `CLUB_TOKEN` is enough to authorise the run — **no prior `club
+   login` step is required.** When the URL passed to `--server` is
+   not in the local credentials file, the env-token is used directly.
+
+</Steps>
+
+CI auto-detection: when `CI`, `CONTINUOUS_INTEGRATION`, or `BUILD_NUMBER`
+env vars are set (the convention every major CI provider follows),
+`club prepare` automatically skips the final apply confirmation, so you
+do **not** need `--force` in those environments. Set `--force` only
+when running in a non-TTY shell that's not detected as CI (rare).
+
+```yaml title=".github/workflows/release.yml"
+- name: Prepare monorepo
+  run: |
+    club prepare pkg_a pkg_b \
+      --on-conflict abort \
+      --server myclub.birju.dev
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+That's all. No `club login` step, no `--force`, no `dart pub token add`.
+
+After this step, the rewritten `pubspec.yaml` files are committed-able
+artifacts. A typical pattern is:
+
+<Steps>
+
+1. Run `club prepare` in a release branch.
+2. Inspect the diff (rewrites are minimal — just the dep entries).
+3. Commit and tag.
+4. Run `club publish` per package, or — if the rewrites have already
+   been applied — combine steps 1 and 4 into a single
+   [`club publish --auto`](/cli/auto-publish/) run.
+
+</Steps>
+
+### Other CI providers
+
+<Tabs>
+  <TabItem label="GitHub Actions">
+  ```yaml title=".github/workflows/release.yml"
+  - name: Prepare monorepo
+    run: |
+      club prepare pkg_a pkg_b \
+        --on-conflict abort \
+        --server myclub.birju.dev
+    env:
+      CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+  ```
+  </TabItem>
+  <TabItem label="GitLab CI">
+  ```yaml title=".gitlab-ci.yml"
+  prepare:
+    image: dart:stable
+    script:
+      - club prepare pkg_a pkg_b
+          --on-conflict abort
+          --server myclub.birju.dev
+    variables:
+      CLUB_TOKEN: $CLUB_TOKEN  # masked CI variable
+  ```
+  </TabItem>
+  <TabItem label="Other / non-TTY shell">
+  When your runner doesn't set the standard `CI` env vars, add
+  `--force` so the apply prompt is skipped:
+
+  ```bash
+  CLUB_TOKEN="$pat" \
+  club prepare pkg_a pkg_b \
+    --force \
+    --on-conflict abort \
+    --server myclub.birju.dev
+  ```
+
+  Or set `CI=true` yourself before invoking the CLI — `club` honours
+  the standard convention and skips interactive prompts in that case.
+  </TabItem>
+</Tabs>
+
+### CI flag matrix
+
+| Flag / env var | When it's needed | What it controls |
+|---|---|---|
+| `CLUB_TOKEN` | Always | Auth. Shadows stored creds; no `club login` needed. |
+| `--server <host>` | Always (in CI) | Skips the multi-server picker; the env-token authorises this URL. |
+| Positional args | Always (in CI) | Skips the target multi-select picker. |
+| `--on-conflict abort` | Recommended | Fail fast on duplicate versions. Default is `prompt`, which throws in non-TTY. |
+| `--force` | Only when CI auto-detection misses | Skip the apply confirm. CI envs are auto-detected — you usually don't need this. |
+| `--no-tree` | Optional | Quieter CI logs. The dependency tree is otherwise printed. |
+| `--dry-run` | Optional | Run the plan + validators without writing. Useful as a pre-merge gate. |
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `65` | Data error — unknown target, external path dep, missing version, dep cycle |
+| `66` | No input — no publishable packages discovered |
+| `78` | Config — server resolution failed, user aborted, conflict in non-interactive shell |
+
+## Troubleshooting
+
+### `Unknown package: <name>`
+
+A positional arg doesn't match any discovered pubspec. The error message
+lists the names that were discovered — check spelling and double-check
+that the package's `pubspec.yaml` has both a `name:` field and is
+inside the directory you ran `prepare` from.
+
+### `<name>: dependencies.<dep> is a path dependency pointing outside the workspace`
+
+A `path:` dep resolves to a directory that is not one of the discovered
+packages. Either move that directory into the workspace, or replace the
+dep with a hosted reference manually before re-running `prepare`.
+
+### `<name> has no version field in pubspec.yaml`
+
+A package referenced as a rewrite target has no `version:` in its
+pubspec. Add one (any semver works for a private package) before
+preparing dependents — the rewrite needs a real version to write
+`^X.Y.Z` into the dependent.
+
+### `Dependency cycle: a -> b -> a`
+
+The dependency graph contains a cycle. Replace one of the path deps in
+the cycle with a hosted reference manually, then re-run.
+
+### `Version conflicts detected but stdin is non-interactive`
+
+Conflicts were detected, `--on-conflict` was not passed, and stdin is
+not a TTY. Pass `--on-conflict <overwrite|skip|abort>` to make the
+behaviour explicit.
+
+## Related
+
+<LinkCard
+  title="club publish --auto"
+  description="Run prepare + publish in one command, with in-memory pubspec rewrites that never touch source files."
+  href="/cli/auto-publish/"
+/>
+
+<LinkCard
+  title="Monorepo Publishing Guide"
+  description="End-to-end workflow for publishing a Dart monorepo, from versioning to CI."
+  href="/guides/monorepo-publishing/"
+/>
+
+<LinkCard
+  title="club publish"
+  description="Single-package publish flow — flags, validators, exit codes."
+  href="/cli/publishing/"
+/>

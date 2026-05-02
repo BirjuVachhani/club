@@ -21,6 +21,8 @@
     android: false, ios: false, linux: false, macos: false, web: false, windows: false,
   });
   let filterSdks = $state<Record<string, boolean>>({ dart: false, flutter: false });
+  let filterBuildHooks = $state(false);
+  let filterWasm = $state(false);
   let filtersOpen = $state(false);
 
   $effect(() => {
@@ -31,6 +33,8 @@
   $effect(() => {
     filterPlatforms = parseCsvParam('platforms', PLATFORMS);
     filterSdks = parseCsvParam('sdks', SDKS);
+    filterBuildHooks = page.url.searchParams.get('hooks') === '1';
+    filterWasm = page.url.searchParams.get('wasm') === '1';
   });
 
   function buildUrl(overrides: { page?: number; sort?: string } = {}): string {
@@ -43,6 +47,8 @@
     if (plats.length > 0) params.set('platforms', plats.join(','));
     const sdks = SDKS.filter((s) => filterSdks[s]);
     if (sdks.length > 0) params.set('sdks', sdks.join(','));
+    if (filterBuildHooks) params.set('hooks', '1');
+    if (filterWasm) params.set('wasm', '1');
     return `/packages?${params.toString()}`;
   }
 
@@ -62,7 +68,7 @@
   }
 
   let hasActiveFilters = $derived(
-    Object.values(filterPlatforms).some(Boolean) || Object.values(filterSdks).some(Boolean)
+    Object.values(filterPlatforms).some(Boolean) || Object.values(filterSdks).some(Boolean) || filterBuildHooks || filterWasm
   );
 
   function pkgMatchesPlatforms(pkg: PackageListItem, selected: string[]): boolean {
@@ -93,7 +99,11 @@
     return list.filter(
       (pkg) =>
         pkgMatchesPlatforms(pkg, selectedPlatforms) &&
-        pkgMatchesSdks(pkg, selectedSdks),
+        pkgMatchesSdks(pkg, selectedSdks) &&
+        (!filterBuildHooks ||
+          (Array.isArray(pkg.tags) && pkg.tags.includes('has:build-hooks'))) &&
+        (!filterWasm ||
+          (Array.isArray(pkg.tags) && pkg.tags.includes('is:wasm-ready'))),
     );
   });
 
@@ -104,6 +114,8 @@
   function clearFilters() {
     filterPlatforms = Object.fromEntries(PLATFORMS.map((p) => [p, false]));
     filterSdks = Object.fromEntries(SDKS.map((s) => [s, false]));
+    filterBuildHooks = false;
+    filterWasm = false;
     syncFilterUrl();
   }
 
@@ -124,7 +136,7 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <line x1="4" x2="20" y1="6" y2="6"/><line x1="6" x2="18" y1="12" y2="12"/><line x1="8" x2="16" y1="18" y2="18"/>
     </svg>
-    Filters{hasActiveFilters ? ` · ${Object.values(filterPlatforms).filter(Boolean).length + Object.values(filterSdks).filter(Boolean).length}` : ''}
+    Filters{hasActiveFilters ? ` · ${Object.values(filterPlatforms).filter(Boolean).length + Object.values(filterSdks).filter(Boolean).length + (filterBuildHooks ? 1 : 0) + (filterWasm ? 1 : 0)}` : ''}
   </button>
 
   <!-- Sidebar -->
@@ -166,6 +178,18 @@
       <label class="filter-checkbox">
         <input type="checkbox" bind:checked={filterSdks.flutter} onchange={onFilterChange} />
         <span>Flutter</span>
+      </label>
+    </div>
+
+    <div class="filter-section">
+      <h4 class="filter-title">Capabilities</h4>
+      <label class="filter-checkbox">
+        <input type="checkbox" bind:checked={filterBuildHooks} onchange={onFilterChange} />
+        <span>Build hooks</span>
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" bind:checked={filterWasm} onchange={onFilterChange} />
+        <span>WASM ready</span>
       </label>
     </div>
 

@@ -2,14 +2,18 @@
 ///
 /// Resolution rules (highest priority first):
 ///
-///   1. Explicit `--server <url>` CLI flag — must be logged in.
+///   1. Explicit `--server <url>` CLI flag — must be logged in **or**
+///      `CLUB_TOKEN` must be set. The env-token path is the recommended
+///      CI mode: pass `--server <host>` + `CLUB_TOKEN=<pat>` from a
+///      secret without ever running `club login` on the runner.
 ///
 ///   2. `publish_to:` in pubspec.yaml:
 ///      - matches a logged-in server → publish there directly.
 ///      - `none`, missing, or points at pub.dev / pub.dartlang.org →
 ///        ignored; fall through to the login picker.
-///      - points at any other URL we're not logged in to → abort and
-///        prompt the user to `club login` that server first.
+///      - points at any other URL we're not logged in to → if
+///        `CLUB_TOKEN` is set, treat the env-token as authorisation for
+///        that URL; otherwise abort and prompt the user to `club login`.
 ///
 ///   3. No override resolved from 1 or 2:
 ///      - one logged-in server → auto-pick it.
@@ -26,7 +30,7 @@ import '../util/url.dart';
 import 'pubspec_reader.dart';
 
 /// URLs that club treats as "not a club server" — rule 2's pub.dev
-/// fallback. Normalised to match [normalizeServerUrl] output.
+/// fallback. Normalised to match [parseServerInput] output.
 const Set<String> _nonClubHosts = {
   'https://pub.dev',
   'https://pub.dartlang.org',
@@ -95,22 +99,33 @@ class ServerResolver {
     required PackagePubspec pubspec,
   }) async {
     final logins = _credentials.listServers();
+    final envToken = _credentials.envToken();
 
-    // 1. Explicit --server flag wins. Must be a logged-in server.
+    // 1. Explicit --server flag wins. The URL must be in stored
+    //    credentials, OR CLUB_TOKEN must be set (the recommended CI
+    //    path — no prior `club login` required on the runner).
     if (serverFlag != null && serverFlag.isNotEmpty) {
       final url = _normalize(serverFlag);
       final entry = logins[url];
-      if (entry == null) {
-        throw ServerResolutionError(
-          'Not logged in to $url.',
-          'Run: club login $url',
+      if (entry != null) {
+        return ResolvedServer(
+          url: url,
+          token: entry['token'] as String,
+          email: entry['email'] as String?,
+          source: ServerSource.cliFlag,
         );
       }
-      return ResolvedServer(
-        url: url,
-        token: entry['token'] as String,
-        email: entry['email'] as String?,
-        source: ServerSource.cliFlag,
+      if (envToken != null) {
+        return ResolvedServer(
+          url: url,
+          token: envToken,
+          source: ServerSource.cliFlag,
+        );
+      }
+      throw ServerResolutionError(
+        'Not logged in to ${displayServer(url)}.',
+        'Run: club login ${displayServer(url)} — or set CLUB_TOKEN to '
+        'authorise this run without storing credentials on disk.',
       );
     }
 
@@ -137,10 +152,18 @@ class ServerResolver {
             source: ServerSource.pubspec,
           );
         }
+        if (envToken != null) {
+          return ResolvedServer(
+            url: url,
+            token: envToken,
+            source: ServerSource.pubspec,
+          );
+        }
         throw ServerResolutionError(
           'pubspec.yaml has `publish_to: $url` but you are not logged in '
               'to that server.',
-          'Run: club login $url — or remove `publish_to` to publish to '
+          'Run: club login ${displayServer(url)} — or set CLUB_TOKEN to '
+              'authorise this run, or remove `publish_to` to publish to '
               'one of your already-logged-in servers.',
         );
       }
@@ -150,7 +173,7 @@ class ServerResolver {
     if (logins.isEmpty) {
       throw ServerResolutionError(
         'No club server is configured.',
-        'Run: club login <server-url>',
+        'Run: club login <host>',
       );
     }
 
@@ -170,7 +193,7 @@ class ServerResolver {
       [
         for (final entry in logins.entries)
           PickOption(
-            label: entry.key,
+            label: displayServer(entry.key),
             value: entry,
             detail: entry.value['email'] as String?,
           ),
@@ -184,7 +207,7 @@ class ServerResolver {
     );
   }
 
-  String _normalize(String url) => normalizeServerUrl(url);
+  String _normalize(String url) => parseServerInput(url);
 }
 
 /// Convenience: print a human-friendly summary of where the server came from.

@@ -68,9 +68,10 @@ class PublishCommand extends ClubCommand {
         'server',
         abbr: 's',
         help:
-            'Target server URL. Overrides publish_to in pubspec.yaml. '
-            'Must be a server you have logged in to.',
-        valueHelp: 'url',
+            'Target server host (e.g. myclub.birju.dev). Accepts a full '
+            'URL too. Overrides publish_to in pubspec.yaml. Must be a '
+            'server you have logged in to.',
+        valueHelp: 'host',
       )
       ..addOption(
         'version',

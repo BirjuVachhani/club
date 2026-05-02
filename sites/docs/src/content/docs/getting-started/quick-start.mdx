@@ -118,13 +118,15 @@ club ships without any users. The first account is created through a one-shot we
 2. **Login to your server**
 
    ```bash
-   club login http://localhost:8080
+   club login localhost:8080
    ```
+
+   `club login` accepts a bare host. `localhost`, `127.0.0.1`, and `0.0.0.0` default to `http://`; everything else defaults to `https://`. A full URL like `http://localhost:8080` is accepted too — both forms map to the same credential.
 
    By default this opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE. Approve the request in the browser and the CLI receives a scoped personal access token automatically.
 
    <Aside>
-     If you prefer a non-browser flow (for example, on a headless machine), use `club login http://localhost:8080 --no-browser` to fall back to a terminal email/password prompt, or pass an existing token with `--key club_pat_...`.
+     If you prefer a non-browser flow (for example, on a headless machine), use `club login localhost:8080 --no-browser` to fall back to a terminal email/password prompt, or pass an existing token with `--key club_pat_...`.
    </Aside>
 
 3. **Configure dart pub to use your server**

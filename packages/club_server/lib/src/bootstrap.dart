@@ -451,6 +451,7 @@ Future<ArchiveContent> _extractArchive(
   final dartImports = <String>{};
   final imageBytesByPath = <String, List<int>>{};
   final readmeAssetBytesByPath = <String, List<int>>{};
+  var hasBuildHooks = false;
 
   for (final entry in tarArchive) {
     if (!entry.isFile || entry.size == 0) continue;
@@ -458,6 +459,16 @@ Future<ArchiveContent> _extractArchive(
     var name = entry.name;
     if (name.startsWith('./')) name = name.substring(2);
     if (name.isEmpty) continue;
+
+    // Dart Build hooks: any direct-child `hook/*.dart` (e.g.
+    // `hook/build.dart`, `hook/link.dart`). Nested paths like
+    // `hook/src/helper.dart` are not hook entry points per the
+    // Dart spec — match the upstream `checkHooks` allowlist shape
+    // so a relaxed policy elsewhere can't produce a false positive.
+    final slashCount = '/'.allMatches(name).length;
+    if (slashCount == 1 && name.startsWith('hook/') && name.endsWith('.dart')) {
+      hasBuildHooks = true;
+    }
 
     final ext = screenshotExtOf(name);
 
@@ -532,6 +543,7 @@ Future<ArchiveContent> _extractArchive(
     dartImports: dartImports,
     screenshots: screenshots,
     readmeAssets: readmeAssets,
+    hasBuildHooks: hasBuildHooks,
   );
 }
 

@@ -9,8 +9,21 @@ club integrates cleanly with CI/CD pipelines. The basic recipe is:
 
 1. Create a Personal Access Token (PAT) scoped to exactly what the job needs.
 2. Store it as a CI secret (e.g. `CLUB_TOKEN`).
-3. Register it with `dart pub` using `--env-var` so the token never touches disk.
-4. Run `dart pub get`, `dart pub publish`, or `club publish` as usual.
+3. Either:
+   - Use `club publish` / `club prepare` / `club publish --auto` directly —
+     they read `CLUB_TOKEN` from the environment with no extra setup, and
+     skip interactive prompts when CI env vars are detected; or
+   - Register the token with `dart pub` using `club setup --env-var` (or
+     `dart pub token add --env-var`) when the build step runs `dart pub
+     get` against a club-hosted dep.
+4. Run `dart pub get`, `dart pub publish`, or any of the `club` commands
+   as usual.
+
+<Aside type="tip" title="No `club login` required">
+Every `club` command honours `CLUB_TOKEN` directly. When the URL passed
+to `--server` is not in the local credentials file, the env-token is
+used as authorisation. **You do not need to run `club login` first.**
+</Aside>
 
 ## Creating CI Tokens
 
@@ -40,6 +53,44 @@ With `CLUB_TOKEN` exported to the value `club_pat_...`, `dart pub get` and `dart
 <Aside type="tip">
 The `club` CLI also honors `CLUB_TOKEN` directly — when set, it is used as the bearer token for `club` commands without needing `club login`. Handy for one-shot CI jobs.
 </Aside>
+
+## Choosing a publish command
+
+CI workflows can publish via three routes, depending on what the job needs to do:
+
+| Command | When to use it | CI flags / env vars |
+|---|---|---|
+| [`dart pub publish`](https://dart.dev/tools/pub/cmd/pub-publish) | When you want strict parity with stock dart pub. Requires `dart pub token add` (or `club setup`) to authenticate. | `--force`; pre-step token registration. |
+| [`club publish`](/cli/publishing/) | Single-package publish. No `dart pub token add` step needed — `CLUB_TOKEN` is read directly. CI auto-detection skips prompts. | `--server <host>` + `CLUB_TOKEN`. `--force` only when CI env vars aren't auto-detected. |
+| [`club publish --auto`](/cli/auto-publish/) | Monorepo / pub workspace where one publish should cascade through several packages. Source pubspec.yaml files are not modified — rewrites happen in-memory only. | `--server <host>` + `--on-conflict abort` + `CLUB_TOKEN`. Positional args list the targets. |
+| [`club prepare`](/cli/prepare/) | When you want the rewrite to land on disk first (review, commit to a release branch), then publish via separate `dart pub publish` / `club publish` steps. | `--server <host>` + `--on-conflict abort` + `CLUB_TOKEN`. |
+
+The shortest single-package CI step:
+
+```yaml
+- name: Publish
+  run: club publish --server myclub.birju.dev
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+The shortest monorepo CI step:
+
+```yaml
+- name: Publish monorepo
+  run: |
+    club publish --auto pkg_a pkg_b \
+      --on-conflict abort \
+      --server myclub.birju.dev
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+Neither needs `club login`, `dart pub token add`, or `--force` — the
+token is read from `CLUB_TOKEN`, the URL passed to `--server` is
+authorised by it, and CI env-var auto-detection (`CI`,
+`CONTINUOUS_INTEGRATION`, `BUILD_NUMBER`) skips the confirmation
+prompt automatically.
 
 ## GitHub Actions
 
@@ -72,7 +123,63 @@ jobs:
 
 ### Publishing Packages
 
-<Code code={`name: Publish
+<Tabs>
+  <TabItem label="club publish (single package)">
+  <Code code={`name: Publish
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: BirjuVachhani/club/actions/setup-club@v1
+        with:
+          server: https://club.example.com
+          token: \${{ secrets.CLUB_TOKEN }}
+
+      - run: club publish`} lang="yaml" title=".github/workflows/publish.yml" />
+
+  No `--force` needed — `setup-club` exports `CI=true` and
+  `CLUB_TOKEN` to `$GITHUB_ENV`, and CI auto-detection skips the
+  confirmation prompt. The publish target is read from
+  `publish_to:` in the pubspec, or pass `--server <host>`
+  explicitly.
+  </TabItem>
+  <TabItem label="club publish --auto (monorepo)">
+  <Code code={`name: Publish
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: BirjuVachhani/club/actions/setup-club@v1
+        with:
+          server: https://club.example.com
+          token: \${{ secrets.CLUB_TOKEN }}
+
+      - run: |
+          club publish --auto pkg_a pkg_b \\
+            --on-conflict abort \\
+            --server https://club.example.com`} lang="yaml" title=".github/workflows/publish.yml" />
+
+  Targets `pkg_a` and `pkg_b` plus their transitive workspace deps,
+  publishing in topological order. Source `pubspec.yaml` files are
+  never modified — rewrites happen in-memory only. See
+  [`club publish --auto`](/cli/auto-publish/) for full flag details.
+  </TabItem>
+  <TabItem label="dart pub publish">
+  <Code code={`name: Publish
 on:
   push:
     tags:
@@ -91,6 +198,11 @@ jobs:
           token: \${{ secrets.CLUB_TOKEN }}
 
       - run: dart pub publish --force`} lang="yaml" title=".github/workflows/publish.yml" />
+
+  Use this when you want strict `dart pub publish` parity. `--force`
+  is required because dart pub doesn't have CI auto-detection.
+  </TabItem>
+</Tabs>
 
 ### Flutter Projects
 

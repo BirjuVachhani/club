@@ -4,11 +4,17 @@ import 'package:args/command_runner.dart';
 
 import '../config.dart';
 import '../credentials.dart';
+import '../util/url.dart';
 
 class SetupCommand extends Command<void> {
   SetupCommand() {
     argParser
-      ..addOption('server', abbr: 's', help: 'Server URL')
+      ..addOption(
+        'server',
+        abbr: 's',
+        help: 'Server host (e.g. myclub.birju.dev). Accepts a full URL too.',
+        valueHelp: 'host',
+      )
       ..addOption(
         'env-var',
         help: 'Use environment variable for the token instead of storing it',
@@ -25,13 +31,14 @@ class SetupCommand extends Command<void> {
   Future<void> run() async {
     final serverUrl = CliConfig.resolveServer(argResults!['server'] as String?);
     if (serverUrl == null) {
-      stderr.writeln('No server specified. Run: club login <server-url>');
+      stderr.writeln('No server specified. Run: club login <host>');
       return;
     }
 
     final envVar = argResults!['env-var'] as String?;
+    final host = displayServer(serverUrl);
 
-    stdout.writeln('Configuring dart pub for $serverUrl...');
+    stdout.writeln('Configuring dart pub for $host...');
 
     if (envVar != null) {
       // Use env var mode
@@ -49,7 +56,7 @@ class SetupCommand extends Command<void> {
       final token = CredentialStore.getToken(serverUrl);
       if (token == null) {
         stderr.writeln(
-          'Not logged in to $serverUrl. Run: club login $serverUrl',
+          'Not logged in to $host. Run: club login $host',
         );
         return;
       }

@@ -106,7 +106,7 @@ Future<T> pick<T>(String prompt, List<PickOption<T>> options) async {
     optionCount: options.length,
     nonInteractiveMessage:
         'Multiple options available, but cannot prompt in a non-interactive '
-        'shell. Specify --server <url> explicitly to choose.',
+        'shell. Specify --server <host> explicitly to choose.',
     footer: 'Use ↑/↓ to move, Enter to select, q to cancel.',
     lineFor: (i, cursor) {
       final opt = options[i];

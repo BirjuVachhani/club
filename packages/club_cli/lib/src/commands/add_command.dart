@@ -39,9 +39,10 @@ class AddCommand extends ClubCommand {
         'server',
         abbr: 's',
         help:
-            'Force a specific club server, skipping the multi-server picker. '
+            'Force a specific club server (e.g. myclub.birju.dev), '
+            'skipping the multi-server picker. Accepts a full URL too. '
             'Must be a server you are logged in to.',
-        valueHelp: 'url',
+        valueHelp: 'host',
       );
   }
 

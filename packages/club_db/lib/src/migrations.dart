@@ -18,8 +18,10 @@ final _log = Logger('ClubMigrations');
 /// without versioned migrations. `1` is the first post-release
 /// version, covering the `client_city` / `client_region` /
 /// `client_country` / `client_country_code` columns on `api_tokens`
-/// that capture the login-time geolocation snapshot.
-const int schemaVersion = 1;
+/// that capture the login-time geolocation snapshot. `2` adds the
+/// `pana_tags` column to `package_scores` for caching pana's tag set
+/// (`is:wasm-ready`, `is:plugin`, etc.) outside the full report blob.
+const int schemaVersion = 2;
 
 /// A versioned SQL migration from [fromVersion] to [toVersion].
 ///
@@ -60,6 +62,17 @@ const List<SchemaMigration> migrations = [
       'ALTER TABLE api_tokens ADD COLUMN client_region TEXT',
       'ALTER TABLE api_tokens ADD COLUMN client_country TEXT',
       'ALTER TABLE api_tokens ADD COLUMN client_country_code TEXT',
+    ],
+  ),
+  // v1 → v2: cache pana's emitted tag set on the score row so `getScore`
+  // can merge them with the publish-time tags without parsing the full
+  // report JSON on every read. Stored as a JSON array of strings; null
+  // until the next pana run repopulates it (operator triggers a rescore).
+  SchemaMigration(
+    fromVersion: 1,
+    toVersion: 2,
+    statements: [
+      'ALTER TABLE package_scores ADD COLUMN pana_tags TEXT',
     ],
   ),
 ];

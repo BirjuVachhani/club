@@ -21,6 +21,7 @@ import '../publish/server_resolver.dart';
 import '../util/exit_codes.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
+import '../util/url.dart';
 import 'conflict_resolver.dart';
 import 'dependency_graph.dart';
 import 'package_discovery.dart';
@@ -205,7 +206,7 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
     throw PrepareEngineError(ExitCodes.config);
   }
   detail(
-    'server: ${bold(server.url)} '
+    'server: ${bold(displayServer(server.url))} '
     '${gray("(${describeServerSource(server.source)})")}',
   );
 

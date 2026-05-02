@@ -9,6 +9,7 @@ library;
 
 import '../util/log.dart';
 import '../util/prompt.dart';
+import '../util/url.dart';
 import 'version_checker.dart';
 
 /// What we plan to do with a single package during prepare/publish.
@@ -118,7 +119,7 @@ Future<ConflictResolution> resolveConflicts({
     info('');
     final choice = await pick<_Choice>(
       '${bold(conflict.packageName)} ${cyan(conflict.localVersion)} '
-      'is already published to ${conflict.serverUrl}.',
+      'is already published to ${displayServer(conflict.serverUrl)}.',
       [
         PickOption(
           label: 'Overwrite',

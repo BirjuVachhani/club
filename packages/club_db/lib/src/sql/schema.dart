@@ -249,6 +249,7 @@ const List<String> schema = [
     granted_points  INTEGER,
     max_points      INTEGER,
     report_json     TEXT,
+    pana_tags       TEXT,
     pana_version    TEXT,
     dart_version    TEXT,
     flutter_version TEXT,

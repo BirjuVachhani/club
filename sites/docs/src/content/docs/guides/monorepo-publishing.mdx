@@ -1,0 +1,455 @@
+---
+title: Monorepo Publishing
+description: Publish a Dart monorepo to a club server. Covers pub workspaces, internal-dep rewriting, version conflict resolution, and CI patterns for prepare and publish --auto.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+`dart pub publish` cannot publish a package that has `path:` dependencies
+on other packages in the same repository. Validators reject path deps
+because they cannot be resolved by anyone outside the workspace — the
+package wouldn't be installable.
+
+For monorepos and [pub workspaces](https://dart.dev/tools/pub/workspaces),
+the standard fix is tedious: rewrite each pubspec by hand to use hosted
+references, publish in dependency order, then revert. Club ships two
+commands that automate this:
+
+- [`club prepare`](/cli/prepare/) — rewrites the on-disk pubspecs in
+  topological order, but does **not** publish.
+- [`club publish --auto`](/cli/auto-publish/) — does the same rewriting
+  **virtually in-memory** and publishes every package in one run, with
+  source files left exactly as they were before.
+
+This guide is the end-to-end story.
+
+## When to use which
+
+<CardGrid>
+  <Card title="club publish --auto" icon="rocket">
+    Default choice for releases. One command from picker to last package
+    on the server. Source files never modified.
+  </Card>
+  <Card title="club prepare" icon="setting">
+    Use when you want the rewrites to land on disk first — for review,
+    commit to a release branch, or because your CI publishes
+    package-by-package via `dart pub publish` rather than club's flow.
+  </Card>
+</CardGrid>
+
+Both commands share the same discovery, dependency graph, conflict
+resolution, and tree visualisation. They differ only in **what they do
+with the planned rewrite**:
+
+- `prepare` writes to disk.
+- `publish --auto` keeps it in memory and uses it for the upload only.
+
+## The model
+
+A monorepo with internal deps is modelled as a directed acyclic graph
+(DAG). The canonical example used throughout this guide:
+
+```text
+   ┌─────────────────────┐
+   │   core_interface    │  v1.0.0   (no internal deps)
+   └──────────┬──────────┘
+              │  depended on by
+              ▼
+   ┌─────────────────────┐
+   │        core         │  v1.2.0
+   └──────────┬──────────┘
+              │  depended on by
+              ▼
+       ┌──────┴──────┐
+       ▼             ▼
+   ┌─────────┐   ┌─────────┐
+   │  pkg_a  │   │  pkg_b  │   ◀ user-selected targets
+   │ v0.5.0  │   │ v0.3.0  │
+   └─────────┘   └─────────┘
+
+Cross-edges (not drawn):
+  pkg_a → core_interface   (also a direct dependency)
+  pkg_b → core_interface   (also a direct dependency)
+```
+
+`pkg_a` and `pkg_b` are the **leaf packages** the developer wants on
+the server. `core` is an internal dependency they share. `core_interface`
+is a deeper internal dep that `core`, `pkg_a`, and `pkg_b` all consume.
+Three levels, five edges total.
+
+When you target `pkg_a` and `pkg_b`:
+
+<Steps>
+
+1. Walk the workspace, find every `pubspec.yaml` with a `name:` field.
+2. Identify which discovered packages each target package depends on
+   (transitively). The closure includes the targets and every internal
+   dep.
+3. Topologically sort the closure — leaves first, dependents last. In
+   the example above, that yields:
+   `core_interface`, `core`, `pkg_a`, `pkg_b`.
+4. For each non-leaf package, rewrite its `dependencies` /
+   `dev_dependencies` entries that point at workspace members so they
+   become hosted references against the target server:
+
+   ```yaml
+   # before
+   core_interface:
+     path: ../core_interface
+
+   # after
+   core_interface:
+     hosted: https://club.example.com
+     version: ^1.0.0
+   ```
+
+5. Publish each package in topological order. `core_interface` first,
+   then `core` (which now references `core_interface ^1.0.0` from the
+   server), then `pkg_a` and `pkg_b`.
+
+</Steps>
+
+Topological order is critical: by the time package N is uploaded, every
+hosted dep it references is already on the server, so the validator's
+`dart pub get` step can resolve them.
+
+## Internal-dep detection
+
+Both `path:` deps and **hosted-by-name** deps are detected and
+rewritten:
+
+<Tabs>
+  <TabItem label="path: dep">
+  ```yaml title="packages/pkg_a/pubspec.yaml"
+  dependencies:
+    core:
+      path: ../core
+  ```
+
+  Detected because the path resolves to another discovered package.
+  </TabItem>
+  <TabItem label="hosted-by-name">
+  ```yaml title="packages/pkg_b/pubspec.yaml"
+  dependencies:
+    core: ^1.0.0  # No `path:` — but pub workspace shadowing
+                  # resolves this locally.
+  ```
+
+  Detected because the dep name matches a discovered package. Pub
+  workspaces shadow hosted deps with workspace members at resolve
+  time, so the dep would resolve locally during development. The
+  rewrite makes it explicit and pins the version.
+  </TabItem>
+  <TabItem label="hosted: explicit">
+  ```yaml
+  dependencies:
+    core:
+      hosted: https://old.example.com
+      version: ^1.0.0
+  ```
+
+  Detected because the dep name matches a discovered package. The
+  `hosted:` URL is corrected to the resolved target server during
+  rewrite — useful when the registry URL has changed.
+  </TabItem>
+</Tabs>
+
+`dependency_overrides` is intentionally **never** rewritten. That
+section is local-only and should not appear in published pubspecs.
+
+External `path:` dependencies (paths that resolve outside the discovered
+set) are surfaced as a hard error before anything happens. That matches
+the `DependencyValidator` behaviour in standard `club publish`.
+
+## Version conflicts
+
+Before any rewrite is computed, both commands query the server for
+every package's current published versions. For each package whose
+**local** pubspec version is already on the server, you have three
+options:
+
+| Option | What it does |
+|--------|--------------|
+| **Overwrite** | Force-publish, replacing the existing version. The on-the-wire upload sets `force=true`. |
+| **Skip** | Reuse the already-published version as-is. The skipped package is not rewritten/republished; dependents still rewrite to point at the existing published version. |
+| **Abort** | Exit cleanly without publishing or writing anything. |
+
+Without flags, both commands prompt per conflict via an arrow-key
+picker. Pass `--on-conflict <mode>` to make the choice global:
+
+```bash
+# Force overwrite all conflicts (for example: re-publishing a known-good build)
+club publish --auto --on-conflict overwrite
+
+# Reuse the existing version anywhere it's already on the server
+club publish --auto --on-conflict skip
+
+# Fail fast if any version is already on the server (best for CI)
+club publish --auto --on-conflict abort
+
+# Per-conflict prompt (default)
+club publish --auto --on-conflict prompt
+```
+
+## The two flows
+
+The two commands share the same dependency analysis. They differ in
+**when and where** the rewrite lands:
+
+```text
+                                 Source pubspec.yaml state
+                                ─────────────────────────────────
+                                  before    during    after run
+
+  club publish --auto             unchanged → unchanged → unchanged
+                                  (rewrite is in-memory only;
+                                   uploaded tarball carries it)
+
+  club prepare                    unchanged → modified  → modified
+                                  (rewrite is written to disk;
+                                   committable artifact)
+
+  club prepare + manual revert    unchanged → modified  → unchanged
+                                  (workflow: prepare, publish per
+                                   package, then `git restore`)
+```
+
+### Flow A — `club publish --auto` (recommended)
+
+One command, source files never touched, no commit churn:
+
+```bash
+$ club publish --auto pkg_a pkg_b
+🚀  club publish --auto
+   ...
+Publish 4 packages to https://club.example.com? [y/N] y
+[1/4] Publishing core_interface … 🎉
+[2/4] Publishing core … 🎉
+[3/4] Publishing pkg_a … 🎉
+[4/4] Publishing pkg_b … 🎉
+
+🎉 4 packages published
+```
+
+The rewrites happen entirely inside the uploaded tarballs:
+
+- Validators see the rewritten dep shape (no path-dep error).
+- The tarball ships the rewritten pubspec.
+- The on-disk file is never read or written.
+- `dart pub get` keeps resolving locally throughout because pub
+  workspace shadowing handles the on-disk path/hosted-by-name deps.
+
+### Flow B — `club prepare` then `club publish` per package
+
+Use this when the rewritten pubspecs are an artifact you want to commit
+or review:
+
+```bash
+# 1. Rewrite the on-disk pubspecs in topological order.
+club prepare pkg_a pkg_b
+
+# 2. Inspect the diff.
+git diff packages/
+
+# 3. Commit (and tag, if you're cutting a release).
+git add packages/*/pubspec.yaml
+git commit -m "Prepare release"
+
+# 4. Publish each package — order doesn't matter at this point because
+#    the pubspecs all reference hosted versions.
+cd packages/core_interface && club publish -f
+cd ../core && club publish -f
+cd ../pkg_a && club publish -f
+cd ../pkg_b && club publish -f
+```
+
+You can also use `--auto` against a workspace that has already been
+prepared — it simply detects no rewrites are needed and runs the
+publish loop in order.
+
+<Aside type="caution" title="Reverting after prepare">
+After `club prepare` writes rewrites to disk, `dart pub get` against
+the workspace will still work because pub workspace shadowing applies
+to hosted deps too. But you'll want to revert the changes before
+continuing local development if you don't want them committed —
+typically `git restore packages/*/pubspec.yaml` after publishing.
+
+`--auto` avoids this revert step entirely.
+</Aside>
+
+## Versioning patterns
+
+Neither command bumps versions for you. Pick one of:
+
+<Tabs>
+  <TabItem label="Manual bumps">
+  Edit `version:` in each package's pubspec, commit, then run `--auto`.
+  Suitable for small monorepos where releases are infrequent.
+  </TabItem>
+  <TabItem label="Tag-driven">
+  Use a Git tag as the canonical version. In CI:
+
+  ```yaml
+  - name: Set versions from tag
+    run: |
+      VERSION="${GITHUB_REF_NAME#v}"
+      for f in packages/*/pubspec.yaml; do
+        sed -i "s/^version:.*/version: $VERSION/" "$f"
+      done
+  - name: Publish
+    run: club publish --auto --force --on-conflict abort
+  ```
+
+  All packages get the same version. `--on-conflict abort` ensures the
+  run fails if a version was forgotten.
+  </TabItem>
+  <TabItem label="Per-package versions">
+  Each package has an independent version, bumped per change. Use a
+  changeset tool (e.g.
+  [melos](https://melos.invertase.dev/)) to manage the versions, then
+  `club publish --auto` to publish whichever packages had bumps.
+
+  `--on-conflict skip` is the right setting here — packages that
+  weren't bumped will already be published, and skipping them is what
+  you want.
+  </TabItem>
+</Tabs>
+
+## CI patterns
+
+<Tabs>
+  <TabItem label="GitHub Actions">
+  ```yaml title=".github/workflows/release.yml"
+  name: Release
+  on:
+    push:
+      tags: ['v*']
+  jobs:
+    publish:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: dart-lang/setup-dart@v1
+        - name: Install club CLI
+          run: curl -fsSL https://club.birju.dev/install.sh | bash
+        - name: Publish monorepo
+          run: |
+            club publish --auto \
+              --force \
+              --on-conflict abort \
+              --server myclub.birju.dev
+          env:
+            CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+  ```
+  </TabItem>
+  <TabItem label="GitLab CI">
+  ```yaml title=".gitlab-ci.yml"
+  publish:
+    rules:
+      - if: $CI_COMMIT_TAG
+    image: dart:stable
+    script:
+      - curl -fsSL https://club.birju.dev/install.sh | bash
+      - club publish --auto
+          --force
+          --on-conflict abort
+          --server myclub.birju.dev
+    variables:
+      CLUB_TOKEN: $CLUB_TOKEN
+  ```
+  </TabItem>
+  <TabItem label="Local dry-run gate">
+  Before pushing, gate on a successful dry-run:
+
+  ```bash
+  club publish --auto --dry-run --on-conflict abort
+  ```
+
+  Exits zero if every package is publishable. Non-zero on:
+  - Validation failure for any package
+  - Tarball-size limit exceeded
+  - External path dep
+  - Cycle in the dep graph
+  - Already-published version (because `abort` mode)
+  </TabItem>
+</Tabs>
+
+`CLUB_TOKEN` shadows any stored credential — set it from a CI secret
+and you don't need a separate `club login` step.
+
+## Tarball size pre-flight
+
+Both commands measure each package's tarball **before** any write or
+upload happens. This catches the most common monorepo gotcha — a
+package whose archive exceeds the server's size limit (default
+100 MiB) — before the run gets halfway through.
+
+The size shows up inline in the dependency tree:
+
+```text
+  ▶ [3] pkg_a ◀ target  0.5.0  ✓ publish    · 24.1 KiB
+       depends on      ↑ core ^1.2.0, core_interface ^1.0.0
+```
+
+A package whose tarball would fail the size check is flagged here, with
+no partial publish having taken place. Re-run with `--no-tree` to see
+the same info as a flat table instead.
+
+## Troubleshooting
+
+### `<name>: dependencies.<dep> is a path dependency pointing outside the workspace`
+
+A `path:` dep resolves to a directory that's not in the discovered set.
+Either move that target into the workspace, or replace the dep with a
+hosted reference manually.
+
+### `<name> has no version field in pubspec.yaml`
+
+A package referenced as a rewrite target has no `version:` in its
+pubspec. Add one — even private packages need a version for downstream
+constraints to resolve.
+
+### `Dependency cycle: a -> b -> a`
+
+The dep graph contains a cycle. Replace one of the path deps in the
+cycle with a hosted reference (or refactor the cycle out).
+
+### `Version conflicts detected but stdin is non-interactive`
+
+You ran in CI without `--on-conflict`. Pass `--on-conflict <mode>`
+explicitly so the behaviour is deterministic.
+
+### A publish failed mid-chain
+
+`--auto` aborts immediately and prints the packages already on the
+server. Re-running is safe:
+
+- Pass `--on-conflict skip` to bypass the already-published packages
+  and pick up where the chain left off.
+- Or `--on-conflict overwrite` if you want to re-publish them too.
+
+## Related
+
+<LinkCard
+  title="club prepare"
+  description="CLI reference: rewrite path/workspace deps in a monorepo without uploading."
+  href="/cli/prepare/"
+/>
+
+<LinkCard
+  title="club publish --auto"
+  description="CLI reference: orchestrated multi-package publish with in-memory rewrites."
+  href="/cli/auto-publish/"
+/>
+
+<LinkCard
+  title="Smart Publishing"
+  description="How club publish resolves the target server without modifying pubspec.yaml."
+  href="/guides/smart-publishing/"
+/>
+
+<LinkCard
+  title="CI/CD Guide"
+  description="Generic CI patterns for club — token storage, secret rotation, environment matrices."
+  href="/guides/ci-cd/"
+/>

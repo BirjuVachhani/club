@@ -52,7 +52,7 @@ The max upload size is governed by `MAX_UPLOAD_BYTES` (default 100 MiB).
 1. **Authenticate with the server**
 
    ```bash
-   club login https://club.example.com
+   club login myclub.birju.dev
    ```
 
    See [Authentication](/guides/authentication/) for OAuth vs token-paste alternatives.
@@ -127,7 +127,7 @@ club follows standard Dart semantic versioning:
 |------|--------------|
 | `--dry-run` | Run all validators without uploading. Exits non-zero on warnings unless `--ignore-warnings` is set. |
 | `--force` | Skip confirmation prompts. Required in non-interactive CI. |
-| `--server <url>` | Publish to a specific logged-in server, ignoring `publish_to:`. |
+| `--server <host>` | Publish to a specific logged-in server (bare host or full URL), ignoring `publish_to:`. |
 | `--version <semver>` | Override the version in the tarball — handy for CI that derives version from a git tag. |
 | `--to-archive <path>` | Write the archive to disk instead of uploading. |
 | `--from-archive <path>` | Upload an existing `.tar.gz`. Implies `--skip-validation`. |
@@ -167,7 +167,7 @@ See [Package Admin](/guides/package-admin/) for the full set of post-publish ope
 Token missing or expired.
 
 ```bash
-club login https://club.example.com
+club login myclub.birju.dev
 club setup
 ```
 

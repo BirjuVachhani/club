@@ -13,14 +13,14 @@ Before you can fetch packages from club, you need a Personal Access Token regist
 
 ```bash
 # Option 1: Use the club CLI (recommended)
-club login https://club.example.com
+club login myclub.birju.dev
 club setup
 
 # Option 2: Register a token directly (interactive — paste the PAT)
-dart pub token add https://club.example.com
+dart pub token add https://myclub.birju.dev
 
 # Option 3: Register a token by env var (CI — token stays out of disk)
-dart pub token add https://club.example.com --env-var CLUB_TOKEN
+dart pub token add https://myclub.birju.dev --env-var CLUB_TOKEN
 ```
 
 ## Adding Packages from club
@@ -171,14 +171,14 @@ Retracted versions are automatically excluded from resolution, so `dart pub upgr
 Your token is missing or expired. Re-register it:
 
 ```bash
-club login https://club.example.com
+club login myclub.birju.dev
 club setup
 ```
 
 Or add the token directly:
 
 ```bash
-dart pub token add https://club.example.com
+dart pub token add https://myclub.birju.dev
 ```
 
 ### Package Not Found

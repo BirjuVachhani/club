@@ -30,7 +30,7 @@ Before you can publish, you need to authenticate with your club server.
 2. **Login to your server**
 
    ```bash
-   club login https://packages.example.com
+   club login packages.example.com
    ```
 
    By default, `club login` opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE. Approve the request in the browser and the CLI receives a scoped personal access token automatically. On a headless machine, use `--no-browser` to fall back to a terminal email/password prompt, or pass an existing personal access token with `--key club_pat_...`.

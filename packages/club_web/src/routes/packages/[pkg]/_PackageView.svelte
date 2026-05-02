@@ -153,6 +153,19 @@
       .filter((t: string) => t.startsWith("platform:"))
       .map((t: string) => t.substring(9)),
   );
+  let hasBuildHooks = $derived(tags.includes("has:build-hooks"));
+
+  // Display labels for the pana `is:*` capability tags we surface as chips.
+  // Order here drives chip render order. Tags not in this map are hidden
+  // from the header (still flow through the API; just unstyled here).
+  const IS_TAG_LABELS: Record<string, string> = {
+    "is:wasm-ready": "WASM",
+    "is:plugin": "PLUGIN",
+    "is:dart3-compatible": "DART 3",
+  };
+  let capabilityTags = $derived(
+    Object.keys(IS_TAG_LABELS).filter((t) => tags.includes(t)),
+  );
 
   // Split the version list into stable vs prerelease. Newest first in each
   // group (the loader already reverses the list).
@@ -855,7 +868,7 @@
           </span>
         {/if}
       </div>
-      {#if sdkTags.length > 0 || platformTags.length > 0 || pkg.isDiscontinued || pkg.isUnlisted}
+      {#if sdkTags.length > 0 || platformTags.length > 0 || pkg.isDiscontinued || pkg.isUnlisted || hasBuildHooks || capabilityTags.length > 0}
         <div class="pkg-compat">
           {#if pkg.isDiscontinued}
             <span class="badge-disc">DISCONTINUED</span>
@@ -875,6 +888,12 @@
                 <span class="compat-tag">{platform.toUpperCase()}</span>
               {/each}
             </div>
+          {/if}
+          {#each capabilityTags as t}
+            <span class="badge-capability" title={t}>{IS_TAG_LABELS[t]}</span>
+          {/each}
+          {#if hasBuildHooks}
+            <span class="badge-build-hooks" title="Uses Dart Build hooks">BUILD HOOKS</span>
           {/if}
           {#if pkg.isUnlisted}
             <span class="badge-unlisted">UNLISTED</span>
@@ -1965,6 +1984,18 @@
     background: var(--pub-tag-background);
     color: var(--pub-tag-text-color);
     border: 1px solid var(--border);
+  }
+  .badge-build-hooks,
+  .badge-capability {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 7px 10px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--pub-link-text-color) 12%, transparent);
+    color: var(--pub-link-text-color);
+    border: 1px solid
+      color-mix(in srgb, var(--pub-link-text-color) 30%, transparent);
   }
   .badge-ret {
     font-size: 10px;

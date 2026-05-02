@@ -25,6 +25,7 @@ import '../prepare/tarball_inspector.dart';
 import '../prepare/tree_renderer.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
+import '../util/url.dart';
 import 'publish_runner.dart';
 
 class AutoPublishOptions {
@@ -192,7 +193,7 @@ class AutoPublishRunner {
       try {
         final ok = await confirm(
           'Publish ${bold('${publishOrder.length}')} packages to '
-          '${bold(ws.server.url)}? '
+          '${bold(displayServer(ws.server.url))}? '
           '${gray('(source pubspec.yaml files will not be modified)')}',
           defaultAnswer: false,
         );
@@ -275,7 +276,7 @@ class AutoPublishRunner {
         .length;
     box([
       '🎉 ${bold('${published.length}')} packages published to '
-          '${bold(ws.server.url)}',
+          '${bold(displayServer(ws.server.url))}',
       ...[
         for (final n in published) '   ${green('✓')} $n',
       ],

@@ -46,13 +46,14 @@ exact priority order — **only the first match wins**:
 
 <Steps>
 
-1. **`--server <url>`** flag (highest priority)
+1. **`--server <host>`** flag (highest priority)
 
    Must be a server you have logged in to with `club login`. Overrides
-   `publish_to:` entirely. Example:
+   `publish_to:` entirely. Accepts a bare host or a full URL — both forms
+   resolve to the same credential. Example:
 
    ```bash
-   club publish --server https://club.example.com
+   club publish --server myclub.birju.dev
    ```
 
 2. **`publish_to:` in pubspec.yaml**
@@ -61,7 +62,7 @@ exact priority order — **only the first match wins**:
    server.
 
    ```yaml title="pubspec.yaml"
-   publish_to: https://club.example.com
+   publish_to: https://myclub.birju.dev
    ```
 
 3. **Auto-pick from logged-in servers**
@@ -94,9 +95,9 @@ you have explicitly logged in to.
   ```bash
   $ club publish
   Publishing my_package 1.2.0 from /path/to/my_package
-  Target server: https://club.example.com  (auto-selected (only logged-in server))
+  Target server: myclub.birju.dev  (auto-selected (only logged-in server))
   ...
-  Publish my_package 1.2.0 to https://club.example.com? [Y/n]
+  Publish my_package 1.2.0 to myclub.birju.dev? [Y/n]
   ```
   </TabItem>
   <TabItem label="Multiple servers">
@@ -106,8 +107,8 @@ you have explicitly logged in to.
   $ club publish
   Publishing my_package 1.2.0 from /path/to/my_package
   Multiple club servers found. Pick one to publish to:
-  ❯ https://staging.club.example.com   dev@example.com
-    https://club.example.com           dev@example.com
+  ❯ staging.myclub.birju.dev   dev@example.com
+    myclub.birju.dev           dev@example.com
     Use ↑/↓ to move, Enter to select, q to cancel.
   ```
   </TabItem>
@@ -115,19 +116,19 @@ you have explicitly logged in to.
   `publish_to:` is set. The picker is skipped.
 
   ```yaml title="pubspec.yaml"
-  publish_to: https://club.example.com
+  publish_to: https://myclub.birju.dev
   ```
   ```bash
   $ club publish
-  Target server: https://club.example.com  (from publish_to in pubspec.yaml)
+  Target server: myclub.birju.dev  (from publish_to in pubspec.yaml)
   ```
   </TabItem>
   <TabItem label="Forced override">
   `publish_to` points to prod but you want to test against staging.
 
   ```bash
-  $ club publish --server https://staging.club.example.com
-  Target server: https://staging.club.example.com  (from --server flag)
+  $ club publish --server staging.myclub.birju.dev
+  Target server: staging.myclub.birju.dev  (from --server flag)
   ```
   </TabItem>
 </Tabs>
@@ -144,7 +145,7 @@ you have explicitly logged in to.
 | `--to-archive <path>` | | Write archive to file instead of uploading. |
 | `--from-archive <path>` | | Upload an existing archive. Implies `--skip-validation`. |
 | `--version <semver>` | | Override the version written into the tarball (useful in CI that derives versions from tags). **club-only.** |
-| `--server <url>` | `-s` | Target server override. **club-only.** |
+| `--server <host>` | `-s` | Target server override (bare host or URL). **club-only.** |
 
 The `--server` and `--version` flags are club-specific; the rest mirror
 [`dart pub publish`](https://dart.dev/tools/pub/cmd/pub-publish).
@@ -208,7 +209,7 @@ The CLI is fully CI-friendly by design:
 3. **Use `--force` to skip all confirmations:**
 
    ```bash title="CI step"
-   club login --key "$CLUB_TOKEN" https://club.example.com
+   club login --key "$CLUB_TOKEN" myclub.birju.dev
    club publish --force
    ```
 
@@ -218,7 +219,7 @@ The CLI is fully CI-friendly by design:
 4. **Disambiguate with `--server` when the picker would fire:**
 
    ```bash
-   club publish --force --server https://club.example.com
+   club publish --force --server myclub.birju.dev
    ```
 
 5. **Use `--dry-run` + `--ignore-warnings` as a pre-publish lint step:**

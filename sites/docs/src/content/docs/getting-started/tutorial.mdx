@@ -147,8 +147,10 @@ With the server running and the CLI installed, you'll now log in, create a small
 1. **Log in to your server**
 
    ```bash
-   club login http://localhost:8080
+   club login localhost:8080
    ```
+
+   `club login` accepts a bare host. Local dev hosts (`localhost`, `127.0.0.1`, `0.0.0.0`) default to `http://`; everything else defaults to `https://`. A full URL works too.
 
    This opens your browser to complete an OAuth authorization flow (PKCE). Sign in with the owner account you created in Step 1, approve the CLI's `read,write` request, and the CLI stores a scoped personal access token in `~/.config/club/credentials.json`.
 
@@ -225,7 +227,7 @@ You publish packages so other projects can depend on them. Any developer who wan
 
    ```bash
    curl -fsSL https://club.birju.dev/install.sh | bash
-   club login http://localhost:8080
+   club login localhost:8080
    club setup
    ```
 

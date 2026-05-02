@@ -28,6 +28,7 @@ class PackageScore {
     this.grantedPoints,
     this.maxPoints,
     this.reportJson,
+    this.panaTags = const [],
     this.panaVersion,
     this.dartVersion,
     this.flutterVersion,
@@ -45,6 +46,13 @@ class PackageScore {
 
   /// Full pana report JSON (contains sections with markdown summaries).
   final String? reportJson;
+
+  /// Tag set emitted by pana (`sdk:flutter`, `is:wasm-ready`, etc.).
+  /// Cached on the score row so [PackageService.getScore] can merge it
+  /// with publish-time tags without parsing [reportJson] on every read.
+  /// Empty until the next pana run repopulates it.
+  final List<String> panaTags;
+
   final String? panaVersion;
   final String? dartVersion;
   final String? flutterVersion;
@@ -63,6 +71,7 @@ class PackageScoreCompanion {
     this.grantedPoints,
     this.maxPoints,
     this.reportJson,
+    this.panaTags = const [],
     this.panaVersion,
     this.dartVersion,
     this.flutterVersion,
@@ -76,6 +85,7 @@ class PackageScoreCompanion {
   final int? grantedPoints;
   final int? maxPoints;
   final String? reportJson;
+  final List<String> panaTags;
   final String? panaVersion;
   final String? dartVersion;
   final String? flutterVersion;

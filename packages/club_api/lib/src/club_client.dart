@@ -131,6 +131,78 @@ class ClubClient {
     return (res['packages'] as List).cast<String>();
   }
 
+  /// Fetch readme/changelog/example/screenshots for a version.
+  ///
+  /// When [version] is null the server returns content for the latest
+  /// version. Asset URLs in [VersionContent.readme] are already rewritten
+  /// to absolute server-relative paths.
+  Future<VersionContent> getVersionContent(
+    String package, {
+    String? version,
+  }) async {
+    final path = version == null
+        ? '/api/packages/$package/content'
+        : '/api/packages/$package/versions/$version/content';
+    final res = await _get(path);
+    return VersionContent.fromJson(res);
+  }
+
+  /// Fetch the dartdoc generation status for a package.
+  ///
+  /// Returns one of `not_generated`, `pending`, `running`, `completed`,
+  /// `failed`. When `completed`, [PackageDartdocStatus.docsUrl] is set to
+  /// a server-relative URL (resolve against [serverUrl] for an absolute one).
+  Future<PackageDartdocStatus> getDartdocStatus(String package) async {
+    final res = await _get('/api/packages/$package/dartdoc-status');
+    return PackageDartdocStatus.fromJson(res);
+  }
+
+  /// Fetch the pana scoring report for a specific version.
+  Future<PackageScoringReport> getScoringReport(
+    String package,
+    String version,
+  ) async {
+    final res = await _get(
+      '/api/packages/$package/versions/$version/scoring-report',
+    );
+    return PackageScoringReport.fromJson(res);
+  }
+
+  /// Fetch the authenticated user's profile (`/api/auth/me`). Useful as a
+  /// "whoami" probe to verify the token is valid and surface the active
+  /// user's email + role to callers.
+  Future<Map<String, dynamic>> getMe() async => _get('/api/auth/me');
+
+  /// List packages owned by the authenticated user. Cursor-paginated via
+  /// [pageToken] (the server's `nextPageToken`).
+  Future<Map<String, dynamic>> getMyPackages({
+    String? query,
+    String? pageToken,
+  }) async {
+    final uri = Uri(
+      path: '/api/account/packages',
+      queryParameters: {
+        if (query != null && query.isNotEmpty) 'q': query,
+        if (pageToken != null && pageToken.isNotEmpty) 'page': pageToken,
+      },
+    );
+    final res = await _http.get(serverUrl.resolveUri(uri), headers: _headers);
+    _checkResponse(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// Fetch a static asset (e.g. dartdoc HTML) from the configured server,
+  /// returning the body bytes. The bearer token is sent so private
+  /// deployments that elect to gate `/documentation/` work too. Throws on
+  /// non-2xx; null is never returned.
+  Future<List<int>> fetchBytes(String path) async {
+    final res = await _http.get(serverUrl.resolve(path), headers: _headers);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwForStatus(res.statusCode, 'Failed to fetch $path');
+    }
+    return res.bodyBytes;
+  }
+
   // ── Publishing ─────────────────────────────────────────────
 
   /// Publish a package from a tarball file path.

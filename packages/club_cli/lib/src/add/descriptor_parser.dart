@@ -16,6 +16,7 @@ library;
 import 'package:pub_semver/pub_semver.dart' as semver;
 import 'package:yaml/yaml.dart';
 
+import '../util/url.dart';
 import 'add_options.dart';
 
 /// Thrown for invalid descriptor syntax or unsupported sources.
@@ -142,8 +143,8 @@ AddRequest _parseMapDescriptor({
   if (!map.containsKey('hosted')) {
     throw DescriptorParseError(
       'Descriptor "$descriptor" in "$original" has no `hosted` key.',
-      'Supported shape: foo:{hosted: https://server} or '
-          'foo:{hosted: https://server, version: ^1.0.0}.',
+      'Supported shape: foo:{hosted: myclub.birju.dev} or '
+          'foo:{hosted: myclub.birju.dev, version: ^1.0.0}.',
     );
   }
 
@@ -161,7 +162,8 @@ AddRequest _parseMapDescriptor({
     hostedUrl = url;
   } else {
     throw DescriptorParseError(
-      '`hosted` must be a URL string or a map with `url:` in "$original".',
+      '`hosted` must be a host or URL string, or a map with `url:`, '
+          'in "$original".',
     );
   }
 
@@ -214,10 +216,4 @@ void _validateName(String name, String input) {
   }
 }
 
-String _normalizeUrl(String url) {
-  var trimmed = url.trim();
-  while (trimmed.endsWith('/')) {
-    trimmed = trimmed.substring(0, trimmed.length - 1);
-  }
-  return trimmed;
-}
+String _normalizeUrl(String url) => parseServerInput(url);

@@ -1123,17 +1123,26 @@ class SqliteMetadataStore implements MetadataStore {
   @override
   Future<void> saveScore(PackageScoreCompanion companion) async {
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    // Empty list → null in the column. Mirrors how reportJson behaves
+    // for transient status updates (pending/running/failed): the prior
+    // success row's cache is cleared, then rewritten when scoring next
+    // succeeds. Honest for republishes — the new version may legitimately
+    // have different tags than the old one.
+    final panaTagsJson = companion.panaTags.isEmpty
+        ? null
+        : jsonEncode(companion.panaTags);
     await _db.execute(
       '''INSERT INTO package_scores
          (package_name, version, status, granted_points, max_points,
-          report_json, pana_version, dart_version, flutter_version,
-          error_message, scored_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          report_json, pana_tags, pana_version, dart_version,
+          flutter_version, error_message, scored_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(package_name, version) DO UPDATE SET
            status          = excluded.status,
            granted_points  = excluded.granted_points,
            max_points      = excluded.max_points,
            report_json     = excluded.report_json,
+           pana_tags       = excluded.pana_tags,
            pana_version    = excluded.pana_version,
            dart_version    = excluded.dart_version,
            flutter_version = excluded.flutter_version,
@@ -1147,6 +1156,7 @@ class SqliteMetadataStore implements MetadataStore {
         companion.grantedPoints,
         companion.maxPoints,
         companion.reportJson,
+        panaTagsJson,
         companion.panaVersion,
         companion.dartVersion,
         companion.flutterVersion,
@@ -1570,6 +1580,7 @@ class SqliteMetadataStore implements MetadataStore {
   }
 
   static PackageScore _rowToScore(QueryRow row) {
+    final panaTagsJson = row.readNullable<String>('pana_tags');
     return PackageScore(
       packageName: row.read<String>('package_name'),
       version: row.read<String>('version'),
@@ -1577,6 +1588,7 @@ class SqliteMetadataStore implements MetadataStore {
       grantedPoints: row.readNullable<int>('granted_points'),
       maxPoints: row.readNullable<int>('max_points'),
       reportJson: row.readNullable<String>('report_json'),
+      panaTags: panaTagsJson == null ? const [] : _jsonToStringList(panaTagsJson),
       panaVersion: row.readNullable<String>('pana_version'),
       dartVersion: row.readNullable<String>('dart_version'),
       flutterVersion: row.readNullable<String>('flutter_version'),

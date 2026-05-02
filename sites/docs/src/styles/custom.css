@@ -654,12 +654,18 @@ starlight-tabs .tab>[role='tab']:focus {
 }
 
 starlight-tabs .tab>[role='tab']:hover {
-  color: var(--sl-color-text) !important;
-  background: rgba(0, 0, 0, 0.03) !important;
+  color: var(--sl-color-white) !important;
+  background: rgba(0, 0, 0, 0.06) !important;
 }
 
+/* In dark mode the outer tablist sits on `--sl-color-bg-inline-code`,
+   which is itself a near-black panel. A 4% white overlay was invisible
+   against that — push it to 10% so the hovered pill clearly lifts
+   off the tablist, and force `--sl-color-white` for the text so the
+   label stays high-contrast even when the pill is faint. */
 :root[data-theme='dark'] starlight-tabs .tab>[role='tab']:hover {
-  background: rgba(255, 255, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--sl-color-white) !important;
 }
 
 starlight-tabs .tab>[role='tab'][aria-selected='true'] {

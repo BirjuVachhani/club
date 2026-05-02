@@ -8,6 +8,7 @@ import 'package:args/command_runner.dart';
 import 'package:club_api/club_api.dart';
 
 import '../../credentials.dart';
+import '../../util/url.dart';
 
 /// Common base for every club command.
 ///
@@ -19,16 +20,18 @@ abstract class ClubCommand extends Command<void> {
   /// Throws [UsageException] if the user is not logged in to that server,
   /// so the CLI prints a clean message instead of a stack trace.
   ClubClient clientFor(String serverUrl) {
-    final token = CredentialStore.getToken(serverUrl);
+    final canonical = parseServerInput(serverUrl);
+    final token = CredentialStore.getToken(canonical);
     if (token == null) {
       throw UsageException(
-        'Not logged in to $serverUrl.',
-        'Run: club login $serverUrl',
+        'Not logged in to ${displayServer(canonical)}.',
+        'Run: club login ${displayServer(canonical)}',
       );
     }
-    return ClubClient(serverUrl: Uri.parse(serverUrl), token: token);
+    return ClubClient(serverUrl: Uri.parse(canonical), token: token);
   }
 
   /// Lookup a stored token without constructing a client.
-  String? tokenFor(String serverUrl) => CredentialStore.getToken(serverUrl);
+  String? tokenFor(String serverUrl) =>
+      CredentialStore.getToken(parseServerInput(serverUrl));
 }

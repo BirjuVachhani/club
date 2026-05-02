@@ -4,11 +4,18 @@ import 'package:args/command_runner.dart';
 
 import '../config.dart';
 import '../credentials.dart';
+import '../util/url.dart';
 
 class LogoutCommand extends Command<void> {
   LogoutCommand() {
     argParser
-      ..addOption('server', abbr: 's', help: 'Server URL to logout from')
+      ..addOption(
+        'server',
+        abbr: 's',
+        help: 'Server host to logout from (e.g. myclub.birju.dev). '
+            'Accepts a full URL too.',
+        valueHelp: 'host',
+      )
       ..addFlag('all', help: 'Remove credentials for all servers');
   }
 
@@ -33,6 +40,6 @@ class LogoutCommand extends Command<void> {
     }
 
     CredentialStore.remove(serverUrl);
-    stdout.writeln('Logged out from $serverUrl');
+    stdout.writeln('Logged out from ${displayServer(serverUrl)}');
   }
 }

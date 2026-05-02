@@ -29,14 +29,35 @@ club --version
 
 ```
 club
-├── login <server-url>              Authenticate via browser OAuth (default), --no-browser, or --key
-├── logout [--server <url>] [--all] Remove stored credentials
-├── setup [--env-var <NAME>]        Register the stored token with dart pub
-├── publish                         Publish a package (native flow; resolves server automatically)
-└── config                          Show or change default server
-    ├── show                        Alias for: club config
-    └── set-server <url>            Set default server URL
+├── login <host>                     Authenticate via browser OAuth (default), --no-browser, or --key
+├── logout [--server <host>] [--all] Remove stored credentials
+├── setup [--env-var <NAME>]         Register the stored token with dart pub
+├── publish [--auto]                 Publish a package (native flow; resolves server automatically).
+│                                    Add --auto for orchestrated monorepo publishing.
+├── prepare                          Rewrite path/workspace deps to hosted refs in topo order
+│                                    (monorepo prep without publishing)
+├── mcp [--server <host> --token <pat>]
+│                                    Start a stdio MCP server so AI clients can browse, search,
+│                                    and reason about packages on a club server.
+└── config                           Show or change default server
+    ├── show                         Alias for: club config
+    └── set-server <host>            Set default server
 ```
+
+`<host>` is a bare host like `myclub.birju.dev`. A full URL
+(`https://myclub.birju.dev`) is accepted too — both forms map to the
+same credential. Local dev servers (`localhost`, `127.0.0.1`,
+`0.0.0.0`) default to `http://`; everything else defaults to `https://`.
+
+For monorepos and pub workspaces, `prepare` and `publish --auto` automate the
+internal-dependency rewriting that `dart pub publish` cannot handle. See
+[Monorepo Publishing](/guides/monorepo-publishing/) for the end-to-end workflow.
+
+For AI-assisted workflows, `club mcp` runs a stdio Model Context Protocol
+server that exposes read-only tools (search, version listings, README /
+CHANGELOG, scoring reports, dartdoc summaries) to clients like Claude
+Desktop, Cursor, Cline, Continue, and Zed. See [club mcp](/cli/mcp/) for
+client setup and the full tool list.
 
 Token management (creating, listing, and revoking personal access tokens) and all administrative actions are done from the **web UI** -- they are not exposed as CLI subcommands. See [Administration](/cli/admin/) for how to drive admin workflows via the web UI or the HTTP API.
 
@@ -59,14 +80,18 @@ Token management (creating, listing, and revoking personal access tokens) and al
 
 ```bash
 # 1. Log in to your club server
-club login https://club.example.com
+club login myclub.birju.dev
 
 # 2. Configure dart pub to use your server
 club setup
 
-# 3. Publish a package
+# 3a. Publish a single package
 cd my_package/
 club publish
+
+# 3b. Or, in a monorepo: publish a leaf and every workspace dep it transitively
+#     references, in topological order. Source files are not modified.
+club publish --auto pkg_a pkg_b
 ```
 
 ## How the CLI Works Internally

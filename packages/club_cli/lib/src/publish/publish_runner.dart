@@ -24,6 +24,7 @@ import '../util/exit_codes.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/pub_get.dart';
+import '../util/url.dart';
 import 'pubspec_reader.dart';
 import 'server_resolver.dart';
 import 'tarball_builder.dart';
@@ -164,7 +165,7 @@ class PublishRunner {
     }
 
     detail(
-      'to ${bold(server.url)} '
+      'to ${bold(displayServer(server.url))} '
       '${gray("(${describeServerSource(server.source)})")}',
     );
 
@@ -190,7 +191,7 @@ class PublishRunner {
         if (!options.force) {
           error(
             '${pubspec.name} ${pubspec.version} is already published to '
-            '${server.url}.',
+            '${displayServer(server.url)}.',
           );
           hint(
             'Bump the version in pubspec.yaml, or pass -f / --force '
@@ -206,13 +207,13 @@ class PublishRunner {
         // an automation context is consent enough.
         warning(
           '${pubspec.name} ${pubspec.version} is already published to '
-          '${server.url}.',
+          '${displayServer(server.url)}.',
         );
         if (isInteractive && !isCI) {
           info('');
           final ok = await confirm(
             'Overwrite the existing ${cyan(pubspec.version)} on '
-            '${bold(server.url)}?',
+            '${bold(displayServer(server.url))}?',
             defaultAnswer: false,
           );
           if (!ok) {
@@ -334,7 +335,8 @@ class PublishRunner {
       if (options.dryRun) {
         box([
           bold('Dry-run complete'),
-          '${gray('Package would publish to')} ${bold(server.url)}',
+          '${gray('Package would publish to')} '
+              '${bold(displayServer(server.url))}',
         ]);
         return ExitCodes.success;
       }
@@ -484,7 +486,7 @@ class PublishRunner {
     table(
       ['Package', 'Version', 'Server'],
       [
-        [bold(pubspec.name), cyan(pubspec.version), server.url],
+        [bold(pubspec.name), cyan(pubspec.version), displayServer(server.url)],
       ],
     );
     info('');

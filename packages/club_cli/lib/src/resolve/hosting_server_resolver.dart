@@ -85,25 +85,26 @@ class HostingServerResolver {
   }) async {
     // ── 1. Caller-supplied pin trumps everything. ─────────────────────────
     if (pinnedUrl != null) {
-      final token = _credentials.tokenFor(pinnedUrl);
+      final url = parseServerInput(pinnedUrl);
+      final token = _credentials.tokenFor(url);
       if (token == null) {
         throw ResolveError(
-          'Package "$packageName" is pinned to $pinnedUrl but you are not '
-              'logged in to that server.',
-          'Run: club login $pinnedUrl',
+          'Package "$packageName" is pinned to ${displayServer(url)} but '
+              'you are not logged in to that server.',
+          'Run: club login ${displayServer(url)}',
         );
       }
-      return _queryOne(packageName, pinnedUrl, token);
+      return _queryOne(packageName, url, token);
     }
 
     // ── 2. Explicit --server flag. ────────────────────────────────────────
     if (serverFlag != null && serverFlag!.isNotEmpty) {
-      final url = normalizeServerUrl(serverFlag!);
+      final url = parseServerInput(serverFlag!);
       final token = _credentials.tokenFor(url);
       if (token == null) {
         throw ResolveError(
-          'Not logged in to $url.',
-          'Run: club login $url',
+          'Not logged in to ${displayServer(url)}.',
+          'Run: club login ${displayServer(url)}',
         );
       }
       return _queryOne(packageName, url, token);
@@ -114,7 +115,7 @@ class HostingServerResolver {
     if (logins.isEmpty) {
       throw ResolveError(
         'No club server is configured.',
-        'Run: club login <server-url>',
+        'Run: club login <host>',
       );
     }
 
@@ -142,11 +143,11 @@ class HostingServerResolver {
         } on ClubNotFoundException {
           // Server doesn't have this package — fine, try the rest.
         } on ClubAuthException {
-          authFailures.add(url);
+          authFailures.add(displayServer(url));
         } on ClubApiException catch (e) {
-          warning('Skipping $url: ${e.message}');
+          warning('Skipping ${displayServer(url)}: ${e.message}');
         } catch (e) {
-          warning('Skipping $url: $e');
+          warning('Skipping ${displayServer(url)}: $e');
         } finally {
           client.close();
         }
@@ -168,7 +169,7 @@ class HostingServerResolver {
     if (hits.length == 1) {
       final hit = hits.first;
       info(
-        '   Found ${bold(packageName)} on ${cyan(hit.serverUrl)} '
+        '   Found ${bold(packageName)} on ${cyan(displayServer(hit.serverUrl))} '
         '${gray('(v${hit.latestStableVersion})')}',
       );
       return hit;
@@ -188,7 +189,8 @@ class HostingServerResolver {
       final latest = _resolveLatest(data, url);
       if (latest == null) {
         throw ResolveError(
-          '$packageName on $url has no stable versions — only pre-releases.',
+          '$packageName on ${displayServer(url)} has no stable versions — '
+              'only pre-releases.',
           'Pin a specific version, e.g. $packageName:${data.latest.version}',
         );
       }
@@ -200,12 +202,12 @@ class HostingServerResolver {
       );
     } on ClubNotFoundException {
       throw ResolveError(
-        'Package "$packageName" was not found on $url.',
+        'Package "$packageName" was not found on ${displayServer(url)}.',
       );
     } on ClubAuthException catch (e) {
       throw ResolveError(
-        'Authentication failed for $url: ${e.message}',
-        'Run: club login $url',
+        'Authentication failed for ${displayServer(url)}: ${e.message}',
+        'Run: club login ${displayServer(url)}',
       );
     } finally {
       client.close();
@@ -223,7 +225,9 @@ class HostingServerResolver {
       [
         for (final h in hits)
           PickOption(
-            label: '${h.serverUrl}  ${cyan('v${h.latestStableVersion}')}',
+            label:
+                '${displayServer(h.serverUrl)}  '
+                '${cyan('v${h.latestStableVersion}')}',
             value: h,
             detail: '${h.serverUrl}/packages/$packageName',
           ),
@@ -243,8 +247,9 @@ class HostingServerResolver {
     final serverLatest = _parseOrNull(data.latest.version);
     if (serverLatest != null && serverLatest.isPreRelease) {
       warning(
-        '$serverUrl lists ${data.name} ${data.latest.version} (pre-release) '
-        'as latest. Pin a stable version explicitly to use this server.',
+        '${displayServer(serverUrl)} lists ${data.name} '
+        '${data.latest.version} (pre-release) as latest. '
+        'Pin a stable version explicitly to use this server.',
       );
     }
     semver.Version? best;

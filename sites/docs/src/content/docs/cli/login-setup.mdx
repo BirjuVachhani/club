@@ -10,14 +10,16 @@ import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components
 Authenticate with a club server. By default, `club login` opens your browser and runs an OAuth 2.0 Authorization Code flow with PKCE, requesting scopes `read,write`. On success the CLI receives a scoped personal access token, stores it in `~/.config/club/credentials.json`, and registers it with `dart pub token add`.
 
 ```bash
-club login <server-url> [--email <email>] [--no-browser] [--key <club_pat_...>]
+club login <host> [--email <email>] [--no-browser] [--key <club_pat_...>]
 ```
+
+`<host>` is a bare host like `myclub.birju.dev`. A full URL (`https://myclub.birju.dev`) is accepted too — both forms map to the same credential. Local dev servers (`localhost`, `127.0.0.1`, `0.0.0.0`) default to `http://`; everything else defaults to `https://`.
 
 ### Options
 
 | Option | Description |
 |--------|-------------|
-| `<server-url>` | The club server URL (required) |
+| `<host>` | The club server host (required). Accepts a full URL too. |
 | `--key` | Skip interactive login and store the provided personal access token directly. |
 | `--email` | Pre-fill the email (used by the `--no-browser` fallback; also a hint for the browser consent screen). |
 | `--no-browser` | Disable the browser flow and prompt for email + password in the terminal. |
@@ -32,25 +34,25 @@ There is no `--password` flag. If you need to paste an existing token, use `--ke
 2. Opens the browser at the server's `/oauth/authorize` endpoint (scope `read,write`, PKCE).
 3. The server authenticates you (if you are not already signed in) and asks you to approve the token.
 4. After approval, the server redirects to the local listener with an authorization code, which the CLI exchanges for a personal access token.
-5. Stores the token in `~/.config/club/credentials.json`, sets this server as the default, and runs `dart pub token add <server-url>` automatically.
+5. Stores the token in `~/.config/club/credentials.json`, sets this server as the default, and runs `dart pub token add` automatically.
 
 </Steps>
 
 ### Example
 
 ```bash
-$ club login https://club.example.com
-Opening browser for https://club.example.com/oauth/authorize...
+$ club login myclub.birju.dev
+Opening browser for https://myclub.birju.dev/oauth/authorize...
 Waiting for authorization...
 Logged in as jane@example.com
-Token stored for https://club.example.com
+Token stored for myclub.birju.dev
 Registered token with dart pub.
 ```
 
 ### Non-browser fallback
 
 ```bash
-club login https://club.example.com --no-browser --email jane@example.com
+club login myclub.birju.dev --no-browser --email jane@example.com
 ```
 
 This prompts for your password in the terminal and exchanges it for a personal access token via the server's login API.
@@ -58,28 +60,71 @@ This prompts for your password in the terminal and exchanges it for a personal a
 ### Using an existing token
 
 ```bash
-club login https://club.example.com --key club_pat_abc123...
+club login myclub.birju.dev --key club_pat_abc123...
 ```
 
 Use this when you already generated a personal access token through the web UI (for example, for CI).
 
-<Aside type="tip">
-For CI, prefer setting the `CLUB_TOKEN` environment variable -- the CLI honours it as a bearer token override without touching the credentials file at all.
-</Aside>
+### CI usage
+
+`club login` is **almost never needed in CI.** The recommended pattern
+is to set `CLUB_TOKEN` as a CI secret and pass `--server <host>` to
+the command you actually want to run (`club publish`, `club prepare`,
+`club publish --auto`). The resolver detects `CLUB_TOKEN` and uses it
+directly when the URL isn't in stored credentials, so no login step
+is required.
+
+<Tabs>
+  <TabItem label="No login (recommended)">
+  ```yaml title=".github/workflows/publish.yml"
+  # No `club login` step at all.
+  - name: Publish
+    run: club publish --server myclub.birju.dev
+    env:
+      CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+  ```
+
+  `CLUB_TOKEN` shadows stored credentials globally, so every `club`
+  command in the runner picks it up automatically.
+  </TabItem>
+  <TabItem label="Pre-seed credentials">
+  Run `club login --key` once at the top of the job if you want a
+  persistent credentials file (e.g. several jobs share the runner and
+  you want them to re-use the auth):
+
+  ```yaml
+  - name: Pre-seed club credentials
+    run: club login --key "$CLUB_TOKEN" myclub.birju.dev
+    env:
+      CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+
+  - name: Publish
+    run: club publish --server myclub.birju.dev
+  ```
+
+  After the login step, the credentials file is on disk for the rest
+  of the job. `dart pub` is also configured automatically so
+  `dart pub get` works.
+  </TabItem>
+</Tabs>
+
+The browser flow (`club login` with no `--key`) does **not** work in
+CI — there is no browser, no human to consent. Use the `--key` form
+or rely on `CLUB_TOKEN`.
 
 ## club setup
 
 Configure `dart pub` to work with your club server. This is the key integration command that bridges `club` credentials with `dart pub`.
 
 ```bash
-club setup [--server <url>] [--env-var <VAR_NAME>]
+club setup [--server <host>] [--env-var <VAR_NAME>]
 ```
 
 ### Options
 
 | Option | Description |
 |--------|-------------|
-| `--server` | Server URL (default: current default server) |
+| `--server` | Server host (default: current default server). Accepts a full URL too. |
 | `--env-var` | Use an environment variable for the token instead of storing it directly |
 
 ### What It Does
@@ -96,35 +141,55 @@ club setup [--server <url>] [--env-var <VAR_NAME>]
 
 ```bash
 $ club setup
-Configuring dart pub for https://club.example.com...
+Configuring dart pub for myclub.birju.dev...
 Token registered with dart pub.
 
 To use packages from club, add to your pubspec.yaml:
 
   dependencies:
     my_package:
-      hosted: https://club.example.com
+      hosted: https://myclub.birju.dev
       version: ^1.0.0
 
 Or set PUB_HOSTED_URL to use club as the default:
 
-  export PUB_HOSTED_URL=https://club.example.com
+  export PUB_HOSTED_URL=https://myclub.birju.dev
 ```
 
-### CI/CD Setup with Environment Variable
+The `hosted:` and `PUB_HOSTED_URL` values stay in URL form — they are consumed by `dart pub`, which expects URLs.
 
-For CI/CD environments, use the `--env-var` flag to avoid storing tokens on disk:
+### CI usage
 
-```bash
-$ club setup --env-var CLUB_TOKEN
-Configuring dart pub for https://club.example.com...
-Running: dart pub token add https://club.example.com --env-var CLUB_TOKEN
+`club setup` is only needed in CI when the **build** step itself runs
+`dart pub get` against a club-hosted dep — the setup registers the
+token with `dart pub` so dependency resolution authenticates. If the
+job only runs `club publish` / `club prepare` / `club publish --auto`,
+you can skip `setup` entirely (those commands authenticate via
+`CLUB_TOKEN` directly).
 
-To use in CI/CD, set the CLUB_TOKEN environment variable to your API token.
+When you do need it, use `--env-var` so the token is read from the
+environment at resolution time instead of being written to disk:
+
+```yaml title=".github/workflows/build.yml"
+- name: Configure dart pub
+  run: club setup --env-var CLUB_TOKEN --server myclub.birju.dev
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+
+- name: Get deps and test
+  run: |
+    dart pub get
+    dart test
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
 ```
 
 <Aside type="tip">
-The `--env-var` approach is recommended for CI/CD. See the [CI/CD Integration](/guides/ci-cd/) guide for complete pipeline examples.
+The [`BirjuVachhani/club/actions/setup-club`](https://github.com/BirjuVachhani/club/tree/main/actions/setup-club)
+GitHub Action wraps install + `setup --env-var` + token export into
+one step. See the [CI/CD Integration](/guides/ci-cd/) guide for
+complete pipeline examples covering GitHub Actions, GitLab CI,
+Bitbucket Pipelines, and CircleCI.
 </Aside>
 
 ## club logout
@@ -132,21 +197,21 @@ The `--env-var` approach is recommended for CI/CD. See the [CI/CD Integration](/
 Remove stored credentials for a server.
 
 ```bash
-club logout [--server <url>] [--all]
+club logout [--server <host>] [--all]
 ```
 
 ### Options
 
 | Option | Description |
 |--------|-------------|
-| `--server` | Server URL to logout from (default: current default server) |
+| `--server` | Server host to logout from (default: current default server). Accepts a full URL too. |
 | `--all` | Remove credentials for all servers |
 
 ### Example
 
 ```bash
 $ club logout
-Logged out from https://club.example.com
+Logged out from myclub.birju.dev
 ```
 
 ```bash
@@ -155,7 +220,7 @@ Logged out from all servers.
 ```
 
 <Aside>
-`club logout` removes the token from `~/.config/club/credentials.json` but does **not** remove it from dart pub's credential store. To remove it from dart pub as well, run `dart pub token remove https://club.example.com`.
+`club logout` removes the token from `~/.config/club/credentials.json` but does **not** remove it from dart pub's credential store. To remove it from dart pub as well, run `dart pub token remove https://myclub.birju.dev`.
 </Aside>
 
 ## club config
@@ -163,22 +228,20 @@ Logged out from all servers.
 Show or update CLI configuration. There are exactly two subcommands:
 
 ```bash
-club config                     # Show current config (same as `config show`)
-club config show                # Show current config
-club config set-server <url>    # Set default server
+club config                      # Show current config (same as `config show`)
+club config show                 # Show current config
+club config set-server <host>    # Set default server
 ```
 
 ### Example
 
 ```bash
 $ club config
-Default server: https://club.example.com
-Logged in as:   jane@example.com
-Credentials:    ~/.config/club/credentials.json
+Default server: myclub.birju.dev
 
 Configured servers:
-  https://club.example.com (default)
-  https://staging.club.example.com
+  myclub.birju.dev (default) — jane@example.com
+  staging.myclub.birju.dev — jane@example.com
 ```
 
 ### Switching Default Server
@@ -186,10 +249,10 @@ Configured servers:
 If you work with multiple club servers (for example, production and staging), use `set-server` to switch:
 
 ```bash
-club config set-server https://staging.club.example.com
+club config set-server staging.myclub.birju.dev
 ```
 
-All subsequent commands will target the new default server. Use `club publish --server <url>` to override it on a per-invocation basis.
+All subsequent commands will target the new default server. Use `club publish --server <host>` to override it on a per-invocation basis.
 
 ## Credential Storage
 
@@ -202,15 +265,17 @@ All subsequent commands will target the new default server. Use `club publish --
 
 ### File Format
 
+Credential entries are keyed by the canonical server URL — the form `dart pub token add` consumes — even when you logged in by typing only the host. The CLI normalises both shapes to the same key, so `club login myclub.birju.dev` and `club login https://myclub.birju.dev` map to the same entry.
+
 <Code code={`{
-  "defaultServer": "https://club.example.com",
+  "defaultServer": "https://myclub.birju.dev",
   "servers": {
-    "https://club.example.com": {
+    "https://myclub.birju.dev": {
       "token": "club_pat_a1b2c3d4e5f6...",
       "email": "jane@example.com",
       "createdAt": "2026-04-09T10:00:00.000Z"
     },
-    "https://staging.club.example.com": {
+    "https://staging.myclub.birju.dev": {
       "token": "club_pat_x9y8z7w6...",
       "email": "jane@example.com",
       "createdAt": "2026-04-09T11:00:00.000Z"

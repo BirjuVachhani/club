@@ -1,0 +1,477 @@
+---
+title: club mcp
+description: Run a stdio Model Context Protocol server so AI clients (Claude Desktop, Cursor, Cline, Continue, Zed) can browse, search, and reason about packages on a club server.
+sidebar:
+  order: 7
+---
+
+import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+`club mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio. Once configured in your AI client (Claude Desktop,
+Cursor, Cline, Continue, Zed, …), your assistant can search packages on a
+club server, fetch readmes and changelogs, inspect pubspecs and
+dependencies, view scoring reports, and produce ready-to-paste
+`pubspec.yaml` snippets — all against your private registry, with your
+existing credentials.
+
+The server is bundled into the `club` binary; no separate install. It is
+read-only by design — there are no publish, retract, or token-management
+tools, so the AI cannot mutate your registry.
+
+<Aside type="tip" title="Read-only by design">
+The MCP server only exposes browse / discovery / introspection tools.
+Writes (publish, retract, like, token create/revoke) are intentionally
+not exposed. Use `club publish` and the web UI for those.
+</Aside>
+
+## Quick start
+
+<Steps>
+
+1. **Make sure you're logged in** to at least one club server:
+
+   ```bash
+   club login myclub.birju.dev
+   ```
+
+2. **Add `club mcp` to your AI client's MCP config.** The exact file
+   depends on the client — see the [Client setup](#client-setup) section
+   below.
+
+   ```json
+   {
+     "mcpServers": {
+       "club": {
+         "command": "club",
+         "args": ["mcp"]
+       }
+     }
+   }
+   ```
+
+3. **Restart the AI client.** It will spawn `club mcp` on demand and
+   shut it down when the session ends.
+
+4. **Ask the AI** something like *"Search our club registry for an HTTP
+   client and show me the README of the top result."* The AI will pick
+   the relevant tools and return structured results.
+
+</Steps>
+
+## Modes
+
+`club mcp` runs in one of two modes depending on flags:
+
+<Tabs>
+  <TabItem label="Discovered (default)">
+  ```bash
+  club mcp
+  ```
+
+  Every server in `~/.config/club/credentials.json` is exposed. One is
+  the **active** server (the default that tools use when their `server`
+  argument is omitted) — initially this is the same default used by
+  `club publish` / `club add`. The AI can call `list_servers` to see
+  every registered server and `switch_server` to change the active one.
+
+  Use this when you have a single primary registry and occasional
+  cross-registry queries.
+  </TabItem>
+  <TabItem label="Pinned">
+  ```bash
+  club mcp --server myclub.birju.dev
+  ```
+
+  Exactly one server is exposed. `switch_server` returns an error and
+  every tool's `server` argument either resolves to the pinned server or
+  errors. Credentials still come from the credentials file — the URL
+  must already be logged in.
+
+  Useful when an AI client is dedicated to one registry, or to scope a
+  session tightly.
+  </TabItem>
+  <TabItem label="Pinned + inline token">
+  ```bash
+  club mcp --server myclub.birju.dev --token club_pat_...
+  ```
+
+  Same as pinned, but the bearer token is supplied via `--token`
+  instead of looked up in the credentials file. Designed for
+  self-contained AI client configs that don't depend on a prior
+  `club login`. Great for sandboxes, scoped tokens, and CI-style
+  setups.
+  </TabItem>
+</Tabs>
+
+## Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--server <host>` | `-s` | Pin the MCP server to one club server (e.g. `myclub.birju.dev`). Accepts a full URL too. When omitted, every logged-in server is exposed. |
+| `--token <pat>` | `-t` | Bearer token to use instead of the stored credential. Requires `--server`. Lets AI client configs embed credentials inline. |
+
+`--token` without `--server` is a usage error.
+
+## Client setup
+
+`club mcp` speaks the standard stdio MCP transport, so any client that
+supports MCP works. Below are the most common ones.
+
+<Tabs>
+  <TabItem label="Claude Desktop">
+  Edit `~/Library/Application Support/Claude/claude_desktop_config.json`
+  on macOS, or `%APPDATA%\Claude\claude_desktop_config.json` on Windows:
+
+  ```json
+  {
+    "mcpServers": {
+      "club": {
+        "command": "club",
+        "args": ["mcp"]
+      }
+    }
+  }
+  ```
+
+  Restart Claude Desktop. The `club` server appears in the MCP indicator
+  with all its tools available.
+  </TabItem>
+  <TabItem label="Cursor">
+  Cursor reads `.cursor/mcp.json` in the project root or
+  `~/.cursor/mcp.json` globally:
+
+  ```json
+  {
+    "mcpServers": {
+      "club": {
+        "command": "club",
+        "args": ["mcp", "--server", "myclub.birju.dev"]
+      }
+    }
+  }
+  ```
+
+  After saving, Cursor's MCP panel shows the `club` server. Toggle it on.
+  </TabItem>
+  <TabItem label="Cline / Continue / Zed">
+  These clients use the same MCP stdio shape. Find their MCP config
+  file (Cline: `cline_mcp_settings.json`; Continue: the `mcpServers`
+  block in `config.json`; Zed: `~/.config/zed/settings.json` →
+  `context_servers`) and add a server entry that runs `club mcp`:
+
+  ```json
+  {
+    "mcpServers": {
+      "club": {
+        "command": "club",
+        "args": ["mcp"]
+      }
+    }
+  }
+  ```
+  </TabItem>
+  <TabItem label="Multiple registries">
+  Run one `club mcp` instance per registry, each pinned, each with its
+  own MCP entry name:
+
+  ```json
+  {
+    "mcpServers": {
+      "club-prod": {
+        "command": "club",
+        "args": ["mcp", "--server", "myclub.birju.dev"]
+      },
+      "club-staging": {
+        "command": "club",
+        "args": [
+          "mcp",
+          "--server", "staging.myclub.birju.dev",
+          "--token", "club_pat_..."
+        ]
+      }
+    }
+  }
+  ```
+
+  Each shows up as a separate MCP server in the client. The AI can
+  consult both in the same session.
+  </TabItem>
+</Tabs>
+
+## Tools
+
+`club mcp` registers 13 tools, grouped by purpose. All tool results are
+JSON in a `TextContent` block, which AI models parse cleanly.
+
+### Server management
+
+| Tool | Description |
+|------|-------------|
+| `list_servers` | List every club server this MCP instance can access, including which one is active. |
+| `switch_server` | Set the active club server for subsequent tool calls. Errors when running in pinned mode. |
+| `whoami` | Return the authenticated user (email, role, displayName) for a server. Doubles as a connectivity / token-validity probe. |
+
+### Discovery
+
+| Tool | Description |
+|------|-------------|
+| `search_packages` | Search packages by free-text query. Sortable by `relevance`, `updated`, `created`, or `likes`. Page size 20. |
+| `list_all_packages` | Return every package name on a server (capped server-side at ~10 000). Useful for name completion. |
+
+### Package introspection
+
+| Tool | Description |
+|------|-------------|
+| `get_package` | List every version of a package, plus latest stable, latest prerelease, and discontinued / unlisted state. |
+| `get_package_version` | Full pubspec map (name, description, dependencies, environment, homepage, repository) plus archive URL + sha256 + published timestamp. |
+| `get_package_content` | README, CHANGELOG, example code, screenshots, bin executables. Defaults to latest version. |
+| `get_package_score` | Pana points + tags + likes + 30-day download count. |
+| `get_package_scoring_report` | Full pana scoring report — per-section points, status, and markdown summaries. |
+| `get_package_api_docs` | Generated dartdoc summary: status, docs URL, package description, exported libraries with one-line summaries. |
+
+### Account
+
+| Tool | Description |
+|------|-------------|
+| `list_my_packages` | List packages the authenticated user uploads to or owns via a publisher. Cursor-paginated. |
+
+### Dependency
+
+| Tool | Description |
+|------|-------------|
+| `add_dependency_snippet` | Resolve a package on the registry and return a YAML snippet ready to paste into `dependencies:`, `dev_dependencies:`, or `dependency_overrides:`. |
+
+<Aside title="Why no `add_dependency` write?">
+The MCP server is intentionally side-effect-free. `add_dependency_snippet`
+returns the YAML and an instruction string; the AI applies it through
+its own filesystem tools (and you review the diff). Use
+[`club add`](/cli/login-setup/) when you want the CLI itself to write
+the change.
+</Aside>
+
+## How it works
+
+<Steps>
+
+1. **Stdio transport.** `club mcp` reads JSON-RPC frames from stdin and
+   writes them to stdout. The AI client owns the process lifecycle —
+   spawning, sending requests, and shutting it down via stdin EOF.
+
+2. **Server registry.** On startup, the command builds a
+   `ServerRegistry` from your credentials file (or, in pinned mode, a
+   single entry from the `--server` / `--token` flags). The registry
+   caches one `ClubClient` per registered server.
+
+3. **Tool registration.** Tools are advertised via `dart_mcp`'s
+   `ToolsSupport` mixin. Each tool's input schema is JSON Schema, and
+   `dart_mcp` validates arguments before the handler runs.
+
+4. **Handler dispatch.** Each tool handler resolves a `ClubClient`
+   (active server by default, or the `server` argument), calls the
+   `club_api` SDK, and returns the result as JSON-encoded
+   `TextContent`. Errors become `CallToolResult(isError: true)` so the
+   AI can decide whether to retry or apologize — never an unhandled
+   exception over the wire.
+
+5. **Stdout silence.** Because stdio is owned by the JSON-RPC
+   transport, the CLI's normal log helpers are silenced for the
+   duration of the run. Diagnostics still go to stderr.
+
+</Steps>
+
+## Authentication
+
+Tools authenticate using the same credentials your `club` CLI already
+uses. There's no new token type, no session, no OAuth dance. Three
+sources are checked, in order:
+
+1. `--token <pat>` flag (pinned mode only).
+2. `CLUB_TOKEN` environment variable, if set.
+3. `~/.config/club/credentials.json` entry for the resolved server URL.
+
+The MCP server **never logs or surfaces the bearer token in tool
+results.** Server errors echo the server's `error.message`; the token
+itself stays in the `Authorization` header.
+
+## Examples
+
+<Tabs>
+  <TabItem label="Find a package and read its README">
+  ```text
+  user: Search our registry for an HTTP client and show me what it does.
+
+  AI uses search_packages → top result: my_http_client.
+  AI uses get_package_content('my_http_client') → README markdown.
+
+  AI: my_http_client is a thin wrapper around package:http with
+  retry/backoff and request signing. Latest version 1.4.0, published
+  2025-03-12. Here are the key sections from the README: ...
+  ```
+  </TabItem>
+  <TabItem label="Get a pubspec snippet for a dep">
+  ```text
+  user: Add my_http_client at the latest version to my pubspec.
+
+  AI uses add_dependency_snippet('my_http_client').
+  AI: Add this under `dependencies:` in your pubspec.yaml:
+
+      my_http_client:
+        hosted: https://myclub.birju.dev
+        version: "^1.4.0"
+
+  Then run `dart pub get`. Want me to apply it?
+  ```
+  </TabItem>
+  <TabItem label="Cross-server look-up">
+  ```text
+  user: Does staging have a newer version of my_http_client than prod?
+
+  AI uses list_servers → prod (active), staging.
+  AI uses get_package('my_http_client', server: prod)   → 1.4.0
+  AI uses get_package('my_http_client', server: staging) → 1.5.0-rc.1
+  AI: Yes — staging has 1.5.0-rc.1 (prerelease), prod is at 1.4.0.
+  ```
+  </TabItem>
+  <TabItem label="Inspect a scoring report">
+  ```text
+  user: Why does foo have 90 / 130 pana points? Anything I should fix?
+
+  AI uses get_package_scoring_report('foo', '1.2.0').
+  AI: foo is missing 40 points across two sections:
+       - Provide documentation: 0 / 20 (no dartdoc comments on
+         exported APIs).
+       - Support up-to-date dependencies: 20 / 20 (passing).
+       - …
+  ```
+  </TabItem>
+</Tabs>
+
+## CI / non-interactive use
+
+`club mcp` is meant to be spawned by AI clients on developer machines —
+not run directly in a CI job. That said, when you need a non-interactive
+launch (a sandboxed AI agent, a containerised assistant, a bot reviewing
+PRs, or just smoke-testing the server), use the **pinned + inline token**
+form:
+
+```bash
+CLUB_TOKEN=club_pat_... club mcp \
+  --server myclub.birju.dev \
+  --token "$CLUB_TOKEN"
+```
+
+Or rely on the `CLUB_TOKEN` env-token without `--token`:
+
+```bash
+CLUB_TOKEN=club_pat_... club mcp --server myclub.birju.dev
+```
+
+Either form authorises the run with **no prior `club login`** and no
+credentials file on disk. The server stays up until stdin EOF — your
+sandbox/agent owns that lifecycle.
+
+| Flag / env var | When it's needed | What it does |
+|---|---|---|
+| `--server <host>` | Required for non-interactive | Pins the MCP instance to one server; disables `switch_server`. |
+| `--token <pat>` | Optional | Bearer token inline. Use when the env-token isn't available or scoping differs. |
+| `CLUB_TOKEN` | Alternative to `--token` | Authorises the pinned URL when no `--token` is given. |
+
+The browser-based discovery mode (running with no `--server`) requires a
+populated credentials file and is **not** suitable for CI / sandbox
+contexts. Always pin in non-interactive setups.
+
+## Multi-server tool arguments
+
+When `club mcp` runs in discovered mode, every tool that touches a
+registry accepts an optional `server` argument:
+
+```json
+{
+  "name": "get_package",
+  "arguments": {
+    "name": "my_http_client",
+    "server": "staging.myclub.birju.dev"
+  }
+}
+```
+
+Omit `server` to use the active server. Pass it explicitly for one-off
+cross-registry calls without changing the active default. In pinned
+mode the argument is still accepted, but it must equal the pinned URL —
+otherwise the tool returns a clear error.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | The MCP client disconnected normally (stdin EOF). |
+| `1` | Usage error — invalid flag combination (e.g. `--token` without `--server`). |
+| `78` | Config error — no logged-in servers, unknown server, missing token. |
+
+## Troubleshooting
+
+### `No club servers are logged in.`
+
+You ran `club mcp` without `--server`/`--token` and the credentials
+file is empty. Either run `club login <host>` first, or use the
+pinned-with-inline-token form:
+
+```bash
+club mcp --server myclub.birju.dev --token club_pat_...
+```
+
+### `--token requires --server.`
+
+The `--token` flag only makes sense when paired with `--server`. In
+discovered mode the registry pulls tokens from the credentials file
+per-server.
+
+### Tools return `Server error (401 ...)`
+
+The configured token is invalid or expired. If you used `--token`,
+double-check it. Otherwise re-run `club login <host>` to refresh
+the stored credential.
+
+### Tools return `Server error (404 NotFound)` for `get_package_api_docs`
+
+dartdoc has not been generated for that package yet. The tool still
+returns a `status` field — `not_generated`, `pending`, `running`, or
+`failed` — so the AI knows the docs URL isn't usable. Generation runs
+as part of pana scoring; an admin can trigger it manually from the
+package's Admin tab in the web UI.
+
+### Stdio gets corrupted / AI client disconnects immediately
+
+`club mcp` owns stdout exclusively for line-delimited JSON-RPC. If
+something else in the spawn environment writes to stdout (a shell
+function, a startup script, a `print` from custom Dart code) the
+client will see malformed frames and disconnect. Run the command
+directly first to verify it produces no stdout output until it
+receives a JSON-RPC frame:
+
+```bash
+club mcp --server myclub.birju.dev --token club_pat_... < /dev/null
+```
+
+It should exit immediately with no output.
+
+## Related
+
+<LinkCard
+  title="club add"
+  description="CLI command to add hosted deps directly — for when you'd rather not paste a snippet."
+  href="/cli/login-setup/"
+/>
+
+<LinkCard
+  title="Client SDK"
+  description="The same `club_api` SDK powers club mcp. Use it directly to build your own tooling."
+  href="/sdk/overview/"
+/>
+
+<LinkCard
+  title="Model Context Protocol"
+  description="The protocol club mcp speaks. Useful background for understanding how AI clients integrate."
+  href="https://modelcontextprotocol.io"
+/>

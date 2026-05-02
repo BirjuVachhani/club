@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../credentials.dart';
+import '../util/url.dart';
 
 class ConfigCommand extends Command<void> {
   ConfigCommand() {
@@ -35,17 +36,20 @@ class _ConfigShowCommand extends Command<void> {
     final defaultServer = CredentialStore.getDefaultServer();
     final servers = CredentialStore.listServers();
 
-    stdout.writeln('Default server: ${defaultServer ?? '(not set)'}');
+    stdout.writeln(
+      'Default server: '
+      '${defaultServer == null ? '(not set)' : displayServer(defaultServer)}',
+    );
     stdout.writeln();
 
     if (servers.isEmpty) {
-      stdout.writeln('No configured servers. Run: club login <server-url>');
+      stdout.writeln('No configured servers. Run: club login <host>');
     } else {
       stdout.writeln('Configured servers:');
       for (final entry in servers.entries) {
         final isDefault = entry.key == defaultServer ? ' (default)' : '';
         final email = entry.value['email'] ?? 'unknown';
-        stdout.writeln('  ${entry.key}$isDefault — $email');
+        stdout.writeln('  ${displayServer(entry.key)}$isDefault — $email');
       }
     }
   }
@@ -56,18 +60,23 @@ class _ConfigSetServerCommand extends Command<void> {
   String get name => 'set-server';
 
   @override
-  String get description => 'Set the default server URL.';
+  String get description => 'Set the default server.';
 
   @override
-  String get invocation => 'club config set-server <url>';
+  String get invocation => 'club config set-server <host>';
 
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
-      usageException('Server URL is required.');
+      usageException('Server host is required (e.g. myclub.birju.dev).');
     }
-    final url = argResults!.rest.first;
+    final String url;
+    try {
+      url = parseServerInput(argResults!.rest.first);
+    } on FormatException catch (e) {
+      usageException(e.message);
+    }
     CredentialStore.setDefaultServer(url);
-    stdout.writeln('Default server set to $url');
+    stdout.writeln('Default server set to ${displayServer(url)}');
   }
 }

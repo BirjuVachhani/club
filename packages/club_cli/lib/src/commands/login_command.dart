@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 
 import '../credentials.dart';
 import '../util/prompt.dart';
+import '../util/url.dart';
 
 /// OAuth 2.0 Authorization Code flow with PKCE (RFC 7636).
 class LoginCommand extends Command<void> {
@@ -38,15 +39,22 @@ class LoginCommand extends Command<void> {
   String get description => 'Authenticate with a club server.';
 
   @override
-  String get invocation => 'club login <server-url>';
+  String get invocation => 'club login <host>';
 
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
-      usageException('Server URL is required.');
+      usageException(
+        'Server host is required (e.g. myclub.birju.dev).',
+      );
     }
 
-    final serverUrl = argResults!.rest.first.replaceAll(RegExp(r'/+$'), '');
+    final String serverUrl;
+    try {
+      serverUrl = parseServerInput(argResults!.rest.first);
+    } on FormatException catch (e) {
+      usageException(e.message);
+    }
     final apiKey = argResults!['key'] as String?;
     final noBrowser = argResults!['no-browser'] as bool;
 
@@ -68,7 +76,8 @@ class LoginCommand extends Command<void> {
         'Interactive login is not available in this environment.',
       );
       stderr.writeln(
-        'Use an API key: club login $serverUrl --key <club_pat_...>',
+        'Use an API key: club login ${displayServer(serverUrl)} '
+        '--key <club_pat_...>',
       );
       stderr.writeln(
         'Or set ${CredentialStore.envVar} to authenticate without logging in.',
@@ -125,7 +134,7 @@ class LoginCommand extends Command<void> {
       await _registerWithDartPub(serverUrl, apiKey);
 
       stdout.writeln('Logged in as $email');
-      stdout.writeln('Token stored for $serverUrl');
+      stdout.writeln('Token stored for ${displayServer(serverUrl)}');
       stdout.writeln('Token registered with dart pub.');
     } finally {
       client.close();
@@ -274,7 +283,7 @@ class LoginCommand extends Command<void> {
 
       stdout.writeln('');
       stdout.writeln('Logged in as $email');
-      stdout.writeln('Token stored for $serverUrl');
+      stdout.writeln('Token stored for ${displayServer(serverUrl)}');
       stdout.writeln('Token registered with dart pub.');
     } on TimeoutException {
       stderr.writeln('Authorization timed out. Try again.');
@@ -358,7 +367,7 @@ class LoginCommand extends Command<void> {
       CredentialStore.save(serverUrl, token, email);
       await _registerWithDartPub(serverUrl, token);
       stdout.writeln('Logged in as $email');
-      stdout.writeln('Token stored for $serverUrl');
+      stdout.writeln('Token stored for ${displayServer(serverUrl)}');
       stdout.writeln('Token registered with dart pub.');
     } catch (e) {
       stderr.writeln('Login failed: $e');

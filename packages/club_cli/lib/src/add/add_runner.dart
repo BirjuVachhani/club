@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/pub_get.dart';
+import '../util/url.dart';
 import 'add_options.dart';
 import 'descriptor_parser.dart';
 import 'package_resolver.dart';
@@ -67,7 +68,7 @@ class AddRunner {
       return ExitCodes.config;
     } on NonInteractiveError catch (e) {
       error(e.message);
-      hint('Pass --server <url> to bypass the interactive picker.');
+      hint('Pass --server <host> to bypass the interactive picker.');
       return ExitCodes.config;
     }
 
@@ -84,7 +85,7 @@ class AddRunner {
         '${green(c.action)} '
         '${bold(c.resolved.request.name)} ${cyan(c.constraint)} '
         '${gray('→ $section')}'
-        ' ${gray('(${c.resolved.serverUrl})')}',
+        ' ${gray('(${displayServer(c.resolved.serverUrl)})')}',
       );
     }
 

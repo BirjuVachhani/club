@@ -53,14 +53,31 @@ String bold(String s) => _bold(s);
 
 // ── Output helpers ──────────────────────────────────────────────────────────
 
+/// Suppress every stdout writer below. Stderr writers (`error`, `warning`)
+/// still fire so MCP-mode diagnostics aren't lost.
+///
+/// Set to `true` from `club mcp` before any tool handler can run — the MCP
+/// stdio transport owns stdout (line-delimited JSON-RPC), and a stray info
+/// line would corrupt the protocol stream.
+bool silenceStdout = false;
+
 /// Print an informational message to stdout.
-void info(String message) => stdout.writeln(message);
+void info(String message) {
+  if (silenceStdout) return;
+  stdout.writeln(message);
+}
 
 /// Print an indented detail line to stdout.
-void detail(String message) => stdout.writeln('   $message');
+void detail(String message) {
+  if (silenceStdout) return;
+  stdout.writeln('   $message');
+}
 
 /// Print a success message to stdout.
-void success(String message) => stdout.writeln(green('✓ ') + message);
+void success(String message) {
+  if (silenceStdout) return;
+  stdout.writeln(green('✓ ') + message);
+}
 
 /// Print a warning to stderr.
 void warning(String message) => stderr.writeln(yellow('⚠ ') + message);
@@ -69,10 +86,14 @@ void warning(String message) => stderr.writeln(yellow('⚠ ') + message);
 void error(String message) => stderr.writeln(red('✗ ') + message);
 
 /// Print a hint to stdout.
-void hint(String message) => stdout.writeln(cyan('● ') + message);
+void hint(String message) {
+  if (silenceStdout) return;
+  stdout.writeln(cyan('● ') + message);
+}
 
 /// Print a section heading with a horizontal rule.
 void heading(String message) {
+  if (silenceStdout) return;
   stdout.writeln();
   final rule = '─' * (60 - message.length).clamp(4, 60);
   stdout.writeln('${bold(message)} ${gray(rule)}');
@@ -84,6 +105,7 @@ void heading(String message) {
 /// box-drawing characters and is safe for CI logs (no ANSI escapes inside
 /// the border itself — only content is colored).
 void box(List<String> lines) {
+  if (silenceStdout) return;
   // Strip ANSI codes to measure visible width.
   final visible = lines.map(_visibleLength).toList();
   final maxLen = visible.fold<int>(0, (m, l) => l > m ? l : m);
@@ -103,6 +125,7 @@ void box(List<String> lines) {
 /// Column widths adapt to the widest cell in each column (ANSI codes are
 /// stripped when measuring). Header cells are bolded automatically.
 void table(List<String> header, List<List<String>> rows) {
+  if (silenceStdout) return;
   final all = [header, ...rows];
   final cols = header.length;
   final widths = List<int>.filled(cols, 0);

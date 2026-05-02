@@ -39,9 +39,10 @@ class PrepareCommand extends ClubCommand {
       ..addOption(
         'server',
         abbr: 's',
-        help: 'Target server URL written into rewritten dep entries. '
-            'Must be a server you have logged in to.',
-        valueHelp: 'url',
+        help: 'Target server host (e.g. myclub.birju.dev). Accepts a full '
+            'URL too. The canonical URL is written into rewritten dep '
+            'entries. Must be a server you have logged in to.',
+        valueHelp: 'host',
       )
       ..addOption(
         'on-conflict',

@@ -88,21 +88,21 @@ Revoke a PAT from `/settings/keys` or via `DELETE /api/auth/keys/<id>`. Revocati
 <Tabs>
   <TabItem label="Browser (default)">
   ```bash
-  club login https://club.example.com
+  club login myclub.birju.dev
   ```
 
   Opens the default browser and runs an **OAuth 2.0 Authorization Code flow with PKCE**. Once you approve the request in the UI, the CLI receives a short-lived authorization code, exchanges it for a PAT, and stores it locally.
   </TabItem>
   <TabItem label="Paste an existing PAT">
   ```bash
-  club login https://club.example.com --key club_pat_...
+  club login myclub.birju.dev --key club_pat_...
   ```
 
   Useful when you already created a token in the UI or need a fully headless workflow.
   </TabItem>
   <TabItem label="No browser (terminal fallback)">
   ```bash
-  club login https://club.example.com --no-browser
+  club login myclub.birju.dev --no-browser
   ```
 
   Prompts for email and password in the terminal, then issues a PAT server-side.

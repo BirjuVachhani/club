@@ -153,6 +153,22 @@
     const order = ['dart', 'flutter'] as const;
     return order.filter((s) => set.has(s));
   });
+
+  let hasBuildHooks = $derived((data?.tags ?? []).includes('has:build-hooks'));
+
+  // Display labels for the pana `is:*` capability tags we surface as chips.
+  // Order here drives chip render order. Tags not in this map are hidden
+  // from the card (still flow through the API; just unstyled here).
+  const IS_TAG_LABELS: Record<string, string> = {
+    'is:wasm-ready': 'WASM',
+    'is:plugin': 'PLUGIN',
+    'is:dart3-compatible': 'DART 3',
+  };
+  let capabilityTags = $derived(
+    Object.keys(IS_TAG_LABELS).filter((t) =>
+      (data?.tags ?? []).includes(t),
+    ),
+  );
 </script>
 
 {#if data}
@@ -258,7 +274,7 @@
         {/if}
       </div>
 
-      {#if sdks.length > 0 || platforms.length > 0 || data.isDiscontinued || data.isUnlisted}
+      {#if sdks.length > 0 || platforms.length > 0 || data.isDiscontinued || data.isUnlisted || hasBuildHooks || capabilityTags.length > 0}
         <div class="pkg-card-compat">
           {#if data.isDiscontinued}
             <span class="badge-discontinued">DISCONTINUED</span>
@@ -278,6 +294,12 @@
                 <span class="compat-val">{p.toUpperCase()}</span>
               {/each}
             </div>
+          {/if}
+          {#each capabilityTags as t}
+            <span class="badge-capability" title={t}>{IS_TAG_LABELS[t]}</span>
+          {/each}
+          {#if hasBuildHooks}
+            <span class="badge-build-hooks" title="Uses Dart Build hooks">BUILD HOOKS</span>
           {/if}
           {#if data.isUnlisted}
             <span class="badge-unlisted">UNLISTED</span>
@@ -515,6 +537,18 @@
     background: var(--pub-tag-background);
     color: var(--pub-tag-text-color);
     border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .badge-build-hooks,
+  .badge-capability {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 6px 8px;
+    background: color-mix(in srgb, var(--pub-link-text-color) 12%, transparent);
+    color: var(--pub-link-text-color);
+    border: 1px solid
+      color-mix(in srgb, var(--pub-link-text-color) 30%, transparent);
     border-radius: 4px;
   }
 

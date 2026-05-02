@@ -176,6 +176,7 @@ class ScoringResult {
     this.grantedPoints,
     this.maxPoints,
     this.reportJson,
+    this.panaTags = const [],
     this.panaVersion,
     this.dartVersion,
     this.flutterVersion,
@@ -189,6 +190,12 @@ class ScoringResult {
   final int? grantedPoints;
   final int? maxPoints;
   final String? reportJson;
+
+  /// Tag set emitted by pana (`sdk:flutter`, `is:wasm-ready`, etc.).
+  /// Cached separately from [reportJson] so the score read path doesn't
+  /// have to parse the full report blob to surface tags.
+  final List<String> panaTags;
+
   final String? panaVersion;
   final String? dartVersion;
   final String? flutterVersion;
@@ -204,6 +211,7 @@ class ScoringResult {
     'grantedPoints': grantedPoints,
     'maxPoints': maxPoints,
     'reportJson': reportJson,
+    'panaTags': panaTags,
     'panaVersion': panaVersion,
     'dartVersion': dartVersion,
     'flutterVersion': flutterVersion,
@@ -218,6 +226,8 @@ class ScoringResult {
     grantedPoints: json['grantedPoints'] as int?,
     maxPoints: json['maxPoints'] as int?,
     reportJson: json['reportJson'] as String?,
+    panaTags:
+        (json['panaTags'] as List?)?.cast<String>() ?? const <String>[],
     panaVersion: json['panaVersion'] as String?,
     dartVersion: json['dartVersion'] as String?,
     flutterVersion: json['flutterVersion'] as String?,
@@ -400,6 +410,7 @@ Future<ScoringResult> runAnalysis(
       grantedPoints: granted,
       maxPoints: max,
       reportJson: reportJson,
+      panaTags: summary.tags ?? const <String>[],
       panaVersion: runtimeInfo.panaVersion,
       dartVersion: runtimeInfo.sdkVersion,
       flutterVersion: runtimeInfo.flutterVersion,

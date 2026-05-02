@@ -14,6 +14,7 @@ import '../../util/ensure_pub_token.dart';
 import '../../util/log.dart';
 import '../../util/prompt.dart';
 import '../../util/pub_global.dart';
+import '../../util/url.dart';
 import 'global_activate_options.dart';
 
 class GlobalActivateRunner {
@@ -37,7 +38,7 @@ class GlobalActivateRunner {
       return ExitCodes.config;
     } on NonInteractiveError catch (e) {
       error(e.message);
-      hint('Pass --server <url> to bypass the interactive picker.');
+      hint('Pass --server <host> to bypass the interactive picker.');
       return ExitCodes.config;
     }
 
@@ -48,7 +49,10 @@ class GlobalActivateRunner {
     heading('Registering token with dart pub');
     final tokenOk = await ensureDartPubToken(hit.serverUrl, hit.token);
     if (!tokenOk) return ExitCodes.software;
-    detail('${green('✓')} Token registered ${gray('(${hit.serverUrl})')}');
+    detail(
+      '${green('✓')} Token registered '
+      '${gray('(${displayServer(hit.serverUrl)})')}',
+    );
 
     // ── Delegate to dart pub ────────────────────────────────────────────────
     info('');
@@ -62,7 +66,10 @@ class GlobalActivateRunner {
     if (exit != 0) return exit;
 
     info('');
-    success('Activated ${bold(options.packageName)} from ${hit.serverUrl}.');
+    success(
+      'Activated ${bold(options.packageName)} from '
+      '${displayServer(hit.serverUrl)}.',
+    );
     return ExitCodes.success;
   }
 }
