@@ -60,5 +60,3 @@ dummy_data/
 
 experiments/
 articles/
-
-**/*.lock
