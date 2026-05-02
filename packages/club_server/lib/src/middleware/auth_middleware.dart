@@ -4,6 +4,7 @@ import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../auth/cookies.dart';
+import '../scoring/internal_scoring_token.dart';
 
 /// Key used to store [AuthenticatedUser] in the request context.
 const String authContextKey = 'club.auth';
@@ -58,6 +59,7 @@ Middleware authMiddleware(
   AuthService authService, {
   Set<String> publicExactPaths = const {},
   Set<String> publicPathPrefixes = const {},
+  InternalScoringToken? internalScoringToken,
 }) {
   return (Handler innerHandler) {
     return (Request request) async {
@@ -96,6 +98,26 @@ Middleware authMiddleware(
       final bearer = (authHeader != null && authHeader.startsWith('Bearer '))
           ? authHeader.substring('Bearer '.length).trim()
           : null;
+
+      // Internal scoring bypass: pana's `dart pub get` running inside the
+      // scoring sandbox needs to fetch private dependencies from this
+      // same server. The bypass matches a CSPRNG secret minted at server
+      // start (see InternalScoringToken) and is gated to a tiny set of
+      // pub-spec read routes — the path whitelist is the load-bearing
+      // half, the secret comparison just stops accidental matches.
+      //
+      // No synthetic AuthenticatedUser is attached; the matched routes
+      // don't call `requireAuthUser`. Anything that does will still 401.
+      // Path check first so a wrong-path attempt with the right secret
+      // still goes through the normal auth flow (and fails) instead of
+      // silently being dropped.
+      if (internalScoringToken != null &&
+          bearer != null &&
+          bearer.isNotEmpty &&
+          InternalScoringToken.isAllowedPath(path, request.method) &&
+          internalScoringToken.verify(bearer)) {
+        return innerHandler(request);
+      }
 
       // Attempt to resolve a user regardless of public-ness so that public
       // handlers can still personalise responses (e.g. /api/auth/me) and

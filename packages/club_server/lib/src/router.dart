@@ -24,6 +24,7 @@ import 'api/sdk_api.dart';
 import 'api/search_api.dart';
 import 'api/setup_api.dart';
 import 'auth/geo_locator.dart';
+import 'scoring/internal_scoring_token.dart';
 import 'scoring/scoring_service.dart';
 import 'sdk/sdk_manager.dart';
 import 'middleware/auth_middleware.dart';
@@ -59,6 +60,7 @@ Handler buildHandler({
   required AppConfig config,
   required DateTime startedAt,
   required RateLimiters rateLimiters,
+  InternalScoringToken? internalScoringToken,
 }) {
   // Rate limiters are constructed in bootstrap and passed in here so
   // the same instances can be registered with the Scheduler for
@@ -309,6 +311,7 @@ Handler buildHandler({
           // auth-required.
           publicExactPaths: publicExactPaths,
           publicPathPrefixes: publicPathPrefixes,
+          internalScoringToken: internalScoringToken,
         ),
       )
       .addHandler(apiHandler);

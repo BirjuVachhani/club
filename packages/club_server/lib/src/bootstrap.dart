@@ -23,6 +23,7 @@ import 'config/app_config.dart';
 import 'middleware/rate_limit.dart';
 import 'router.dart';
 import 'scheduler/scheduler.dart';
+import 'scoring/internal_scoring_token.dart';
 import 'scoring/sandbox.dart';
 import 'scoring/scoring_logger.dart';
 import 'scoring/scoring_service.dart';
@@ -210,6 +211,12 @@ Future<BootstrapResult> bootstrap(
   // flip modes don't see surprising errors.
   await Directory(config.dartdocPath).create(recursive: true);
 
+  // Per-process secret used by the scoring sandbox to fetch private
+  // intra-server dependencies via the standard `dart pub` token-store
+  // mechanism. Generated fresh on each bootstrap; never persisted. See
+  // [InternalScoringToken] for the threat model.
+  final internalScoringToken = InternalScoringToken.generate();
+
   final scoringService = ScoringService(
     store: metadataStore,
     blobStore: blobStore,
@@ -219,6 +226,8 @@ Future<BootstrapResult> bootstrap(
     logger: scoringLogger,
     dartdocOutputDir: config.dartdocPath,
     dartdocBackend: config.dartdocBackend,
+    serverUrl: config.serverUrl,
+    internalScoringToken: internalScoringToken,
   );
   await scoringService.start();
 
@@ -317,6 +326,7 @@ Future<BootstrapResult> bootstrap(
     config: config,
     startedAt: effectiveStartedAt,
     rateLimiters: rateLimiters,
+    internalScoringToken: internalScoringToken,
   );
 
   // ── Scheduler ──────────────────────────────────────────────

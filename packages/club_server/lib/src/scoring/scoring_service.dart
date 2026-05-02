@@ -8,6 +8,7 @@ import 'package:club_indexed_blob/club_indexed_blob.dart';
 import 'package:path/path.dart' as p;
 
 import '../config/app_config.dart' show DartdocBackend;
+import 'internal_scoring_token.dart';
 import 'sandbox.dart';
 import 'scoring_logger.dart';
 import 'scoring_worker.dart';
@@ -138,6 +139,8 @@ class ScoringService {
     required ScoringLogger logger,
     this.dartdocOutputDir,
     this.dartdocBackend = DartdocBackend.filesystem,
+    this.serverUrl,
+    this.internalScoringToken,
   }) : _store = store,
        _blobStore = blobStore,
        _configProvider = configProvider,
@@ -151,6 +154,18 @@ class ScoringService {
   final String _tempDir;
   final String Function() _generateId;
   final ScoringLogger _logger;
+
+  /// Public URL of this server. When both this and [internalScoringToken]
+  /// are set, the sandbox prep writes a `pub-tokens.json` so pana's
+  /// `dart pub get` can resolve dependencies hosted on this same server.
+  /// Without it pana fails with "package repository requested
+  /// authentication" on private inter-package dependencies.
+  final Uri? serverUrl;
+
+  /// Per-process secret that the auth middleware accepts on the
+  /// pub-spec read endpoints. Lives only as long as the server process;
+  /// see [InternalScoringToken] for the threat model.
+  final InternalScoringToken? internalScoringToken;
 
   /// Root directory for persisting dartdoc HTML output.
   /// When set, docs are written to `<dartdocOutputDir>/<package>/latest/`
@@ -607,7 +622,82 @@ class ScoringService {
       );
     }
 
+    await _writePubTokensIfConfigured(homePath, config);
+
     return homePath;
+  }
+
+  /// Write `<homePath>/.config/dart/pub-tokens.json` so pana's
+  /// transitive `dart pub get` can resolve dependencies hosted on this
+  /// same Club server. Without this, a package whose pubspec lists a
+  /// `hosted: <SERVER_URL>` dep against another internal package fails
+  /// the analysis with "package repository requested authentication".
+  ///
+  /// XDG_CONFIG_HOME is set explicitly during spawn (see [_spawnAndWait])
+  /// so dart pub finds the file on every platform regardless of the
+  /// platform-default config dir.
+  ///
+  /// Order matters: this runs *after* the writable-tree chown/chmod
+  /// pass so the 0777 fallback in [_chownTreeOrChmod777] cannot widen
+  /// the perms on the secret. We chown the tokens file separately to
+  /// the sandbox UID so the dropped child can read it; the file itself
+  /// stays 0600.
+  Future<void> _writePubTokensIfConfigured(
+    String homePath,
+    ScoringConfig config,
+  ) async {
+    if (internalScoringToken == null) return;
+    if (serverUrl == null) {
+      _logger.log(
+        'Sandbox prep: skipping pub-tokens.json write (no SERVER_URL '
+        'configured). Pana will fail on private intra-server '
+        'dependencies.',
+      );
+      return;
+    }
+
+    final tokensDir = Directory('$homePath/.config/dart');
+    await tokensDir.create(recursive: true);
+    final tokensFile = File('${tokensDir.path}/pub-tokens.json');
+    await tokensFile.writeAsString(
+      internalScoringToken!.pubTokensJson(serverUrl!),
+    );
+
+    // Lock down the file to 0600 first so it never spends time
+    // world-readable on disk. Chown second so the dropped child can
+    // open it; the mode survives chown.
+    try {
+      await Process.run('chmod', ['0600', tokensFile.path]);
+    } catch (e) {
+      _logger.log('Sandbox prep: chmod 0600 on pub-tokens.json failed: $e');
+    }
+
+    final uid = config.sandbox.dropToUid;
+    final gid = config.sandbox.dropToGid;
+    if (Platform.isLinux && (uid != null || gid != null)) {
+      final ownerArg = '${uid ?? ""}:${gid ?? ""}';
+      try {
+        // Note: only the file, not -R. The parent dirs were already
+        // chown'd by the writable-tree pass. We re-chown the file
+        // because if that pass fell back to chmod 0777, ownership
+        // didn't change and the dropped child still can't read a 0600
+        // file owned by root.
+        final r = await Process.run('chown', [ownerArg, tokensFile.path]);
+        if (r.exitCode != 0) {
+          _logger.log(
+            'Sandbox prep: chown $ownerArg on pub-tokens.json failed '
+            '(stderr=${(r.stderr as String).trim()}); the dropped '
+            'sandbox UID may not be able to read it',
+          );
+        }
+      } catch (e) {
+        _logger.log('Sandbox prep: chown on pub-tokens.json failed: $e');
+      }
+    }
+
+    _logger.log(
+      'Sandbox prep: wrote pub-tokens.json for ${serverUrl!}',
+    );
   }
 
   Future<void> _chownTreeOrChmod777(String path, String ownerArg) async {
@@ -1300,9 +1390,22 @@ class ScoringService {
       // dir the dropped-UID child can actually write to. Without this,
       // pana's static-analysis and platform-support checks score 0/N
       // with `Exists failed, path = '/root/.dartServer/...'` errors.
+      //
+      // XDG_CONFIG_HOME pins the location dart pub reads pub-tokens.json
+      // from to `<scoringHome>/.config/dart/pub-tokens.json` regardless
+      // of platform — on macOS the platform default is
+      // `~/Library/Application Support`, which we don't write to.
+      // Without this override the internal-scoring credentials we
+      // staged in [_writePubTokensIfConfigured] would be invisible to
+      // dart pub and intra-server dependency resolution would fall
+      // back to the unauthenticated path (and fail).
+      //
       // The parent's env is merged in by default, so PATH and friends
       // still flow through.
-      environment: {'HOME': scoringHome},
+      environment: {
+        'HOME': scoringHome,
+        'XDG_CONFIG_HOME': '$scoringHome/.config',
+      },
     );
     _inFlight[tracker] = process;
     _logger.log(
