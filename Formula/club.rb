@@ -24,22 +24,22 @@ class Club < Formula
   on_macos do
     on_arm do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-macos-arm64.tar.gz"
-      sha256 "a2845cf0d4c141377bf4575a402540524d6b3745dc72618473828264241bdfe8"
+      sha256 "705e0598f8fdb772a425d009da7663eaab8c0c19f3efce61b6fa5ca96ac5af6d"
     end
     on_intel do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-macos-x64.tar.gz"
-      sha256 "58d90ea908832546bc97ca3bedcca59ccf089c7cbf3b5a7a18cce3c7a62092b2"
+      sha256 "aaad03f3e009792ada7f560c9b0428d5dbc0eef8a127c6b379efe13906e2061d"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-linux-arm64.tar.gz"
-      sha256 "8439950c70941a46f71b344fddbf6d4a13a843fd372f3ceea41427958fe46f23"
+      sha256 "ac939af0ebc14dad660b3129e1b21fdf1610352a22b0fbca7eb954afdba9b113"
     end
     on_intel do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-linux-x64.tar.gz"
-      sha256 "b424bd00648269c56b82195fa5fe657a325b37c01ef27af294498eeb3a047918"
+      sha256 "f4b2e9df2b330aaf22f2bb17a2e84f3b8e7931e136209c33aa720e1a06aed727"
     end
   end
 
