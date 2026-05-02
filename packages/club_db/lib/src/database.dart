@@ -82,21 +82,37 @@ class ClubDatabase {
 
 /// Minimal [GeneratedDatabase] subclass that gives us access to drift's
 /// query engine without needing generated table classes.
+///
+/// club tracks its real schema version in the `club_schema` table and
+/// in `mig.schemaVersion` — drift's migration machinery is bypassed
+/// (see [migration] below), but we still need to align drift's view of
+/// the version with `PRAGMA user_version` because drift reads/writes
+/// that pragma itself on every open. If drift's [schemaVersion] gets
+/// out of sync with the value `runMigrations` mirrors to
+/// `PRAGMA user_version`, drift's default `onUpgrade` (which throws
+/// "you've bumped the schema version…") fires before we can run
+/// anything. So we forward to `mig.schemaVersion`, clamped to drift's
+/// minimum of `1` (drift uses `0` internally to mean
+/// "uninitialised").
 class _RawDatabase extends GeneratedDatabase {
   _RawDatabase(super.executor);
 
-  /// Placeholder for drift's own migrator. club tracks its real schema
-  /// version in the `club_schema` table and in `mig.schemaVersion` —
-  /// we don't use drift's migration machinery (see [migration] below).
-  /// Drift rejects `schemaVersion == 0` because it uses that value
-  /// internally to mean "uninitialised", so we hand it a constant `1`.
-  /// The actual pre-release baseline (which is `0`) is held in
-  /// `mig.schemaVersion` and written to `PRAGMA user_version`.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion =>
+      mig.schemaVersion < 1 ? 1 : mig.schemaVersion;
 
+  /// All hooks are no-ops — club's [mig.runMigrations] is the single
+  /// source of truth and runs after [open] returns. Without an
+  /// explicit override here drift would install its default
+  /// `onUpgrade` which throws on any version mismatch (including
+  /// downgrades), wedging the server on every boot after the first
+  /// schema bump. `onCreate` is also a no-op: `allSchemaEntities` is
+  /// empty so there are no tables for drift to create either way.
   @override
-  MigrationStrategy get migration => MigrationStrategy();
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {},
+    onUpgrade: (m, from, to) async {},
+  );
 
   @override
   Iterable<TableInfo<Table, dynamic>> get allTables => const [];
