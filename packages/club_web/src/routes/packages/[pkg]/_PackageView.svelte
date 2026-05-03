@@ -1560,11 +1560,19 @@
               class="score-lbl">likes</span
             >
           </div>
-          <div class="score-item">
+          <button
+            type="button"
+            class="score-item score-item-btn"
+            onclick={() => {
+              setTab("scores");
+              closeMobileMeta();
+            }}
+            title="View scoring details"
+          >
             <span class="score-val">{score.points || "—"}</span><span
               class="score-lbl">points</span
             >
-          </div>
+          </button>
           <div class="score-item">
             <span class="score-val">{formatNumber(score.downloads ?? 0)}</span
             ><span class="score-lbl">downloads</span>
@@ -2489,6 +2497,24 @@
   }
   .score-item:last-child {
     border-right: none;
+  }
+  .score-item-btn {
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
+    border-radius: 4px;
+    transition: background-color 0.15s;
+  }
+  .score-item-btn:hover .score-val {
+    text-decoration: underline;
+  }
+  .score-item-btn:focus-visible {
+    outline: 2px solid var(--pub-link-text-color);
+    outline-offset: 2px;
   }
   .score-val {
     display: block;

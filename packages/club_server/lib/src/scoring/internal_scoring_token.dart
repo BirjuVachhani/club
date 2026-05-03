@@ -115,6 +115,14 @@ class InternalScoringToken {
   /// `dart pub get` reads it from `$XDG_CONFIG_HOME/dart/pub-tokens.json`
   /// (or the platform-specific equivalent) at resolution time.
   ///
+  /// The top-level array key is **`hosted`**, not `hosts` — dart pub
+  /// silently ignores files with the wrong key and falls back to
+  /// unauthenticated requests, which is exactly the symptom this whole
+  /// mechanism is meant to avoid. Verify the format against
+  /// `~/Library/Application Support/dart/pub-tokens.json` (macOS) or
+  /// `~/.config/dart/pub-tokens.json` (Linux) after running
+  /// `dart pub token add` if you ever need to update this.
+  ///
   /// The URL must match the `hosted:` URL in the package's pubspec
   /// exactly — dart pub does not normalize beyond removing a trailing
   /// slash. Callers should pass the same URL the rest of the server
@@ -122,7 +130,7 @@ class InternalScoringToken {
   String pubTokensJson(Uri serverUrl) {
     return jsonEncode({
       'version': 1,
-      'hosts': [
+      'hosted': [
         {
           'url': _stripTrailingSlash(serverUrl.toString()),
           'token': _secret,
