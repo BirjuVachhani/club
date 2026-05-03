@@ -8,6 +8,7 @@ import 'package:pana/pana.dart';
 
 import '../dartdoc/sanitizer.dart';
 import '../dartdoc/themer.dart';
+import 'pana_report_overrides.dart';
 
 // Trust model note: pana executes uploader code (build scripts, analyzer
 // plugins, `dart pub get` hooks). We execute pana in a **separate OS
@@ -319,9 +320,32 @@ Future<ScoringResult> runAnalysis(
         .inspectDir(extractDir.path, options: options)
         .timeout(_panaTimeout);
 
-    final report = summary.report;
-    final granted = report?.grantedPoints ?? 0;
-    final max = report?.maxPoints ?? 0;
+    // Serialize first, then mutate. We adjust the JSON (not the live
+    // pana objects) because Report.grantedPoints is a getter computed
+    // from immutable ReportSection fields, and it's the JSON shape we
+    // ultimately persist + serve. Totals are recomputed below from the
+    // possibly-overridden sections.
+    final summaryJson = summary.toJson();
+    applyClubOverrides(summaryJson);
+
+    final reportJsonObj = summaryJson['report'];
+    final overriddenSections =
+        (reportJsonObj is Map<String, dynamic>
+                ? reportJsonObj['sections']
+                : null)
+            is List
+        ? ((reportJsonObj as Map<String, dynamic>)['sections'] as List)
+              .whereType<Map<String, dynamic>>()
+              .toList()
+        : const <Map<String, dynamic>>[];
+    final granted = overriddenSections.fold<int>(
+      0,
+      (sum, s) => sum + ((s['grantedPoints'] as int?) ?? 0),
+    );
+    final max = overriddenSections.fold<int>(
+      0,
+      (sum, s) => sum + ((s['maxPoints'] as int?) ?? 0),
+    );
     final runtimeInfo = summary.runtimeInfo;
 
     log(
@@ -385,7 +409,7 @@ Future<ScoringResult> runAnalysis(
     // 50-min timeout window.
     phase = 'encode-result';
     String reportJson;
-    final encoded = _boundedJsonEncode(summary.toJson(), _maxReportBytes);
+    final encoded = _boundedJsonEncode(summaryJson, _maxReportBytes);
     if (encoded != null) {
       reportJson = encoded;
     } else {
