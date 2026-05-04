@@ -130,6 +130,91 @@
     typeof window !== "undefined" ? window.location.origin : "",
   );
 
+  // Normalize the raw pubspec dependency map for the sidebar. Strings are
+  // simple constraints; objects can be hosted (this server or another),
+  // sdk, or git. Hosted-elsewhere deps link to the absolute URL on the
+  // foreign server; sdk and git deps render with their own labels.
+  type SidebarDep = {
+    name: string;
+    constraint: string;
+    href: string;
+    external: boolean;
+  };
+  let sidebarDeps: SidebarDep[] = $derived.by(() => {
+    const raw = pkg?.dependencies;
+    if (!raw || typeof raw !== "object") return [];
+    const out: SidebarDep[] = [];
+    for (const [name, v] of Object.entries(raw)) {
+      if (typeof v === "string") {
+        out.push({ name, constraint: v, href: `/packages/${name}`, external: false });
+        continue;
+      }
+      if (!v || typeof v !== "object") continue;
+      const obj = v as Record<string, any>;
+      if ("hosted" in obj) {
+        const hosted = obj.hosted;
+        let url = "";
+        let hostedName = name;
+        if (typeof hosted === "string") {
+          url = hosted;
+        } else if (hosted && typeof hosted === "object") {
+          if (typeof hosted.url === "string") url = hosted.url;
+          if (typeof hosted.name === "string") hostedName = hosted.name;
+        }
+        const constraint =
+          typeof obj.version === "string" ? obj.version : "any";
+        const sameOrigin = url && serverUrl && _sameOrigin(url, serverUrl);
+        if (!url || sameOrigin) {
+          out.push({
+            name,
+            constraint,
+            href: `/packages/${hostedName}`,
+            external: false,
+          });
+        } else {
+          const trimmed = url.replace(/\/+$/, "");
+          out.push({
+            name,
+            constraint,
+            href: `${trimmed}/packages/${hostedName}`,
+            external: true,
+          });
+        }
+        continue;
+      }
+      if ("sdk" in obj) {
+        const sdk = typeof obj.sdk === "string" ? obj.sdk : "sdk";
+        const constraint =
+          typeof obj.version === "string" ? obj.version : `sdk: ${sdk}`;
+        out.push({ name, constraint, href: "", external: false });
+        continue;
+      }
+      if ("git" in obj) {
+        const git = obj.git;
+        let url = "";
+        if (typeof git === "string") url = git;
+        else if (git && typeof git === "object" && typeof git.url === "string")
+          url = git.url;
+        out.push({
+          name,
+          constraint: "git",
+          href: url,
+          external: !!url,
+        });
+        continue;
+      }
+    }
+    return out;
+  });
+
+  function _sameOrigin(url: string, origin: string): boolean {
+    try {
+      return new URL(url).origin === origin;
+    } catch {
+      return false;
+    }
+  }
+
   let readmeCopied = $state(false);
   async function copyReadme() {
     if (!pkg?.readme) return;
@@ -943,7 +1028,7 @@
              Keeps the first screen focused on the README while still
              surfacing the description; the full sidebar lives in a bottom
              sheet. The desktop sidebar renders the same content inline. -->
-        {#if pkg.description || pkg.homepage || pkg.repository || pkg.issueTracker || sidebarPublisher || pkg.topics?.length > 0 || pkg.dartSdk || pkg.flutterSdk || pkg.dependencies}
+        {#if pkg.description || pkg.homepage || pkg.repository || pkg.issueTracker || sidebarPublisher || pkg.topics?.length > 0 || pkg.dartSdk || pkg.flutterSdk || sidebarDeps.length > 0}
           <button class="mobile-meta-card" type="button" onclick={openMobileMeta}>
             <div class="mobile-meta-head">
               <h3>Metadata</h3>
@@ -1726,15 +1811,41 @@
         </div>
       {/if}
 
-      {#if pkg.dependencies && Object.keys(pkg.dependencies).length > 0}
+      {#if sidebarDeps.length > 0}
         <div class="sb-section">
           <h4>Dependencies</h4>
           <ul class="sb-deps">
-            {#each Object.entries(pkg.dependencies) as [name, constraint]}
+            {#each sidebarDeps as dep}
               <li>
-                <a href="/packages/{name}">{name}</a><span class="dep-v"
-                  >{constraint}</span
-                >
+                {#if dep.href && dep.external}
+                  <a
+                    href={dep.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={dep.href}
+                    >{dep.name}<svg
+                      class="dep-ext"
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg></a
+                  >
+                {:else if dep.href}
+                  <a href={dep.href}>{dep.name}</a>
+                {:else}
+                  <span class="dep-name">{dep.name}</span>
+                {/if}
+                <span class="dep-v">{dep.constraint}</span>
               </li>
             {/each}
           </ul>
@@ -2632,11 +2743,21 @@
     padding: 2px 0;
     min-width: 0;
   }
-  .sb-deps li > a {
+  .sb-deps li > a,
+  .sb-deps li > .dep-name {
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+  .sb-deps li > .dep-name {
+    color: var(--pub-muted-text-color);
+  }
+  .dep-ext {
+    display: inline-block;
+    vertical-align: -1px;
+    margin-left: 4px;
+    opacity: 0.7;
   }
   .dep-v {
     flex-shrink: 0;

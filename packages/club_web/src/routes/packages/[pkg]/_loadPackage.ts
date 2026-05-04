@@ -141,9 +141,10 @@ export async function loadPackage({ pkg, version }: LoadPackageParams) {
         // (e.g. `github.com/foo` with no scheme).
         homepageHost: _hostOf(pubspec.homepage),
         issueTracker: pubspec.issue_tracker ?? null,
-        dependencies: Object.fromEntries(
-          Object.entries(deps).filter(([_, v]) => typeof v === 'string'),
-        ),
+        // Raw map straight from the pubspec — the sidebar renderer
+        // normalizes string/hosted/sdk/git shapes into displayable links so
+        // hosted-on-other-server deps and SDK/git deps don't get dropped.
+        dependencies: deps,
         dartSdk: env.sdk ?? null,
         flutterSdk: env.flutter ?? null,
         // All versions (newest first). Used by the Versions tab.
