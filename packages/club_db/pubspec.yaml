@@ -1,6 +1,6 @@
 name: club_db
 description: SQLite/drift database implementation for club.
-version: 0.1.0
+version: 0.2.0
 homepage: https://club.birju.dev
 repository: https://github.com/BirjuVachhani/club
 issue_tracker: https://github.com/BirjuVachhani/club/issues
