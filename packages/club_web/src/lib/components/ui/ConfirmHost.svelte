@@ -33,6 +33,7 @@
     cancelLabel={state.cancelLabel ?? 'Cancel'}
     confirmVariant={state.confirmVariant ?? 'destructive'}
     confirmText={state.confirmText}
+    topLayer
     onConfirm={handleConfirm}
     onCancel={handleCancel}
   />

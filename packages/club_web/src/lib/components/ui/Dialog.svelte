@@ -35,6 +35,11 @@
     confirmText?: string;
     /** If set, Confirm is disabled and Cancel is the only way out. */
     busy?: boolean;
+    /**
+     * Render above any other open dialogs. Use for programmatic
+     * confirmations that may layer over an existing modal.
+     */
+    topLayer?: boolean;
     onConfirm: () => void | Promise<void>;
     onCancel?: () => void;
     body?: Snippet;
@@ -54,6 +59,7 @@
     confirmVariant = 'default',
     confirmText,
     busy = false,
+    topLayer = false,
     onConfirm,
     onCancel,
     body,
@@ -104,6 +110,7 @@
 {#if open}
   <div
     class="backdrop"
+    class:top-layer={topLayer}
     role="presentation"
     onclick={handleBackdropClick}
   >
@@ -169,6 +176,10 @@
     z-index: var(--dialog-z);
     -webkit-backdrop-filter: var(--dialog-overlay-blur);
     backdrop-filter: var(--dialog-overlay-blur);
+  }
+
+  .backdrop.top-layer {
+    z-index: calc(var(--dialog-z) + 100);
   }
 
   .panel {
