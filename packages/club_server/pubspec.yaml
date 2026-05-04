@@ -46,6 +46,7 @@ dependencies:
   pana: ^0.23.12
   path: ^1.9.1
   html: ^0.15.4
+  pub_semver: ^2.1.4
 
 dev_dependencies:
   lints: ^6.1.0

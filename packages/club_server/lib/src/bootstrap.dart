@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -28,6 +29,7 @@ import 'scoring/sandbox.dart';
 import 'scoring/scoring_logger.dart';
 import 'scoring/scoring_service.dart';
 import 'sdk/sdk_manager.dart';
+import 'update/update_checker.dart';
 
 final _bootstrapLogger = Logger('Bootstrap');
 
@@ -303,6 +305,13 @@ Future<BootstrapResult> bootstrap(
   // scheduling is a separate concern handled by Scheduler.
   final rateLimiters = RateLimiters.defaults(trustProxy: config.trustProxy);
 
+  // Update checker — single in-process instance shared between the
+  // scheduled refresh and the admin endpoint that reads its cache.
+  // Refresh runs hourly; we fire one immediately on boot so an admin
+  // landing in the first minute already has data.
+  final updateChecker = GithubUpdateChecker();
+  unawaited(updateChecker.refresh());
+
   final handler = buildHandler(
     authService: authService,
     packageService: packageService,
@@ -326,6 +335,7 @@ Future<BootstrapResult> bootstrap(
     config: config,
     startedAt: effectiveStartedAt,
     rateLimiters: rateLimiters,
+    updateChecker: updateChecker,
     internalScoringToken: internalScoringToken,
   );
 
@@ -348,6 +358,15 @@ Future<BootstrapResult> bootstrap(
           _bootstrapLogger.fine('Pruned $n expired publisher verifications.');
         }
       },
+    ),
+    ScheduledTask(
+      name: 'update-check:refresh',
+      // Hourly at :15 — offset from the verifications sweep so the two
+      // outbound bursts don't overlap. UpdateChecker.refresh() is
+      // never-throws, so the scheduler's catch-all wrapper is purely
+      // defensive here.
+      schedule: '15 * * * *',
+      run: updateChecker.refresh,
     ),
   ]);
   scheduler.start();

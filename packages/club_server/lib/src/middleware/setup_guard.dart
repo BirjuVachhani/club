@@ -20,8 +20,12 @@ Middleware setupGuardMiddleware(MetadataStore metadataStore) {
         return innerHandler(request);
       }
 
-      // These API paths are always allowed
-      if (path.startsWith('/api/setup/') || path.startsWith('/api/v1/health')) {
+      // These API paths are always allowed. /api/v1/version is the
+      // footer version pill — rendered on every page including the
+      // setup wizard itself, so it has to clear the guard.
+      if (path.startsWith('/api/setup/') ||
+          path.startsWith('/api/v1/health') ||
+          path.startsWith('/api/v1/version')) {
         return innerHandler(request);
       }
 

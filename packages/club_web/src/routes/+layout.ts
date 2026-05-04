@@ -1,6 +1,8 @@
 import { browser } from '$app/environment';
 import { redirect } from '@sveltejs/kit';
-import { auth, type User } from '$lib/stores/auth';
+import { auth, roleIsAtLeast, type User } from '$lib/stores/auth';
+import { serverVersion } from '$lib/stores/serverVersion';
+import { updateStatus, type UpdateStatus } from '$lib/stores/updateStatus';
 import type { LayoutLoad } from './$types';
 
 export const ssr = false;
@@ -87,6 +89,34 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
   }
 
   auth.hydrate(user);
+
+  // Footer version pill — public endpoint, fire-and-forget. Failures
+  // leave the store at null and the footer renders without the pill.
+  fetch('/api/v1/version', { credentials: 'include' })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (data && typeof data.version === 'string') {
+        serverVersion.set(data.version);
+      }
+    })
+    .catch(() => {
+      // Silent — footer is decorative for non-admins.
+    });
+
+  // Admin-only update check — drives the stats-page badge and the
+  // release-notifier dialog. Non-admins never see either, so we don't
+  // bother hitting the endpoint for them.
+  if (user && roleIsAtLeast(user.role, 'admin')) {
+    fetch('/api/admin/update-status', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: UpdateStatus | null) => {
+        if (data) updateStatus.set(data);
+      })
+      .catch(() => {
+        // Silent — the dialog and badge stay hidden when the check
+        // fails. The next scheduled refresh will repopulate.
+      });
+  }
 
   // A signed-in user on /login or /signup has nothing to do there —
   // send them to the home page. Runs before the public-path bypass so

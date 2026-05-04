@@ -163,6 +163,17 @@
   --leading-body: 1.6;
   --leading-loose: 1.75;
 
+  /* Modal dialog chrome — single source of truth so any new dialog
+     gets the same backdrop + panel by referencing these tokens. The
+     overlay is intentionally theme-stable (raw black, no `--foreground`
+     mix) so dark mode dims the page instead of brightening it — mixing
+     `--foreground` would invert in dark mode and look wrong. */
+  --dialog-overlay: rgb(0 0 0 / 0.5);
+  --dialog-overlay-blur: blur(2px);
+  --dialog-z: 200;
+  --dialog-radius: 12px;
+  --dialog-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+
   --tracking-tight: -0.02em;
   --tracking-snug: -0.01em;
   --tracking-wide: 0.04em;

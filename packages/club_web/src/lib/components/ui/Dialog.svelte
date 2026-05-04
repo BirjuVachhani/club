@@ -161,14 +161,14 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: color-mix(in srgb, var(--foreground) 40%, transparent);
+    background: var(--dialog-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    z-index: 200;
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
+    z-index: var(--dialog-z);
+    -webkit-backdrop-filter: var(--dialog-overlay-blur);
+    backdrop-filter: var(--dialog-overlay-blur);
   }
 
   .panel {
@@ -176,9 +176,9 @@
     max-width: 28rem;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--dialog-radius);
     padding: 1.5rem;
-    box-shadow: 0 10px 40px color-mix(in srgb, var(--foreground) 30%, transparent);
+    box-shadow: var(--dialog-shadow);
   }
 
   .title {

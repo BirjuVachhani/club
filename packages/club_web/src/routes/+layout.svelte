@@ -16,8 +16,17 @@
   import { theme } from '$lib/stores/theme';
   import IntegrityAlertBar from '$lib/components/IntegrityAlertBar.svelte';
   import IntegrityDialog from '$lib/components/IntegrityDialog.svelte';
+  import UpdateNotifierDialog from '$lib/components/UpdateNotifierDialog.svelte';
   import ConfirmHost from '$lib/components/ui/ConfirmHost.svelte';
   import { docsUrl, SITE_URL } from '$lib/config';
+  import { serverVersion } from '$lib/stores/serverVersion';
+  import {
+    updateStatus,
+    dismissVersion,
+    remindLater,
+    shouldShowDialog,
+    type UpdateStatus
+  } from '$lib/stores/updateStatus';
   import type { Snippet } from 'svelte';
 
   interface MissingVersion {
@@ -58,6 +67,57 @@
   let missingVersions = $state<MissingVersion[]>([]);
   let integrityChecked = $state(false);
   let integrityDialogOpen = $state(false);
+
+  // Update notifier (admin-only). The store is hydrated in +layout.ts
+  // — this component only reacts to it.
+  let status = $state<UpdateStatus | null>(null);
+  let updateDialogOpen = $state(false);
+
+  let runningServerVersion = $state<string | null>(null);
+
+  $effect(() => {
+    const unsub = serverVersion.subscribe((v) => {
+      runningServerVersion = v;
+    });
+    return unsub;
+  });
+
+  $effect(() => {
+    const unsub = updateStatus.subscribe((s) => {
+      status = s;
+    });
+    return unsub;
+  });
+
+  // Auto-open the dialog when (a) the user is an admin, (b) the server
+  // reports a real update, and (c) they haven't OK'd or recently
+  // snoozed this version. Reactive on both `status` and `userIsAdmin`
+  // — fixes a race where the update fetch resolves before the auth
+  // subscription has propagated, which would otherwise leave the
+  // dialog silently never opening. Closes the dialog whenever any of
+  // the gates flips off, so the body's scroll lock is released even
+  // if a refresh removes the update before the admin sees it.
+  $effect(() => {
+    const s = status;
+    if (!userIsAdmin || !s || !s.updateAvailable || !s.latest) {
+      updateDialogOpen = false;
+      return;
+    }
+    if (shouldShowDialog(s.latest)) {
+      updateDialogOpen = true;
+    }
+  });
+
+  function handleUpdateOk() {
+    const latest = status?.latest;
+    if (latest) dismissVersion(latest);
+    updateDialogOpen = false;
+  }
+
+  function handleUpdateRemindLater() {
+    remindLater();
+    updateDialogOpen = false;
+  }
 
   $effect(() => {
     const unsub = isAuthenticated.subscribe((v) => {
@@ -323,13 +383,30 @@
       onClose={() => (integrityDialogOpen = false)}
     />
 
+    {#if userIsAdmin && status?.updateAvailable && status.latest}
+      <UpdateNotifierDialog
+        open={updateDialogOpen}
+        running={status.running}
+        latest={status.latest}
+        releaseUrl={status.releaseUrl}
+        releaseNotes={status.releaseNotes}
+        onOk={handleUpdateOk}
+        onRemindLater={handleUpdateRemindLater}
+      />
+    {/if}
+
     <main class="flex w-full flex-1 {isHome ? '' : 'mx-auto max-w-6xl px-4 py-5 sm:px-5 sm:py-6 md:px-6'}" use:highlightCodeAction use:codeBlockCopyAction>
       {@render children()}
     </main>
 
     <footer class="mt-auto border-t border-[var(--border)] bg-[var(--card)]">
       <div class="mx-auto flex w-full max-w-6xl flex-col items-start gap-3 px-4 py-4 text-sm text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 md:px-6">
-        <span>Powered by <strong>CLUB</strong></span>
+        <span class="inline-flex items-center gap-2">
+          <span>Powered by <strong>CLUB</strong></span>
+          {#if runningServerVersion}
+            <span class="version-pill" title="Server version">v{runningServerVersion}</span>
+          {/if}
+        </span>
         <nav class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <a href={SITE_URL} target="_blank" rel="noopener noreferrer" class="hover:text-[var(--foreground)] transition-colors">About</a>
           <a href={docsUrl()} target="_blank" rel="noopener noreferrer" class="hover:text-[var(--foreground)] transition-colors">Docs</a>
@@ -342,6 +419,15 @@
 {/if}
 
 <style>
+  .version-pill {
+    font-family: var(--pub-code-font-family);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--secondary);
+    color: var(--muted-foreground);
+    border: 1px solid var(--border);
+  }
   .header-search {
     display: flex;
     align-items: center;

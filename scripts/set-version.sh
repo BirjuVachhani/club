@@ -4,8 +4,9 @@
 #
 # Updates:
 #   • Every packages/*/pubspec.yaml top-level `version:` field.
-#   • The server /health `version` field in
-#     packages/club_server/lib/src/api/health_api.dart.
+#   • The runtime server version constant in
+#     packages/club_server/lib/src/version.dart, which is read by the
+#     /health body, /api/v1/version, and the update-status checker.
 #
 # Does NOT touch:
 #   • packages/club_cli/lib/src/version.dart — that file holds "dev" in the
@@ -29,6 +30,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PUBSPECS=(
   "packages/club_core/pubspec.yaml"
   "packages/club_db/pubspec.yaml"
+  "packages/club_indexed_blob/pubspec.yaml"
   "packages/club_storage/pubspec.yaml"
   "packages/club_storage_s3/pubspec.yaml"
   "packages/club_storage_firebase/pubspec.yaml"
@@ -36,7 +38,7 @@ PUBSPECS=(
   "packages/club_api/pubspec.yaml"
   "packages/club_cli/pubspec.yaml"
 )
-HEALTH_API="packages/club_server/lib/src/api/health_api.dart"
+VERSION_DART="packages/club_server/lib/src/version.dart"
 
 # ── Parse args ───────────────────────────────────────────────────────────
 VERSION=""
@@ -65,8 +67,8 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     v="$(awk '/^version:/ {print $2; exit}' "$p")"
     printf '  %-50s %s\n' "$p" "$v"
   done
-  v="$(awk -F"'" "/'version':/ {print \$4; exit}" "$HEALTH_API" || true)"
-  printf '  %-50s %s\n' "$HEALTH_API (health)" "${v:-?}"
+  v="$(awk -F"'" "/defaultValue:/ {print \$2; exit}" "$VERSION_DART" || true)"
+  printf '  %-50s %s\n' "$VERSION_DART (defaultValue)" "${v:-?}"
   exit 0
 fi
 
@@ -111,18 +113,28 @@ for p in "${PUBSPECS[@]}"; do
   echo "  ✓ $p"
 done
 
-# ── Update server /health version ────────────────────────────────────────
-python3 - "$HEALTH_API" "$VERSION" <<'PY'
+# ── Update kServerVersion's defaultValue ─────────────────────────────────
+# kServerVersion is a `String.fromEnvironment(...)` whose `defaultValue:`
+# acts as the source of truth when the build doesn't pass a `--define`.
+# We patch that argument so a fresh `dart run` from the working tree
+# always reflects the bumped version, and so CI is free to override it
+# at compile time without dirtying the file.
+python3 - "$VERSION_DART" "$VERSION" <<'PY'
 import re, sys, pathlib
 path = pathlib.Path(sys.argv[1])
 new = sys.argv[2]
 text = path.read_text()
-new_text, n = re.subn(r"('version':\s*)'[^']*'", r"\1'" + new + "'", text, count=1)
+new_text, n = re.subn(
+    r"(defaultValue:\s*)'[^']*'",
+    r"\1'" + new + "'",
+    text,
+    count=1,
+)
 if n != 1:
-    sys.exit(f"Could not find a 'version': '...' line in {path}")
+    sys.exit(f"Could not find a defaultValue: '...' line in {path}")
 path.write_text(new_text)
 PY
-echo "  ✓ $HEALTH_API"
+echo "  ✓ $VERSION_DART"
 
 # ── Optionally refresh the workspace lockfile ────────────────────────────
 if [[ "$RUN_PUB_GET" == "true" ]]; then

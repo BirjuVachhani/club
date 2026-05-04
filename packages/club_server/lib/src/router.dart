@@ -23,6 +23,8 @@ import 'api/scoring_api.dart';
 import 'api/sdk_api.dart';
 import 'api/search_api.dart';
 import 'api/setup_api.dart';
+import 'api/version_api.dart';
+import 'update/update_checker.dart';
 import 'auth/geo_locator.dart';
 import 'scoring/internal_scoring_token.dart';
 import 'scoring/scoring_service.dart';
@@ -60,6 +62,7 @@ Handler buildHandler({
   required AppConfig config,
   required DateTime startedAt,
   required RateLimiters rateLimiters,
+  required UpdateChecker updateChecker,
   InternalScoringToken? internalScoringToken,
 }) {
   // Rate limiters are constructed in bootstrap and passed in here so
@@ -116,12 +119,14 @@ Handler buildHandler({
     serverUrl: serverUrlOverride ?? Uri.parse('http://localhost:8080'),
     config: config,
     startedAt: startedAt,
+    updateChecker: updateChecker,
   );
   final healthApi = HealthApi(
     metadataStore: metadataStore,
     blobStore: blobStore,
     searchIndex: searchIndex,
   );
+  final versionApi = VersionApi();
   final legalApi = LegalApi(settingsStore: settingsStore);
   final scoringApi = ScoringApi(
     scoringService: scoringService,
@@ -142,6 +147,7 @@ Handler buildHandler({
   // Combine all routers
   final cascade = Cascade()
       .add(healthApi.router.call)
+      .add(versionApi.router.call)
       .add(legalApi.router.call)
       .add(setupApi.router.call)
       .add(pubApi.router.call)

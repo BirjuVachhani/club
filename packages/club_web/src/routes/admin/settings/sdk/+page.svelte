@@ -1168,17 +1168,19 @@
   /* ── Modal ───────────────────────────────────────── */
   .modal-backdrop {
     position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--dialog-overlay);
     display: flex; align-items: center; justify-content: center;
-    z-index: 100; padding: 16px;
+    z-index: var(--dialog-z); padding: 16px;
+    -webkit-backdrop-filter: var(--dialog-overlay-blur);
+    backdrop-filter: var(--dialog-overlay-blur);
   }
   .modal {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--dialog-radius);
     padding: 24px;
     width: 100%; max-width: 460px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--dialog-shadow);
   }
   .modal h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--foreground); }
   .modal p { margin: 0 0 16px; color: var(--muted-foreground); line-height: 1.5; font-size: 13px; }

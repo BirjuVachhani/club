@@ -15,6 +15,11 @@ const Set<String> publicExactPaths = {
   // Healthcheck (Docker / load balancers).
   '/api/v1/health',
 
+  // Footer version pill — rendered for signed-out visitors too, so it
+  // can't sit behind auth. Returns just the running version string;
+  // see version_api.dart.
+  '/api/v1/version',
+
   // Login + session bootstrap (the SPA's first call). `_me` returns 401
   // on its own when no session is present.
   '/api/auth/login',

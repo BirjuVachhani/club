@@ -9,6 +9,8 @@ import 'package:shelf/shelf.dart';
 import '../http/decoded_router.dart';
 import '../config/app_config.dart';
 import '../middleware/auth_middleware.dart';
+import '../update/update_checker.dart';
+import '../version.dart';
 
 /// Server admin API handlers.
 ///
@@ -24,6 +26,7 @@ class AdminApi {
     required this.serverUrl,
     required this.config,
     required this.startedAt,
+    required this.updateChecker,
   });
 
   final AuthService authService;
@@ -36,6 +39,10 @@ class AdminApi {
 
   final AppConfig config;
   final DateTime startedAt;
+
+  /// Update-availability snapshot. Backed by an in-memory cache that
+  /// the scheduler refreshes hourly; the request path is a cheap read.
+  final UpdateChecker updateChecker;
 
   DecodedRouter get router {
     final router = DecodedRouter();
@@ -56,7 +63,29 @@ class AdminApi {
     );
 
     router.get('/api/admin/integrity', _getIntegrity);
+    router.get('/api/admin/update-status', _getUpdateStatus);
     return router;
+  }
+
+  // ── Update availability ─────────────────────────────────────
+
+  /// Drives the admin "update available" badge on the stats page and
+  /// the release-notifier dialog. Returns whatever the [UpdateChecker]
+  /// has cached — refreshes happen on the scheduler, not here, so the
+  /// admin UI stays snappy and a transient GitHub outage doesn't stall
+  /// any page load.
+  ///
+  /// Always returns at least a `running` field. The other fields are
+  /// null until the first successful refresh produces a snapshot.
+  Future<Response> _getUpdateStatus(Request request) async {
+    requireRole(request, UserRole.admin);
+    final status =
+        updateChecker.latest ??
+        UpdateStatus(
+          running: kServerVersion,
+          checkedAt: DateTime.now().toUtc(),
+        );
+    return _jsonResponse(status.toJson());
   }
 
   // ── Integrity check ──────────────────────────────────────────

@@ -4,6 +4,7 @@ import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../http/decoded_router.dart';
+import '../version.dart';
 
 /// Health check endpoint. No authentication required.
 class HealthApi {
@@ -74,7 +75,7 @@ class HealthApi {
       body: jsonEncode({
         'status': allOk ? 'ok' : 'degraded',
         'checks': checks,
-        'version': '0.1.0',
+        'version': kServerVersion,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
       }),
       headers: {'content-type': 'application/json'},

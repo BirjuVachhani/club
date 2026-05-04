@@ -45,6 +45,7 @@ void main() {
     test('publicExactPaths matches the approved set', () {
       expect(publicExactPaths, {
         '/api/v1/health',
+        '/api/v1/version',
         '/api/auth/login',
         '/api/auth/me',
         '/api/auth/signup',

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api/client';
+  import { updateStatus } from '$lib/stores/updateStatus';
 
   interface StatsResponse {
     uptime: {
@@ -26,6 +27,24 @@
   let stats = $state<StatsResponse | null>(null);
   let loading = $state(true);
   let error = $state('');
+
+  // Mirrors the global update-status store hydrated by the root
+  // layout. Drives the "Version" card and its "Update available"
+  // badge — copied to a local `$state` only so the rest of the file
+  // can read derived values via plain `?.` syntax.
+  let status = $state<{
+    running: string;
+    latest: string | null;
+    updateAvailable: boolean;
+    releaseUrl: string | null;
+  } | null>(null);
+
+  $effect(() => {
+    const unsub = updateStatus.subscribe((s) => {
+      status = s;
+    });
+    return unsub;
+  });
 
   $effect(() => {
     loadStats();
@@ -94,6 +113,40 @@
     <section class="stats-section">
       <h3>Server</h3>
       <div class="card-grid">
+        <div class="stat-card">
+          <div class="stat-label">Version</div>
+          <div class="stat-value version-value">
+            {status?.running ? `v${status.running}` : '—'}
+          </div>
+          {#if status?.updateAvailable && status.latest && status.releaseUrl}
+            <a
+              class="version-update"
+              href={status.releaseUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View v{status.latest} release notes on GitHub"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+              </svg>
+              <span>Update available · v{status.latest}</span>
+            </a>
+          {:else if status?.latest && !status.updateAvailable}
+            <span class="version-latest">Latest</span>
+          {/if}
+        </div>
         <div class="stat-card">
           <div class="stat-label">Uptime</div>
           <div class="stat-value">{formatUptime(stats.uptime.uptimeSeconds)}</div>
@@ -222,6 +275,35 @@
     font-weight: 500;
     color: var(--muted-foreground);
     margin-bottom: 6px;
+  }
+
+  .version-value {
+    font-family: var(--pub-code-font-family);
+  }
+
+  .version-update {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--warning);
+    text-decoration: none;
+  }
+  .version-update:hover {
+    text-decoration: underline;
+  }
+  .version-update svg {
+    flex-shrink: 0;
+  }
+
+  .version-latest {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--success);
   }
 
   .stat-value {
