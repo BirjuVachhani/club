@@ -60,3 +60,9 @@ dummy_data/
 
 experiments/
 articles/
+statuses/
+labels/
+config.json
+.claude-plugin/
+events.jsonl
+views.json

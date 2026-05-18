@@ -18,6 +18,7 @@
   import IntegrityDialog from '$lib/components/IntegrityDialog.svelte';
   import UpdateNotifierDialog from '$lib/components/UpdateNotifierDialog.svelte';
   import ConfirmHost from '$lib/components/ui/ConfirmHost.svelte';
+  import NavigationProgress from '$lib/components/NavigationProgress.svelte';
   import { docsUrl, SITE_URL } from '$lib/config';
   import { serverVersion } from '$lib/stores/serverVersion';
   import {
@@ -207,6 +208,7 @@
 
 </script>
 
+<NavigationProgress />
 <ConfirmHost />
 
 {#if isBare}

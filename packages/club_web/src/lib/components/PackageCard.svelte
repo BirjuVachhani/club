@@ -109,7 +109,11 @@
     e.stopPropagation();
     if (!data) return;
     try {
-      await navigator.clipboard.writeText(`${data.name}: ^${data.version}`);
+      const serverUrl =
+        typeof window !== 'undefined' ? window.location.origin : '';
+      await navigator.clipboard.writeText(
+        `${data.name}:\n  hosted: ${serverUrl}\n  version: ${data.version}`,
+      );
       copied = true;
       setTimeout(() => (copied = false), 1500);
     } catch {

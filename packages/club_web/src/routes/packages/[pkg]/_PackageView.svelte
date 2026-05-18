@@ -13,6 +13,11 @@
   import ScoresTab from "./_ScoresTab.svelte";
   import { api } from "$lib/api/client";
   import { confirmDialog } from "$lib/stores/confirm";
+  import { page } from "$app/state";
+
+  // Only used by the not-found state, to echo back the name from the URL
+  // that failed to resolve. The detail view itself never reads route params.
+  let missingName = $derived(page.params.pkg ?? "");
 
   interface Props {
     pkg: any;
@@ -53,7 +58,10 @@
 
   function setTab(tab: Tab) {
     activeTab = tab;
-    history.replaceState(null, "", `#${tab}`);
+    // Preserve the existing history state object — SvelteKit keeps its
+    // navigation index there. Passing `null` would wipe it and break
+    // back/forward restoration of this page.
+    history.replaceState(history.state, "", `#${tab}`);
   }
 
   // Mobile-only: metadata preview above the tabs + full-screen sheet
@@ -845,7 +853,9 @@
 
   function copyInstall() {
     if (!pkg) return;
-    navigator.clipboard.writeText(`${pkg.name}: ^${pkg.version}`);
+    navigator.clipboard.writeText(
+      `${pkg.name}:\n  hosted: ${serverUrl}\n  version: ${pkg.version}`,
+    );
   }
 </script>
 
@@ -1184,6 +1194,13 @@
               <pre><code class="language-bash"
                   >club add {pkg.name} --server {serverUrl}</code
                 ></pre>
+              <p class="install-note">
+                Don't have the CLI? See the <a
+                  href="https://docs.club.birju.dev/cli/installation"
+                  target="_blank"
+                  rel="noopener noreferrer">installation guide</a
+                >.
+              </p>
 
               <p class="install-desc">
                 Or add it manually to your <code>pubspec.yaml</code>:
@@ -1939,9 +1956,73 @@
   </div>
 {:else}
   <div class="not-found">
-    <h2>Package not found</h2>
-    <p>The requested package could not be loaded.</p>
-    <a href="/packages">Browse packages</a>
+    <div class="nf-card">
+      <div class="nf-icon" aria-hidden="true">
+        <svg
+          width="30"
+          height="30"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <path d="m3.3 7 8.7 5 8.7-5" />
+          <path d="M12 22V12" />
+          <line x1="2" y1="2" x2="22" y2="22" />
+        </svg>
+      </div>
+
+      <h2>Package not found</h2>
+
+      {#if missingName}
+        <p class="nf-lead">
+          No package named <code>{missingName}</code> exists on this server.
+        </p>
+      {:else}
+        <p class="nf-lead">The requested package could not be loaded.</p>
+      {/if}
+
+      <ul class="nf-reasons">
+        <li>The name may be misspelled, or use a different separator.</li>
+        <li>It might not have been published to this private repository yet.</li>
+        <li>It could be unlisted, or you may not have access to it.</li>
+      </ul>
+
+      <div class="nf-actions">
+        {#if missingName}
+          <a
+            class="nf-btn nf-btn-primary"
+            href="/packages?q={encodeURIComponent(missingName)}&page=1"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            Search for "{missingName}"
+          </a>
+        {/if}
+        <a
+          class="nf-btn"
+          class:nf-btn-primary={!missingName}
+          href="/packages"
+        >
+          Browse all packages
+        </a>
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -2467,6 +2548,16 @@
   .install-desc code {
     font-size: 0.88em;
   }
+  .install-note {
+    margin: -0.75rem 0 1.25rem;
+    max-width: 68ch;
+    font-size: 0.85rem;
+    line-height: var(--leading-body);
+    color: var(--pub-muted-text-color);
+  }
+  .install-note a {
+    color: var(--pub-link-text-color);
+  }
   .installing pre {
     margin: 0.5rem 0 1.25rem;
   }
@@ -2860,12 +2951,119 @@
   }
 
   .not-found {
+    /* `main` is a flex row — without an explicit width the block shrinks
+       to its content and hugs the left edge, so center it as a column. */
+    display: flex;
+    flex: 1;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 16px 80px;
+  }
+  .nf-card {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    padding: 60px 0;
+    padding: 36px 32px 32px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+  }
+  .nf-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
     color: var(--pub-muted-text-color);
+    background: color-mix(in srgb, var(--pub-muted-text-color) 12%, transparent);
   }
   .not-found h2 {
+    margin: 18px 0 0;
+    font-size: 20px;
     color: var(--pub-heading-text-color);
+  }
+  .nf-lead {
+    margin: 8px 0 0;
+    font-size: 14px;
+    color: var(--pub-muted-text-color);
+  }
+  .nf-lead code {
+    font-family: var(--pub-code-font-family);
+    font-size: 13px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--pub-tag-background);
+    color: var(--pub-default-text-color);
+    word-break: break-all;
+  }
+  .nf-reasons {
+    margin: 18px 0 0;
+    padding: 14px 16px;
+    list-style: none;
+    text-align: left;
+    width: 100%;
+    border-radius: 8px;
+    background: var(--muted);
+    border: 1px solid var(--pub-divider-color);
+  }
+  .nf-reasons li {
+    position: relative;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--pub-muted-text-color);
+  }
+  .nf-reasons li + li {
+    margin-top: 6px;
+  }
+  .nf-reasons li::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--pub-muted-text-color);
+  }
+  .nf-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .nf-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--pub-default-text-color);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+  .nf-btn:hover {
+    background: var(--accent);
+  }
+  .nf-btn-primary {
+    border-color: var(--pub-link-text-color);
+    background: var(--pub-link-text-color);
+    color: #fff;
+  }
+  .nf-btn-primary:hover {
+    background: color-mix(in srgb, var(--pub-link-text-color) 88%, black);
   }
 
   /* ── Admin tab ─────────────────────────────────────────── */
@@ -3171,14 +3369,19 @@
     color: var(--muted-foreground);
   }
   .publisher-control-label select {
-    padding: 8px 12px;
+    padding: 8px 34px 8px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--background);
+    background-color: var(--background);
     color: var(--foreground);
     font: inherit;
     font-size: 14px;
     height: 38px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
   }
   .publisher-control-label select:focus {
     outline: none;

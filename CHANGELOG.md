@@ -1,3 +1,32 @@
+## 0.3.0
+
+### Changed
+
+- **Copy-to-pubspec now yields a working hosted dependency.** Both the package card and the package detail page previously copied `name: ^version`, which resolves against pub.dev. They now copy a full hosted block pointing at the current server:
+
+  ```yaml
+  name:
+    hosted: https://your-server
+    version: x.y.z
+  ```
+
+- **Redesigned the "package not found" page.** It now echoes the missing package name from the URL, explains why a lookup can fail (typo, not yet published, unlisted or no access), and offers a "Search for …" action prefilled with that name alongside "Browse all packages". The card is properly centered instead of hugging the left edge.
+
+### Added
+
+- **Installation hint on the package page.** The `club add` instructions now link to the CLI installation guide for visitors who don't have the CLI yet.
+- **Navigation progress bar.** A thin progress bar now appears at the top of the page during in-app navigation. Client-side routing never triggers the browser's native tab spinner, so slow page loads previously felt frozen; the bar restores that "something is loading" feedback.
+
+### Fixed
+
+- **Browser back/forward on package pages**: opening a package, going back, then forward failed to restore the package view. Syncing the active tab to the URL hash passed `null` to `history.replaceState`, which wiped SvelteKit's internal navigation state for that history entry. It now preserves the existing state object.
+- **Invite page layout**: the invite acceptance page no longer shrinks to its content width; it now fills and centers correctly.
+- **Dropdown chevron spacing**: select dropdowns across the web app now use a consistent custom chevron with proper right spacing, so the arrow no longer touches the outline border (role selects on the publishers admin and users admin pages, the package publisher control, and the SDK settings selects).
+
+### Docs
+
+- The "Login & Setup" CLI guide is now ordered correctly in the docs sidebar.
+
 ## 0.2.0
 
 ### Added

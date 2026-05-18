@@ -140,6 +140,7 @@
 
 <style>
   .page {
+    width: 100%;
     min-height: 80vh;
     display: flex;
     align-items: center;
