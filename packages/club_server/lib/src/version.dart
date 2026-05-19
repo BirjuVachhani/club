@@ -14,5 +14,5 @@
 /// version and the published binary version can never drift.
 const String kServerVersion = String.fromEnvironment(
   'CLUB_SERVER_VERSION',
-  defaultValue: '0.2.0',
+  defaultValue: '0.3.0',
 );
