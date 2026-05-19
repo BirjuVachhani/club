@@ -104,6 +104,7 @@ Handler buildHandler({
   final searchApi = SearchApi(
     searchIndex: searchIndex,
     metadataStore: metadataStore,
+    packageService: packageService,
   );
   final likesApi = LikesApi(likesService: likesService);
   final accountApi = AccountApi(metadataStore: metadataStore);

@@ -2,10 +2,15 @@
   import { goto } from "$app/navigation";
   import { docsUrl } from "$lib/config";
   import DotsGrid from "$lib/components/DotsGrid.svelte";
+  import Skeleton from "$lib/components/Skeleton.svelte";
+  import type { HomePackage } from "./+page";
 
   let { data } = $props();
 
   let searchQuery = $state("");
+
+  // Fixed-length range for rendering skeleton placeholder cards.
+  const skeletonRange = Array.from({ length: 6 }, (_, i) => i);
 
   // Halo params scale per breakpoint. On narrow/portrait viewports the
   // halo has to be larger and higher to clear the hero content; on
@@ -64,6 +69,72 @@
 
 <svelte:head><title>CLUB — Private Dart Package Repository</title></svelte:head>
 
+{#snippet pkgCard(pkg: HomePackage, prefix: string)}
+  <a href="/packages/{pkg.name}" class="home-card">
+    <div class="home-card-top">
+      <span class="home-card-name">{pkg.name}</span>
+    </div>
+    <p class="home-card-desc">{pkg.description}</p>
+    {#if pkg.publishedAt || pkg.version}
+      <div class="home-card-footer">
+        {#if pkg.publishedAt}
+          <span class="home-card-meta">{prefix}{timeAgo(pkg.publishedAt)}</span>
+        {:else}
+          <span></span>
+        {/if}
+        {#if pkg.version}
+          <span class="home-card-version">v{pkg.version}</span>
+        {/if}
+      </div>
+    {/if}
+  </a>
+{/snippet}
+
+{#snippet pkgSection(
+  title: string,
+  href: string,
+  items: HomePackage[],
+  prefix: string,
+)}
+  {#if items.length > 0}
+    <section class="pkg-section">
+      <div class="section-header">
+        <h2>{title}</h2>
+        <a {href} class="view-all">View all &rarr;</a>
+      </div>
+      <div class="pkg-grid">
+        {#each items as pkg}
+          {@render pkgCard(pkg, prefix)}
+        {/each}
+      </div>
+    </section>
+  {/if}
+{/snippet}
+
+{#snippet skeletonSection(title: string)}
+  <section class="pkg-section">
+    <div class="section-header">
+      <h2>{title}</h2>
+    </div>
+    <div class="pkg-grid">
+      {#each skeletonRange as i (i)}
+        <div class="home-card">
+          <Skeleton width="42%" height="16px" radius="5px" />
+          <div class="skeleton-desc">
+            <Skeleton width="100%" height="11px" radius="4px" />
+            <Skeleton width="88%" height="11px" radius="4px" />
+            <Skeleton width="60%" height="11px" radius="4px" />
+          </div>
+          <div class="home-card-footer">
+            <Skeleton width="38%" height="11px" radius="4px" />
+            <Skeleton width="38px" height="11px" radius="4px" />
+          </div>
+        </div>
+      {/each}
+    </div>
+  </section>
+{/snippet}
+
 <div class="home">
   <!-- Hero Section -->
   <section class="hero">
@@ -95,175 +166,79 @@
         />
       </form>
       <p class="hero-sub">Your private Dart & Flutter package repository</p>
-      {#if data.totalPackages > 0}
-        <p class="hero-stat">
-          {data.totalPackages}
-          {data.totalPackages === 1 ? "package" : "packages"} hosted
-        </p>
-      {/if}
+      {#await data.streamed.home then home}
+        {#if home.totalPackages > 0}
+          <p class="hero-stat">
+            {home.totalPackages}
+            {home.totalPackages === 1 ? "package" : "packages"} hosted
+          </p>
+        {/if}
+      {/await}
       <a href="/packages" class="hero-view-all">View all packages &rarr;</a>
     </div>
   </section>
 
-  {#if data.totalPackages === 0}
-    <div class="empty-state">
-      <div class="empty-card">
-        <h2>No packages yet</h2>
-        <p>Publish your first Dart or Flutter package to get started.</p>
-        <a
-          class="empty-cta"
-          href={docsUrl("/getting-started/first-package")}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Publish your first package
-        </a>
-        <a
-          class="empty-secondary"
-          href={docsUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          View full documentation &rarr;
-        </a>
-      </div>
+  {#await data.streamed.home}
+    <div class="sections">
+      {@render skeletonSection("Dart packages")}
+      {@render skeletonSection("Flutter packages")}
+      {@render skeletonSection("Recently Updated")}
+      {@render skeletonSection("Recently Added")}
     </div>
-  {/if}
-
-  <!-- Package Sections -->
-  <div class="sections">
-    {#if data.dartPackages.length > 0}
-      <section class="pkg-section">
-        <div class="section-header">
-          <h2>Dart packages</h2>
-          <a href="/packages?sort=updated" class="view-all">View all &rarr;</a>
+  {:then home}
+    {#if home.totalPackages === 0}
+      <div class="empty-state">
+        <div class="empty-card">
+          <h2>No packages yet</h2>
+          <p>Publish your first Dart or Flutter package to get started.</p>
+          <a
+            class="empty-cta"
+            href={docsUrl("/getting-started/first-package")}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Publish your first package
+          </a>
+          <a
+            class="empty-secondary"
+            href={docsUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View full documentation &rarr;
+          </a>
         </div>
-        <div class="pkg-grid">
-          {#each data.dartPackages as pkg}
-            <a href="/packages/{pkg.name}" class="home-card">
-              <div class="home-card-top">
-                <span class="home-card-name">{pkg.name}</span>
-              </div>
-              <p class="home-card-desc">{pkg.description}</p>
-              {#if pkg.publishedAt || pkg.version}
-                <div class="home-card-footer">
-                  {#if pkg.publishedAt}
-                    <span class="home-card-meta"
-                      >{timeAgo(pkg.publishedAt)}</span
-                    >
-                  {:else}
-                    <span></span>
-                  {/if}
-                  {#if pkg.version}
-                    <span class="home-card-version">v{pkg.version}</span>
-                  {/if}
-                </div>
-              {/if}
-            </a>
-          {/each}
-        </div>
-      </section>
+      </div>
     {/if}
 
-    {#if data.flutterPackages.length > 0}
-      <section class="pkg-section">
-        <div class="section-header">
-          <h2>Flutter packages</h2>
-          <a href="/packages?sort=updated" class="view-all">View all &rarr;</a>
-        </div>
-        <div class="pkg-grid">
-          {#each data.flutterPackages as pkg}
-            <a href="/packages/{pkg.name}" class="home-card">
-              <div class="home-card-top">
-                <span class="home-card-name">{pkg.name}</span>
-              </div>
-              <p class="home-card-desc">{pkg.description}</p>
-              {#if pkg.publishedAt || pkg.version}
-                <div class="home-card-footer">
-                  {#if pkg.publishedAt}
-                    <span class="home-card-meta"
-                      >{timeAgo(pkg.publishedAt)}</span
-                    >
-                  {:else}
-                    <span></span>
-                  {/if}
-                  {#if pkg.version}
-                    <span class="home-card-version">v{pkg.version}</span>
-                  {/if}
-                </div>
-              {/if}
-            </a>
-          {/each}
-        </div>
-      </section>
-    {/if}
-
-    {#if data.recentlyUpdated.length > 0}
-      <section class="pkg-section">
-        <div class="section-header">
-          <h2>Recently Updated</h2>
-          <a href="/packages?sort=updated" class="view-all">View all &rarr;</a>
-        </div>
-        <div class="pkg-grid">
-          {#each data.recentlyUpdated as pkg}
-            <a href="/packages/{pkg.name}" class="home-card">
-              <div class="home-card-top">
-                <span class="home-card-name">{pkg.name}</span>
-              </div>
-              <p class="home-card-desc">{pkg.description}</p>
-              {#if pkg.publishedAt || pkg.version}
-                <div class="home-card-footer">
-                  {#if pkg.publishedAt}
-                    <span class="home-card-meta"
-                      >Updated {timeAgo(pkg.publishedAt)}</span
-                    >
-                  {:else}
-                    <span></span>
-                  {/if}
-                  {#if pkg.version}
-                    <span class="home-card-version">v{pkg.version}</span>
-                  {/if}
-                </div>
-              {/if}
-            </a>
-          {/each}
-        </div>
-      </section>
-    {/if}
-
-    {#if data.recentlyAdded.length > 0}
-      <section class="pkg-section">
-        <div class="section-header">
-          <h2>Recently Added</h2>
-          <a href="/packages?sort=created" class="view-all">View all &rarr;</a>
-        </div>
-        <div class="pkg-grid">
-          {#each data.recentlyAdded as pkg}
-            <a href="/packages/{pkg.name}" class="home-card">
-              <div class="home-card-top">
-                <span class="home-card-name">{pkg.name}</span>
-              </div>
-              <p class="home-card-desc">{pkg.description}</p>
-              {#if pkg.publishedAt || pkg.version}
-                <div class="home-card-footer">
-                  {#if pkg.publishedAt}
-                    <span class="home-card-meta"
-                      >Added {timeAgo(pkg.publishedAt)}</span
-                    >
-                  {:else}
-                    <span></span>
-                  {/if}
-                  {#if pkg.version}
-                    <span class="home-card-version">v{pkg.version}</span>
-                  {/if}
-                </div>
-              {/if}
-            </a>
-          {/each}
-        </div>
-      </section>
-    {/if}
-  </div>
+    <!-- Package Sections -->
+    <div class="sections">
+      {@render pkgSection(
+        "Dart packages",
+        "/packages?sort=updated",
+        home.dartPackages,
+        "",
+      )}
+      {@render pkgSection(
+        "Flutter packages",
+        "/packages?sort=updated",
+        home.flutterPackages,
+        "",
+      )}
+      {@render pkgSection(
+        "Recently Updated",
+        "/packages?sort=updated",
+        home.recentlyUpdated,
+        "Updated ",
+      )}
+      {@render pkgSection(
+        "Recently Added",
+        "/packages?sort=created",
+        home.recentlyAdded,
+        "Added ",
+      )}
+    </div>
+  {/await}
 </div>
 
 <style>
@@ -525,6 +500,15 @@
     -webkit-mask: var(--clock-icon) center / contain no-repeat;
     mask: var(--clock-icon) center / contain no-repeat;
     --clock-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><polyline points='12 7 12 12 15.5 14'/></svg>");
+  }
+
+  /* Skeleton placeholder card — vertical rhythm between the stand-in
+     description lines while the section streams in. */
+  .skeleton-desc {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
   }
 
   /* ── Empty state ── */

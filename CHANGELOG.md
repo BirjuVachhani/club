@@ -12,6 +12,12 @@
 
 - **Redesigned the "package not found" page.** It now echoes the missing package name from the URL, explains why a lookup can fail (typo, not yet published, unlisted or no access), and offers a "Search for …" action prefilled with that name alongside "Browse all packages". The card is properly centered instead of hugging the left edge.
 
+### Performance
+
+- **Streamed page loading.** The home page, package list, and package detail now paint their layout and skeleton placeholders immediately, then fill in as data arrives, instead of holding a blank page until every request resolves.
+- **New `/api/discover` endpoint** collapses the per-result request fan-out. It returns search hits already bundled with package, score, and list-info data, so the home page and package list make a single request to render a page of results rather than 1 + N (the list page: 1 + 3N). A shared `buildListInfo` helper backs both the new endpoint and the existing per-package `/api/packages/<package>/list-info`.
+- **Parallel auth probe in the root layout.** `/api/setup/status` and `/api/auth/me` now run concurrently rather than one after the other, removing a round-trip from every navigation.
+
 ### Added
 
 - **Installation hint on the package page.** The `club add` instructions now link to the CLI installation guide for visitors who don't have the CLI yet.

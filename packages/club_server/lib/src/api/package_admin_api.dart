@@ -5,7 +5,7 @@ import 'package:shelf/shelf.dart';
 
 import '../http/decoded_router.dart';
 import '../middleware/auth_middleware.dart';
-import '../middleware/request_url.dart';
+import 'list_info.dart';
 
 /// Package administration API: options, uploaders, publishers.
 class PackageAdminApi {
@@ -50,96 +50,14 @@ class PackageAdminApi {
   /// publisher, uploaders, and license into a single call so list pages
   /// don't need N separate fetches per result.
   Future<Response> _getListInfo(Request request, String package) async {
-    final pkg = await metadataStore.lookupPackage(package);
-    if (pkg == null) throw NotFoundException.package(package);
-
-    // Publisher (if any)
-    Map<String, dynamic>? publisherBlock;
-    if (pkg.publisherId != null) {
-      final pub = await metadataStore.lookupPublisher(pkg.publisherId!);
-      if (pub != null) {
-        publisherBlock = {
-          'id': pub.id,
-          'displayName': pub.displayName,
-          'verified': pub.verified,
-        };
-      }
-    }
-
-    // Uploaders — derive display name / email (first uploader wins as the
-    // fallback author shown in the list).
-    final uploaderIds = await packageService.getUploaders(package);
-    final uploaders = <Map<String, dynamic>>[];
-    for (final id in uploaderIds) {
-      final user = await metadataStore.lookupUserById(id);
-      if (user != null) {
-        uploaders.add({
-          'email': user.email,
-          'displayName': user.displayName,
-        });
-      }
-    }
-
-    // License — pana's Summary stores `licenses: [{path, spdxIdentifier}]`
-    // inside reportJson. Return the first non-empty SPDX id.
-    String? license;
-    final latestVersion = pkg.latestVersion;
-    if (latestVersion != null) {
-      final score = await metadataStore.lookupScore(package, latestVersion);
-      final raw = score?.reportJson;
-      if (raw != null && raw.isNotEmpty) {
-        try {
-          final report = jsonDecode(raw) as Map<String, dynamic>;
-          final licenses = report['licenses'] as List?;
-          if (licenses != null) {
-            for (final entry in licenses) {
-              if (entry is Map<String, dynamic>) {
-                final spdx = entry['spdxIdentifier'] as String?;
-                if (spdx != null && spdx.isNotEmpty) {
-                  license = spdx;
-                  break;
-                }
-              }
-            }
-          }
-        } catch (_) {
-          // Malformed report — ignore; license stays null.
-        }
-      }
-    }
-
-    // Screenshots for the latest version, shaped the same as the
-    // `/content` endpoint so list-page consumers can pipe the array
-    // straight into the ScreenshotGallery component without reshaping.
-    final screenshots = <Map<String, Object?>>[];
-    if (latestVersion != null) {
-      final pv = await metadataStore.lookupVersion(package, latestVersion);
-      if (pv != null && pv.screenshots.isNotEmpty) {
-        final baseUrl = resolveBaseUrl(request);
-        for (var i = 0; i < pv.screenshots.length; i++) {
-          final s = pv.screenshots[i];
-          final ext = screenshotExtOf(s.path);
-          screenshots.add({
-            'url': baseUrl
-                .resolve(
-                  '/api/packages/$package/versions/$latestVersion'
-                  '/screenshots/$i.$ext',
-                )
-                .toString(),
-            'description': s.description,
-            'path': s.path,
-            'mimeType': s.mimeType,
-          });
-        }
-      }
-    }
-
-    return _json({
-      'publisher': publisherBlock,
-      'uploaders': uploaders,
-      'license': license,
-      'screenshots': screenshots,
-    });
+    final info = await buildListInfo(
+      metadataStore,
+      packageService,
+      request,
+      package,
+    );
+    if (info == null) throw NotFoundException.package(package);
+    return _json(info);
   }
 
   Future<Response> _getOptions(Request request, String package) async {

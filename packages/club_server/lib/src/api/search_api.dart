@@ -4,44 +4,50 @@ import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../http/decoded_router.dart';
+import '../middleware/request_url.dart';
+import 'list_info.dart';
 
 /// Search and package discovery API handlers.
 class SearchApi {
   SearchApi({
     required this.searchIndex,
     required this.metadataStore,
+    required this.packageService,
   });
 
   final SearchIndex searchIndex;
   final MetadataStore metadataStore;
+  final PackageService packageService;
 
   DecodedRouter get router {
     final router = DecodedRouter();
     router.get('/api/search', _search);
+    router.get('/api/discover', _discover);
     router.get('/api/package-name-completion-data', _completionData);
     router.get('/api/packages', _listPackages);
     return router;
   }
+
+  static const _pageSize = 20;
+
+  SearchOrder _orderOf(String sort) => switch (sort) {
+    'updated' => SearchOrder.updated,
+    'created' => SearchOrder.created,
+    'likes' => SearchOrder.likes,
+    _ => SearchOrder.relevance,
+  };
 
   Future<Response> _search(Request request) async {
     final q = request.url.queryParameters['q'];
     final page = int.tryParse(request.url.queryParameters['page'] ?? '1') ?? 1;
     final sortStr = request.url.queryParameters['sort'] ?? 'relevance';
 
-    final order = switch (sortStr) {
-      'updated' => SearchOrder.updated,
-      'created' => SearchOrder.created,
-      'likes' => SearchOrder.likes,
-      _ => SearchOrder.relevance,
-    };
-
-    const pageSize = 20;
     final result = await searchIndex.search(
       SearchQuery(
         query: q,
-        order: order,
-        offset: (page - 1) * pageSize,
-        limit: pageSize,
+        order: _orderOf(sortStr),
+        offset: (page - 1) * _pageSize,
+        limit: _pageSize,
       ),
     );
 
@@ -52,7 +58,68 @@ class SearchApi {
             .toList(),
         'totalCount': result.totalHits,
         'page': page,
-        'pageSize': pageSize,
+        'pageSize': _pageSize,
+      }),
+      headers: {'content-type': 'application/json'},
+    );
+  }
+
+  /// Search plus per-result enrichment in a single round-trip.
+  ///
+  /// Each hit carries the same `data` (package), `scoreInfo`, and
+  /// `listInfo` payloads the web UI already maps, bundled here so list
+  /// pages avoid an N+1 of follow-up fetches. Server-side these are cheap
+  /// local store reads; from the browser they were N HTTP round-trips.
+  Future<Response> _discover(Request request) async {
+    final q = request.url.queryParameters['q'];
+    final page = int.tryParse(request.url.queryParameters['page'] ?? '1') ?? 1;
+    final sortStr = request.url.queryParameters['sort'] ?? 'relevance';
+
+    final result = await searchIndex.search(
+      SearchQuery(
+        query: q,
+        order: _orderOf(sortStr),
+        offset: (page - 1) * _pageSize,
+        limit: _pageSize,
+      ),
+    );
+
+    final baseUrl = resolveBaseUrl(request);
+    final packages = await Future.wait(
+      result.hits.map((h) async {
+        try {
+          final data = await packageService.listVersions(
+            h.package,
+            baseUrl: baseUrl,
+          );
+          final score = await packageService.getScore(h.package);
+          final listInfo = await buildListInfo(
+            metadataStore,
+            packageService,
+            request,
+            h.package,
+          );
+          return {
+            'package': h.package,
+            'score': h.score,
+            'data': data.toJson(),
+            'scoreInfo': score.toJson(),
+            'listInfo': listInfo,
+          };
+        } catch (_) {
+          // Tolerate a single bad package: return the bare hit so the
+          // client can still render a minimal row for it.
+          return {'package': h.package, 'score': h.score};
+        }
+      }),
+    );
+
+    return Response.ok(
+      jsonEncode({
+        'packages': packages,
+        'totalCount': result.totalHits,
+        'page': page,
+        'pageSize': _pageSize,
       }),
       headers: {'content-type': 'application/json'},
     );

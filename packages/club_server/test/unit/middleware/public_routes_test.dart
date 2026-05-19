@@ -166,6 +166,7 @@ void main() {
           '/api/packages/foo/downloads',
           '/api/package-name-completion-data',
           '/api/search',
+          '/api/discover',
           '/api/archives/foo-1.0.0.tar.gz',
           '/documentation/foo/latest/index.html',
           '/documentation/foo/1.2.3/api/lib.html',

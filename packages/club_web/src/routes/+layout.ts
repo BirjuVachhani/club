@@ -38,13 +38,19 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
   );
   const isSetupPath = url.pathname.startsWith('/setup');
 
-  // Server-state probe: setup + signup status. Include the session cookie
-  // on the same-origin call so the server can tailor /me later.
+  // Server-state probe: setup + signup status, plus the current user.
+  // These two calls are independent, so fire them together and block
+  // once. Sequencing them would cost a wasted round-trip on every
+  // navigation. The session cookie is sent on both for /me to resolve.
+  const [setupRes, meRes] = await Promise.all([
+    fetch('/api/setup/status', { credentials: 'include' }).catch(() => null),
+    fetch('/api/auth/me', { credentials: 'include' }).catch(() => null)
+  ]);
+
   let signupEnabled = false;
-  try {
-    const res = await fetch('/api/setup/status', { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
+  if (setupRes?.ok) {
+    const data = await setupRes.json().catch(() => null);
+    if (data) {
       signupEnabled = !!data.signupEnabled;
       // When the server has no admin account yet, the setup wizard is
       // the ONLY valid destination. Everything else — including /login,
@@ -61,18 +67,14 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
         throw redirect(302, '/login');
       }
     }
-  } catch (e) {
-    if (e && typeof e === 'object' && 'status' in e) throw e;
   }
 
-  // Ask the server who we are. The session cookie (if any) is sent
-  // automatically; if it's invalid or missing, /me returns 401 and we
-  // treat the user as signed out.
+  // Resolve who we are from the /me response. A missing or invalid
+  // session cookie yields 401, which we treat as signed out.
   let user: User | null = null;
-  try {
-    const res = await fetch('/api/auth/me', { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
+  if (meRes?.ok) {
+    const data = await meRes.json().catch(() => null);
+    if (data) {
       user = {
         id: data.userId,
         email: data.email,
@@ -83,9 +85,6 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
         avatarUrl: data.avatarUrl ?? null
       };
     }
-  } catch {
-    // Network blip — treat as signed out. Non-public routes will bounce
-    // to /login below.
   }
 
   auth.hydrate(user);

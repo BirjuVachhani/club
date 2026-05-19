@@ -3,9 +3,13 @@
   import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import PackageCard from '$lib/components/PackageCard.svelte';
+  import Skeleton from '$lib/components/Skeleton.svelte';
   import type { PackageListItem } from './+page';
 
   let { data } = $props();
+
+  // Fixed-length range for rendering skeleton placeholder rows.
+  const skeletonRange = Array.from({ length: 8 }, (_, i) => i);
 
   const PLATFORMS = ['android', 'ios', 'linux', 'macos', 'web', 'windows'] as const;
   const SDKS = ['dart', 'flutter'] as const;
@@ -91,8 +95,10 @@
     });
   }
 
-  let filteredPackages = $derived.by((): PackageListItem[] => {
-    const list = (data.packages ?? []) as PackageListItem[];
+  // Client-side filtering applied to the streamed result list. Called from
+  // inside the `{#await}` `:then` branch via `{@const}`, so it stays
+  // reactive to both the resolved data and the filter checkboxes.
+  function applyFilters(list: PackageListItem[]): PackageListItem[] {
     if (!hasActiveFilters) return list;
     const selectedPlatforms = PLATFORMS.filter((p) => filterPlatforms[p]);
     const selectedSdks = SDKS.filter((s) => filterSdks[s]);
@@ -105,7 +111,7 @@
         (!filterWasm ||
           (Array.isArray(pkg.tags) && pkg.tags.includes('is:wasm-ready'))),
     );
-  });
+  }
 
   function onFilterChange() {
     syncFilterUrl();
@@ -118,10 +124,6 @@
     filterWasm = false;
     syncFilterUrl();
   }
-
-  let totalPages = $derived(
-    Math.max(1, Math.ceil((data.totalCount ?? 0) / (data.pageSize ?? 20)))
-  );
 </script>
 
 <div class="packages-layout">
@@ -203,13 +205,18 @@
     <div class="packages-toolbar">
       <span class="results-count">
         <strong>RESULTS</strong>
-        {#if hasActiveFilters}
-          <span>{filteredPackages.length}</span>
-          <span class="results-subtle">of {data.totalCount ?? 0} on this page</span>
-        {:else}
-          <span>{data.totalCount ?? 0}</span>
-          packages
-        {/if}
+        {#await data.streamed.results}
+          <Skeleton width="2.5rem" height="0.85rem" radius="4px" />
+        {:then results}
+          {@const filtered = applyFilters(results.packages)}
+          {#if hasActiveFilters}
+            <span>{filtered.length}</span>
+            <span class="results-subtle">of {results.totalCount ?? 0} on this page</span>
+          {:else}
+            <span>{results.totalCount ?? 0}</span>
+            packages
+          {/if}
+        {/await}
       </span>
       <div class="sort-control">
         <span>SORT BY</span>
@@ -226,36 +233,55 @@
     </div>
 
     <div class="packages-list">
-      {#if filteredPackages.length > 0}
-        {#each filteredPackages as pkg}
-          <PackageCard {pkg} />
+      {#await data.streamed.results}
+        {#each skeletonRange as i (i)}
+          <div class="pkgcard-skeleton">
+            <Skeleton width="30%" height="18px" radius="5px" />
+            <Skeleton width="92%" height="12px" radius="4px" />
+            <Skeleton width="78%" height="12px" radius="4px" />
+            <div class="pkgcard-skeleton-meta">
+              <Skeleton width="3rem" height="10px" radius="4px" />
+              <Skeleton width="4.5rem" height="10px" radius="4px" />
+              <Skeleton width="3.5rem" height="10px" radius="4px" />
+            </div>
+          </div>
         {/each}
-      {:else}
-        <div class="empty-state">
-          <p>No packages found.</p>
-        </div>
-      {/if}
+      {:then results}
+        {@const filtered = applyFilters(results.packages)}
+        {#if filtered.length > 0}
+          {#each filtered as pkg}
+            <PackageCard {pkg} />
+          {/each}
+        {:else}
+          <div class="empty-state">
+            <p>No packages found.</p>
+          </div>
+        {/if}
+      {/await}
     </div>
 
-    {#if totalPages > 1}
-      <nav class="pagination">
-        <Button
-          variant="outline"
-          disabled={data.page <= 1}
-          onclick={() => goToPage(data.page - 1)}
-        >
-          Previous
-        </Button>
-        <span class="page-info">Page {data.page} of {totalPages}</span>
-        <Button
-          variant="outline"
-          disabled={data.page >= totalPages}
-          onclick={() => goToPage(data.page + 1)}
-        >
-          Next
-        </Button>
-      </nav>
-    {/if}
+    {#await data.streamed.results then results}
+      {@const totalPages = Math.max(1, Math.ceil((results.totalCount ?? 0) / (results.pageSize ?? 20)))}
+      {#if totalPages > 1}
+        <nav class="pagination">
+          <Button
+            variant="outline"
+            disabled={data.page <= 1}
+            onclick={() => goToPage(data.page - 1)}
+          >
+            Previous
+          </Button>
+          <span class="page-info">Page {data.page} of {totalPages}</span>
+          <Button
+            variant="outline"
+            disabled={data.page >= totalPages}
+            onclick={() => goToPage(data.page + 1)}
+          >
+            Next
+          </Button>
+        </nav>
+      {/if}
+    {/await}
   </div>
 </div>
 
@@ -406,6 +432,22 @@
   }
 
   .packages-list { display: flex; flex-direction: column; }
+
+  /* Skeleton placeholder row — mirrors the PackageCard divider rhythm. */
+  .pkgcard-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--pub-divider-color);
+  }
+  .pkgcard-skeleton:first-child { padding-top: 8px; }
+  .pkgcard-skeleton:last-child { border-bottom: none; }
+  .pkgcard-skeleton-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 2px;
+  }
 
   .empty-state {
     border: 1px dashed var(--border);

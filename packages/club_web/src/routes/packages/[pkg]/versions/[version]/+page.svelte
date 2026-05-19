@@ -1,6 +1,16 @@
 <script lang="ts">
   import PackageView from '../../_PackageView.svelte';
+  import PackageDetailSkeleton from '$lib/components/PackageDetailSkeleton.svelte';
   let { data } = $props();
 </script>
 
-<PackageView pkg={data.pkg} score={data.score} isLiked={data.isLiked} canAdmin={data.canAdmin} />
+{#await data.streamed.detail}
+  <PackageDetailSkeleton />
+{:then detail}
+  <PackageView
+    pkg={detail.pkg}
+    score={detail.score}
+    isLiked={detail.isLiked}
+    canAdmin={detail.canAdmin}
+  />
+{/await}
