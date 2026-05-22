@@ -15,6 +15,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "astro": "^5.7.0",
     "sharp": "^0.33.0",
+    "starlight-copy-button": "file:vendor/starlight-copy-button",
     "zod": "^3.25.76"
   }
 }

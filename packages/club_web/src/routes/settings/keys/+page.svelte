@@ -33,6 +33,7 @@
   // Empty string = no expiry. Numeric strings are whole days.
   let expiresInDays = $state<string>('');
   let createdSecret = $state<string | null>(null);
+  let copiedSecret = $state(false);
   let creating = $state(false);
   let error = $state('');
   let dialogError = $state('');
@@ -81,7 +82,21 @@
   function openDialog() {
     resetForm();
     createdSecret = null;
+    copiedSecret = false;
     dialogOpen = true;
+  }
+
+  async function copySecret() {
+    if (!createdSecret) return;
+    try {
+      await navigator.clipboard.writeText(createdSecret);
+      copiedSecret = true;
+      setTimeout(() => {
+        copiedSecret = false;
+      }, 1500);
+    } catch {
+      // Clipboard unavailable; the value stays selectable for manual copy.
+    }
   }
 
   async function createKey() {
@@ -167,8 +182,13 @@
 
   {#if createdSecret}
     <Alert class="border-[var(--success)]/30 bg-[color:color-mix(in_srgb,var(--success)_10%,var(--card))] text-[var(--foreground)]">
-      <p class="mb-3 mt-0 text-sm"><strong>Key created.</strong> Copy it now — it will not be shown again.</p>
-      <code class="secret-value">{createdSecret}</code>
+      <p class="mb-3 mt-0 text-sm"><strong>Key created.</strong> Copy it now: it will not be shown again.</p>
+      <div class="secret-row">
+        <code class="secret-value">{createdSecret}</code>
+        <Button variant="outline" size="sm" onclick={copySecret}>
+          {copiedSecret ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
     </Alert>
   {/if}
 
@@ -283,8 +303,15 @@
 </Dialog>
 
 <style>
+  .secret-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
   .secret-value {
-    display: block;
+    flex: 1;
+    min-width: 0;
     padding: 10px 12px;
     background: var(--pub-default-background);
     border: 1px solid var(--pub-input-border);

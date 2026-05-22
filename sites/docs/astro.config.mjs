@@ -1,10 +1,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightCopyButton from 'starlight-copy-button';
 
 export default defineConfig({
   site: 'http://docs.club.birju.dev',
   integrations: [
     starlight({
+      plugins: [
+        starlightCopyButton({
+          label: 'Copy as Markdown',
+        }),
+      ],
       expressiveCode: {
         themes: ['github-light', 'github-dark'],
         styleOverrides: {

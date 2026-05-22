@@ -1,0 +1,209 @@
+@layer starlight.copy-button {
+	.sl-copy-button-row {
+		margin-top: 1rem;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 0.75rem;
+	}
+
+	.sl-copy-button-row > h1#_top {
+		margin: 0;
+		min-width: 0;
+	}
+
+	.sl-copy-button-controls {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		direction: ltr;
+		unicode-bidi: isolate;
+	}
+
+	.sl-copy-button-live-region {
+		display: flex;
+		align-items: center;
+	}
+
+	.sl-copy-button {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		margin: 0;
+		padding: 0;
+		width: 2rem;
+		height: 2rem;
+		border: none;
+		border-radius: 0.35rem;
+		z-index: 1;
+		cursor: pointer;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text-accent);
+		opacity: 0.75;
+		transition-property: opacity, background, border-color;
+		transition-duration: 0.2s;
+		transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+	}
+
+	.sl-copy-button__bg {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: currentColor;
+		opacity: 0;
+		pointer-events: none;
+		transition: inherit;
+	}
+
+	.sl-copy-button::before {
+		content: '';
+		position: absolute;
+		pointer-events: none;
+		inset: 0;
+		border-radius: inherit;
+		border: 1px solid currentColor;
+		opacity: 0.5;
+	}
+
+	.sl-copy-button__icon {
+		position: absolute;
+		inset: 0;
+		margin: 0.56rem;
+		line-height: 0;
+		pointer-events: none;
+	}
+
+	.sl-copy-button__icon svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	.sl-copy-button__sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.sl-copy-button:focus-visible,
+	.sl-copy-button:hover {
+		opacity: 1;
+	}
+
+	.sl-copy-button:focus-visible .sl-copy-button__bg,
+	.sl-copy-button:hover .sl-copy-button__bg {
+		opacity: 0.16;
+	}
+
+	.sl-copy-button:active {
+		opacity: 1;
+	}
+
+	.sl-copy-button:active .sl-copy-button__bg {
+		opacity: 0.24;
+	}
+
+	.sl-copy-button-feedback {
+		--tooltip-arrow-size: 0.35rem;
+		--tooltip-bg: color-mix(in srgb, var(--sl-color-green-high) 34%, var(--sl-color-black) 66%);
+		color: var(--sl-color-white);
+		pointer-events: none;
+		user-select: none;
+		position: relative;
+		align-self: center;
+		background-color: var(--tooltip-bg);
+		z-index: 9;
+		padding: 0.125rem 0.75rem;
+		border-radius: 0.2rem;
+		margin-inline-end: var(--tooltip-arrow-size);
+		opacity: 0;
+		transition-property: opacity, transform;
+		transition-duration: 0.2s;
+		transition-timing-function: ease-in-out;
+		transform: translate3d(0, 0.25rem, 0);
+		white-space: nowrap;
+		font-size: var(--sl-text-xs);
+	}
+
+	.sl-copy-button-feedback::after {
+		content: '';
+		position: absolute;
+		pointer-events: none;
+		top: calc(50% - var(--tooltip-arrow-size));
+		inset-inline-end: calc(-2 * (var(--tooltip-arrow-size) - 0.5px));
+		border: var(--tooltip-arrow-size) solid transparent;
+		border-inline-start-color: var(--tooltip-bg);
+	}
+
+	.sl-copy-button-feedback--error {
+		--tooltip-bg: color-mix(in srgb, var(--sl-color-red-high) 30%, var(--sl-color-black) 70%);
+	}
+
+	.sl-copy-button-feedback.show {
+		opacity: 1;
+		transform: translate3d(0, 0, 0);
+	}
+
+	.sl-copy-button-controls--with-label .sl-copy-button {
+		width: auto;
+		height: auto;
+		min-height: 2rem;
+		padding: 0.35rem 0.74rem 0.35rem 0.62rem;
+		gap: 0.44rem;
+		opacity: 1;
+	}
+
+	.sl-copy-button-controls--with-label .sl-copy-button__icon {
+		position: static;
+		margin: 0;
+		width: 0.875rem;
+		height: 0.875rem;
+	}
+
+	.sl-copy-button__label {
+		position: relative;
+		z-index: 1;
+		font-size: var(--sl-text-xs);
+		font-weight: 500;
+		line-height: 1.2;
+		letter-spacing: 0.01em;
+	}
+
+	@media (max-width: 40rem) {
+		.sl-copy-button-row {
+			grid-template-columns: 1fr;
+		}
+
+		.sl-copy-button-controls {
+			justify-self: start;
+			flex-direction: row-reverse;
+		}
+
+		.sl-copy-button-feedback {
+			margin-inline-end: 0;
+			margin-inline-start: var(--tooltip-arrow-size);
+		}
+
+		.sl-copy-button-feedback::after {
+			inset-inline-end: auto;
+			inset-inline-start: calc(-2 * (var(--tooltip-arrow-size) - 0.5px));
+			border-inline-start-color: transparent;
+			border-inline-end-color: var(--tooltip-bg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.sl-copy-button,
+		.sl-copy-button__bg,
+		.sl-copy-button-feedback {
+			transition: none;
+		}
+	}
+}
