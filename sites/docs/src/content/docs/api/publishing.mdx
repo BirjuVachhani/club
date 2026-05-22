@@ -11,15 +11,15 @@ Publishing a package to club follows the 3-step flow mandated by the Dart Pub Re
 
 <Steps>
 
-1. **Initiate upload** — `GET /api/packages/versions/new` returns an upload URL and an `uploadId`.
+1. **Initiate upload**: `GET /api/packages/versions/new` returns an upload `url` and a set of form `fields` (including `upload_id`).
 
-2. **Upload the tarball** — `POST` to the upload URL (multipart or raw tarball), carrying the `upload_id`.
+2. **Upload the tarball**: `POST` to the upload URL (multipart or raw tarball), carrying the `upload_id`.
 
-3. **Finalize** — `GET /api/packages/versions/newUploadFinish` validates the tarball, creates the records, and returns a success message.
+3. **Finalize**: `GET /api/packages/versions/newUploadFinish` validates the tarball, creates the records, and returns a success message.
 
 </Steps>
 
-All three endpoints require authentication (`write` scope).
+All three endpoints require authentication. The caller must be an uploader of the package (or an admin of its publisher); the finalize step enforces this.
 
 ---
 
@@ -34,17 +34,17 @@ Authorization: Bearer club_pat_...
 
 ```json
 {
-  "success": {
-    "uploadUrl": "https://club.example.com/api/packages/versions/upload",
-    "uploadId": "550e8400-e29b-41d4-a716-446655440000"
+  "url": "https://club.example.com/api/packages/versions/upload",
+  "fields": {
+    "upload_id": "550e8400-e29b-41d4-a716-446655440000"
   }
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `success.uploadUrl` | Where the client must POST the tarball |
-| `success.uploadId` | Identifier for this upload session; include it in Step 2 and Step 3 |
+| `url` | Where the client must POST the tarball |
+| `fields` | Form fields to include in the multipart upload. Contains `upload_id`, the identifier for this upload session (also needed in Step 3) |
 
 ---
 
@@ -105,15 +105,15 @@ The server validates the archive, extracts `pubspec.yaml`, `README`, `CHANGELOG`
 
 | Check | Failure behavior |
 |-------|------------------|
-| Archive is a valid gzipped tar | `400 BadRequest` |
-| Top-level `pubspec.yaml` is parseable | `400 BadRequest` |
-| Package name is lowercase alphanumeric with underscores | `400 BadRequest` |
-| Version is canonical semver | `400 BadRequest` |
-| Caller is an uploader or publisher admin | `403 Forbidden` |
-| Nested `pubspec.yaml` files (e.g. `example/pubspec.yaml`) are not treated as the package | Rejected, `400 BadRequest` |
-| Duplicate version with matching SHA-256 | Treated as an idempotent success |
-| Duplicate version with different SHA-256 | `409 Conflict` |
-| Archive within the configured size limit | `400 BadRequest` if exceeded |
+| Archive is a valid gzipped tar | `400 PackageRejected` |
+| Top-level `pubspec.yaml` is parseable | `400 PackageRejected` |
+| Package name is lowercase alphanumeric with underscores | `400 PackageRejected` |
+| Version is canonical semver | `400 PackageRejected` |
+| Caller is an uploader or publisher admin | `403 InsufficientPermissions` |
+| Nested `pubspec.yaml` files (e.g. `example/pubspec.yaml`) are not treated as the package | Rejected, `400 PackageRejected` |
+| Duplicate version with matching SHA-256 (no `force`) | Treated as an idempotent success |
+| Duplicate version with different SHA-256 (no `force`) | `400 PackageRejected` |
+| Archive within the configured size limit | `400 PackageRejected` if exceeded |
 
 ### What Happens on Success
 
@@ -131,19 +131,18 @@ The server validates the archive, extracts `pubspec.yaml`, `README`, `CHANGELOG`
 
 | Status | Code | When |
 |--------|------|------|
-| 400 | `BadRequest` | Invalid archive, pubspec, name, or version |
+| 400 | `PackageRejected` | Invalid archive, pubspec, name, version, oversized archive, or a duplicate version with different content |
+| 400 | `InvalidInput` | Upload session expired, not found, or in the wrong state |
 | 401 | `MissingAuthentication` | No or invalid credentials |
-| 403 | `Forbidden` | Caller is not authorized to publish this package |
-| 404 | `NotFound` | Upload session expired or not found |
-| 409 | `Conflict` | Version already exists with different content |
+| 403 | `InsufficientPermissions` | Caller is not authorized to publish this package |
 
 Errors use the standard envelope:
 
 ```json
 {
   "error": {
-    "code": "Conflict",
-    "message": "Version 2.1.0 already exists with a different archive hash."
+    "code": "PackageRejected",
+    "message": "Version '2.1.0' of package 'my_package' already exists."
   }
 }
 ```
@@ -157,8 +156,8 @@ Errors use the standard envelope:
 RESP=$(curl -s -H "Authorization: Bearer $TOKEN" \
   https://club.example.com/api/packages/versions/new)
 
-UPLOAD_URL=$(echo "$RESP" | jq -r '.success.uploadUrl')
-UPLOAD_ID=$(echo "$RESP" | jq -r '.success.uploadId')
+UPLOAD_URL=$(echo "$RESP" | jq -r '.url')
+UPLOAD_ID=$(echo "$RESP" | jq -r '.fields.upload_id')
 
 # Step 2: upload (capture the redirect target)
 FINISH_URL=$(curl -s -D - -o /dev/null \

@@ -67,7 +67,7 @@ The search index (SQLite FTS5 or Meilisearch) does not need to be backed up sepa
        cp /backups/club-20260409.db /data/db/club.db
        ```
 
-    3. Start the club server. No manual migration step is needed — the server reconciles its schema on startup.
+    3. Start the club server. No manual migration step is needed: the server applies any pending schema migrations on startup.
 
     </Steps>
 

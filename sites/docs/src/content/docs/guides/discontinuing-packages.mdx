@@ -29,8 +29,8 @@ Consider also [unlisting](/guides/unlisting-packages/) a discontinued package to
 
 ## Who Can Discontinue
 
-- Any named **uploader** on the package.
-- Any **admin of the publisher** that owns it.
+- Any named **uploader**, when the package is uploader-owned (no publisher set).
+- Any **admin of the publisher** that owns it, when the package is publisher-owned.
 - A server **admin** or **owner**.
 
 ## Discontinuing a Package
@@ -91,13 +91,13 @@ The banner disappears immediately and the package returns to normal listing.
 
 ## Audit Log
 
-Discontinuing, updating `replacedBy`, or un-discontinuing each append an entry to the package activity log with the actor and full before/after payload:
+Discontinuing, updating `replacedBy`, or un-discontinuing each append an entry to the package activity log recording the actor, a timestamp, and a summary:
 
 ```http
 GET /api/packages/<pkg>/activity-log
 ```
 
-Event kind: `packageOptionsUpdated`.
+Event kind: `package.options_updated`.
 
 ## See Also
 

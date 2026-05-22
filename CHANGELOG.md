@@ -1,3 +1,16 @@
+## 0.4.0 (Unreleased)
+
+### Added
+
+- **`club publish --from-git <url>`**: publish a package straight from a git repository. The repo is cloned into `~/.club/clones/<host>/<org>/<repo>`, and the existing publish flow (dependency resolution, validation, upload) runs on the clone unchanged. Use `--ref <branch|tag|commit>` to publish a specific ref (defaults to the remote default branch), combine with `--auto` for monorepos, or `-C` to target a package in a subdirectory. The clone is removed after a successful publish; on failure it is kept so a re-run reuses it via hard reset and force checkout instead of re-cloning.
+
+### Docs
+
+- **Audited the entire documentation site against the source and corrected factual drift across 37 pages.** Fixes include: wrong API error codes (`Forbidden` to `InsufficientPermissions`, `BadRequest` to `InvalidInput`, `RateLimited` to `RateLimitExceeded`) and response shapes; false "public, no authentication" claims on read endpoints (Club is private, reads require auth); stale `club_api` and CLI versions; missing CLI commands (`add`, `global`) and publish flags; an incorrect schema-migration description (there is a versioned `club_schema` migration chain); wrong Docker runtime user and entrypoint; stale `from-source` Dart SDK version; and broken cross-links.
+- **Rewrote the "Docker with PostgreSQL" guide** to state plainly that PostgreSQL is not yet implemented. Setting `DB_BACKEND=postgres` currently fails at startup with `UnimplementedError`, so the previous setup instructions were misleading. SQLite is the only supported metadata store.
+- **Removed a non-existent feature from the YAML configuration guide.** The guide documented a `{{ENV_VAR}}` substitution syntax that the config loader does not implement, and claimed nested YAML keys work when only `db.backend`, `blob.backend`, and `blob.path` are read in nested form.
+- **Fixed the GitHub Actions examples in the CI/CD guide** to pin `BirjuVachhani/club/actions/setup-club` to a real release tag (`0.3.0`); the previous `@v1` tag does not exist.
+
 ## 0.3.0
 
 ### Changed

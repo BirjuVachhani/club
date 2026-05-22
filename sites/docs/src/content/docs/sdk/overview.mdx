@@ -26,7 +26,7 @@ For simple publishing and dependency resolution, you do not need the SDK. The `c
 <Tabs>
   <TabItem label="pubspec.yaml">
   <Code code={`dependencies:
-  club_api: ^1.0.0`} lang="yaml" title="pubspec.yaml" />
+  club_api: ^0.3.0`} lang="yaml" title="pubspec.yaml" />
   </TabItem>
   <TabItem label="Command line">
   ```bash
@@ -91,7 +91,7 @@ See [Package Operations](/sdk/packages/), [Publishing](/sdk/publishing/), and [A
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `serverUrl` | Yes | The club server URL as a `Uri` |
-| `token` | No | API token (`club_pat_...`) or session cookie value. Required for most operations but not for `login()`. |
+| `token` | Yes | API token (`club_pat_...`) or session cookie value. The parameter is required by the constructor. Pass an empty string if you only intend to call `login()`. |
 | `httpClient` | No | Custom `http.Client` for testing or proxies |
 
 ### Token from Environment Variable
@@ -141,9 +141,10 @@ All of these methods are called directly on `ClubClient`. The groupings below ar
 
 | Area | Methods | Docs |
 |------|---------|------|
-| Packages | `listVersions`, `getVersion`, `downloadArchive`, `getOptions`, `setOptions`, `getVersionOptions`, `setVersionOptions`, `getScore`, `getLikeCount`, `listAllNames` | [Package Operations](/sdk/packages/) |
+| Packages | `listVersions`, `getVersion`, `downloadArchive`, `getOptions`, `setOptions`, `getVersionOptions`, `setVersionOptions`, `getScore`, `getScoringReport`, `getLikeCount`, `listAllNames`, `getVersionContent`, `getDartdocStatus`, `fetchBytes` | [Package Operations](/sdk/packages/) |
 | Publishing | `publishFile`, `publish` | [Publishing](/sdk/publishing/) |
-| Auth | `login`, `createApiKey`, `listApiKeys`, `revokeApiKey` | [Auth & Tokens](/sdk/auth/) |
+| Auth | `login`, `createApiKey`, `listApiKeys`, `revokeApiKey`, `getMe` | [Auth & Tokens](/sdk/auth/) |
+| Account | `getMyPackages` | Packages owned by the current user |
 | Search | `search` | Used via the search API |
 | Likes | `like`, `unlike`, `likedPackages` | Used via the likes API |
 | Admin | `listUsers`, `createUser`, `updateUser`, `deleteUser`, `resetUserPassword`, `transferOwnership`, `deletePackage` | Requires admin scope |
@@ -160,6 +161,9 @@ The following typed models are re-exported from `club_core`:
 - `VersionOptions` — version-level options (`isRetracted`)
 - `VersionScore` — pana analysis score
 - `PackagePublisherInfo` — publisher associated with a package
+- `VersionContent`: readme, changelog, example, and screenshots for a version
+- `PackageDartdocStatus`: dartdoc generation status for a package
+- `PackageScoringReport`: full pana scoring report for a version
 
 <Aside type="note">
 The auth and admin methods return untyped `Map<String, dynamic>` — extract fields by key. There are no typed DTOs like `LoginResult` or `NewTokenResult`.

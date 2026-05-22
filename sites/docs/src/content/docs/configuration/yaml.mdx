@@ -38,40 +38,48 @@ When the server starts, configuration is loaded in this sequence:
 4. Validate required fields and backend-specific requirements
 5. Fail fast with a clear error message if misconfigured
 
-## Environment Variable Substitution
+## Keeping Secrets Out of the Config File
 
-Use `{{ENV_VAR_NAME}}` syntax to reference environment variables inside YAML values. This keeps secrets out of the config file while still centralising your configuration.
+The config file does **not** perform any placeholder substitution: values are read literally as written. To keep secrets (the JWT secret, database passwords, S3 keys) out of a committed config file, leave those keys out of the YAML entirely and supply them as environment variables instead. Environment variables always override the config file, so a partial YAML file plus a handful of secret environment variables is the recommended pattern.
 
 ```yaml
-jwt_secret: "{{JWT_SECRET}}"
+# config.yaml — safe to commit (no secrets)
+server_url: "https://packages.example.com"
 db:
-  postgres_url: "{{POSTGRES_URL}}"
+  backend: postgres
 blob:
+  backend: s3
   s3:
-    access_key: "{{S3_ACCESS_KEY}}"
-    secret_key: "{{S3_SECRET_KEY}}"
+    bucket: "club-packages"
+    region: "us-east-1"
+```
+
+```bash
+# Secrets supplied via the environment, never written to the file
+JWT_SECRET=$(openssl rand -hex 32)
+POSTGRES_URL=postgres://club:secret@db.example.com:5432/club
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=wJalrXUtnFEMI...
 ```
 
 <Aside type="tip">
-  Use variable substitution for all secrets (JWT secret, database passwords, S3 keys). This lets you commit the config file to version control while keeping secrets in your environment or a secrets manager.
+  Commit only non-secret keys to version control and inject secrets through your environment or a secrets manager. The server's validation step will catch missing required values and report a clear error.
 </Aside>
 
-If a referenced environment variable is not set, the substitution results in an empty string. The server's validation step will catch missing required values and report a clear error.
+## Key shape
 
-## Key shape: flat or nested
-
-The loader accepts both **flat** snake_case keys at the top level and **nested** sections for `db`, `blob`, `search`. Both forms are equivalent; pick whichever reads better for your deployment.
+The loader expects **flat** snake_case keys at the top level of the file. Every key in the table below is a top-level key.
 
 ```yaml
-# Flat
 db_backend: postgres
-postgres_url: "{{POSTGRES_URL}}"
-
-# Nested (equivalent)
-db:
-  backend: postgres
-  postgres_url: "{{POSTGRES_URL}}"
+sqlite_path: /data/db/club.db
+blob_backend: s3
+s3_bucket: club-packages
 ```
+
+<Aside type="caution">
+  Use the flat top-level keys exactly as listed in the [key-mapping table](#yaml-key-to-environment-variable-mapping) below. Nesting keys under `db:`, `blob:`, or `search:` sections is **not** reliably honoured by the loader: only `db_backend`, `blob_backend`, and `blob_path` are also recognised when nested as `db.backend` / `blob.backend` / `blob.path`. All other keys (`sqlite_path`, `postgres_url`, the `s3_*` / `gcs_*` keys, `meilisearch_url`, `meilisearch_key`) must be top-level flat keys.
+</Aside>
 
 ## Full Annotated Example
 
@@ -79,8 +87,9 @@ db:
 # =============================================================================
 # club configuration file
 # =============================================================================
-# Values can reference environment variables: {{ENV_VAR_NAME}}
-# Environment variables always override values in this file.
+# Values are read literally — there is no placeholder substitution.
+# Environment variables always override values in this file, so leave
+# secrets out of the file and supply them via the environment instead.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -107,8 +116,9 @@ log_level: info
 # ---------------------------------------------------------------------------
 
 # JWT signing secret (required). Minimum 32 characters.
-# Generate with: openssl rand -hex 32
-jwt_secret: "{{JWT_SECRET}}"
+# Generate with: openssl rand -hex 32. Prefer supplying this via the
+# JWT_SECRET environment variable instead of writing it here.
+jwt_secret: "your-32-plus-character-secret-here"
 
 # Web session TTL (hours). Default: 1
 session_ttl_hours: 1
@@ -133,59 +143,59 @@ trust_proxy: false
 # ---------------------------------------------------------------------------
 # Database (Metadata Store)
 # ---------------------------------------------------------------------------
-db:
-  # sqlite | postgres. Default: sqlite
-  backend: sqlite
 
-  # SQLite file path. Default: /data/db/club.db
-  sqlite_path: /data/db/club.db
+# sqlite | postgres. Default: sqlite
+db_backend: sqlite
 
-  # Required when backend is postgres.
-  # postgres_url: "{{POSTGRES_URL}}"
+# SQLite file path. Default: /data/db/club.db
+sqlite_path: /data/db/club.db
+
+# Required when db_backend is postgres. Prefer the POSTGRES_URL
+# environment variable so the password stays out of this file.
+# postgres_url: "postgres://club:secret@db.example.com:5432/club"
 
 # ---------------------------------------------------------------------------
 # Blob Storage
 # ---------------------------------------------------------------------------
-blob:
-  # filesystem | s3 | gcs. Default: filesystem
-  backend: filesystem
 
-  # Filesystem root. Default: /data/blobs
-  # Stores package tarballs, per-version screenshots, and (when
-  # dartdoc_backend is `blob`) per-package dartdoc indexed blobs.
-  path: /data/blobs
+# filesystem | s3 | gcs. Default: filesystem
+blob_backend: filesystem
 
-  # S3 configuration (uncomment when backend is s3).
-  # Works for AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2,
-  # and GCS via its S3 interop endpoint.
-  # s3:
-  #   # Optional for AWS (uses default endpoint). Required for everything else.
-  #   endpoint: "https://s3.amazonaws.com"
-  #   bucket: "club-packages"
-  #   region: "us-east-1"
-  #   access_key: "{{S3_ACCESS_KEY}}"
-  #   secret_key: "{{S3_SECRET_KEY}}"
+# Filesystem root. Default: /data/blobs
+# Stores package tarballs, per-version screenshots, and (when
+# dartdoc_backend is `blob`) per-package dartdoc indexed blobs.
+blob_path: /data/blobs
 
-  # GCS (native) configuration (uncomment when backend is gcs).
-  # Auth priority: credentials_file > credentials_json > Application
-  # Default Credentials. Under ADC there's no private key in process,
-  # so downloads proxy through the server instead of redirecting.
-  # gcs:
-  #   bucket: "my-project.appspot.com"
-  #   credentials_file: "/secrets/sa.json"
-  #   # credentials_json: "{{GCS_CREDENTIALS_JSON}}"
+# S3 configuration (uncomment when blob_backend is s3).
+# Works for AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2,
+# and GCS via its S3 interop endpoint.
+# Prefer supplying s3_access_key / s3_secret_key via the S3_ACCESS_KEY and
+# S3_SECRET_KEY environment variables instead of writing them here.
+# s3_endpoint: "https://s3.amazonaws.com"  # optional for AWS, required otherwise
+# s3_bucket: "club-packages"
+# s3_region: "us-east-1"                   # optional; defaults to us-east-1
+# s3_access_key: "AKIA..."
+# s3_secret_key: "wJalrXUtnFEMI..."
+
+# GCS (native) configuration (uncomment when blob_backend is gcs).
+# Auth priority: gcs_credentials_file > gcs_credentials_json > Application
+# Default Credentials. Under ADC there's no private key in process,
+# so downloads proxy through the server instead of redirecting.
+# gcs_bucket: "my-project.appspot.com"
+# gcs_credentials_file: "/secrets/sa.json"
+# gcs_credentials_json: '{"type":"service_account",...}'
 
 # ---------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------
-search:
-  # sqlite (FTS5) | meilisearch. Default: sqlite
-  backend: sqlite
 
-  # Meilisearch configuration (uncomment when backend is meilisearch)
-  # meilisearch:
-  #   url: "http://meilisearch:7700"
-  #   key: "{{MEILISEARCH_KEY}}"
+# sqlite (FTS5) | meilisearch. Default: sqlite
+search_backend: sqlite
+
+# Meilisearch configuration (uncomment when search_backend is meilisearch).
+# Prefer the MEILISEARCH_KEY environment variable for the API key.
+# meilisearch_url: "http://meilisearch:7700"
+# meilisearch_key: "your-meilisearch-api-key"
 
 # ---------------------------------------------------------------------------
 # Upload
@@ -228,7 +238,7 @@ dartdoc_cache_max_memory_mb: 64
 
 ## YAML Key to Environment Variable Mapping
 
-The YAML keys map directly to their corresponding environment variables:
+Each flat top-level YAML key maps to its corresponding environment variable:
 
 | YAML Key | Environment Variable |
 |----------|---------------------|
@@ -243,22 +253,22 @@ The YAML keys map directly to their corresponding environment variables:
 | `signup_enabled` | `SIGNUP_ENABLED` |
 | `trust_proxy` | `TRUST_PROXY` |
 | `allowed_origins` | `ALLOWED_ORIGINS` |
-| `db.backend` | `DB_BACKEND` |
-| `db.sqlite_path` | `SQLITE_PATH` |
-| `db.postgres_url` | `POSTGRES_URL` |
-| `blob.backend` | `BLOB_BACKEND` |
-| `blob.path` | `BLOB_PATH` |
-| `blob.s3.endpoint` | `S3_ENDPOINT` |
-| `blob.s3.bucket` | `S3_BUCKET` |
-| `blob.s3.region` | `S3_REGION` |
-| `blob.s3.access_key` | `S3_ACCESS_KEY` |
-| `blob.s3.secret_key` | `S3_SECRET_KEY` |
-| `blob.gcs.bucket` | `GCS_BUCKET` |
-| `blob.gcs.credentials_file` | `GCS_CREDENTIALS_FILE` |
-| `blob.gcs.credentials_json` | `GCS_CREDENTIALS_JSON` |
-| `search.backend` | `SEARCH_BACKEND` |
-| `search.meilisearch.url` | `MEILISEARCH_URL` |
-| `search.meilisearch.key` | `MEILISEARCH_KEY` |
+| `db_backend` | `DB_BACKEND` |
+| `sqlite_path` | `SQLITE_PATH` |
+| `postgres_url` | `POSTGRES_URL` |
+| `blob_backend` | `BLOB_BACKEND` |
+| `blob_path` | `BLOB_PATH` |
+| `s3_endpoint` | `S3_ENDPOINT` |
+| `s3_bucket` | `S3_BUCKET` |
+| `s3_region` | `S3_REGION` |
+| `s3_access_key` | `S3_ACCESS_KEY` |
+| `s3_secret_key` | `S3_SECRET_KEY` |
+| `gcs_bucket` | `GCS_BUCKET` |
+| `gcs_credentials_file` | `GCS_CREDENTIALS_FILE` |
+| `gcs_credentials_json` | `GCS_CREDENTIALS_JSON` |
+| `search_backend` | `SEARCH_BACKEND` |
+| `meilisearch_url` | `MEILISEARCH_URL` |
+| `meilisearch_key` | `MEILISEARCH_KEY` |
 | `temp_dir` | `TEMP_DIR` |
 | `max_upload_bytes` | `MAX_UPLOAD_BYTES` |
 | `dartdoc_backend` | `DARTDOC_BACKEND` |
@@ -266,62 +276,47 @@ The YAML keys map directly to their corresponding environment variables:
 | `dartdoc_cache_max_memory_mb` | `DARTDOC_CACHE_MAX_MEMORY_MB` |
 | `static_files_path` | `STATIC_FILES_PATH` |
 
+<Aside type="note">
+  `db_backend`, `blob_backend`, and `blob_path` are additionally accepted under nested `db:` / `blob:` sections (as `db.backend`, `blob.backend`, `blob.path`). All other keys must be supplied in the flat top-level form shown above.
+</Aside>
+
 ## Example: PostgreSQL + S3 Config
 
-A production config using PostgreSQL for metadata and S3 for blob storage:
+A production config using PostgreSQL for metadata and S3 for blob storage. Secrets (`JWT_SECRET`, `POSTGRES_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`) are supplied as environment variables and omitted from the file:
 
 ```yaml
 server_url: "https://packages.example.com"
 log_level: info
 trust_proxy: true
 
-jwt_secret: "{{JWT_SECRET}}"
 token_expiry_days: 90
 
-db:
-  backend: postgres
-  postgres_url: "{{POSTGRES_URL}}"
+db_backend: postgres
 
-blob:
-  backend: s3
-  s3:
-    bucket: "club-packages"
-    region: "us-east-1"
-    access_key: "{{S3_ACCESS_KEY}}"
-    secret_key: "{{S3_SECRET_KEY}}"
+blob_backend: s3
+s3_bucket: "club-packages"
+s3_region: "us-east-1"
 
-search:
-  backend: sqlite
+search_backend: sqlite
 ```
 
 ## Example: MinIO Config
 
-Using MinIO as an S3-compatible blob store:
+Using MinIO as an S3-compatible blob store. Secrets (`JWT_SECRET`, `POSTGRES_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `MEILISEARCH_KEY`) are supplied as environment variables:
 
 ```yaml
 server_url: "https://packages.internal.example.com"
 trust_proxy: true
 
-jwt_secret: "{{JWT_SECRET}}"
+db_backend: postgres
 
-db:
-  backend: postgres
-  postgres_url: "{{POSTGRES_URL}}"
+blob_backend: s3
+s3_endpoint: "http://minio:9000"
+s3_bucket: "club-packages"
+s3_region: "us-east-1"
 
-blob:
-  backend: s3
-  s3:
-    endpoint: "http://minio:9000"
-    bucket: "club-packages"
-    region: "us-east-1"
-    access_key: "{{S3_ACCESS_KEY}}"
-    secret_key: "{{S3_SECRET_KEY}}"
-
-search:
-  backend: meilisearch
-  meilisearch:
-    url: "http://meilisearch:7700"
-    key: "{{MEILISEARCH_KEY}}"
+search_backend: meilisearch
+meilisearch_url: "http://meilisearch:7700"
 ```
 
 ## Example: GCS (native) on GKE
@@ -332,16 +327,12 @@ Using the native GCS backend with Application Default Credentials from a workloa
 server_url: "https://packages.example.com"
 trust_proxy: true
 
-jwt_secret: "{{JWT_SECRET}}"
+db_backend: postgres
 
-db:
-  backend: postgres
-  postgres_url: "{{POSTGRES_URL}}"
-
-blob:
-  backend: gcs
-  gcs:
-    bucket: "my-project.appspot.com"
-    # credentials_file / credentials_json both unset — use ADC.
-    # Downloads proxy through the server (no V4 signing without a private key).
+blob_backend: gcs
+gcs_bucket: "my-project.appspot.com"
+# gcs_credentials_file / gcs_credentials_json both unset — use ADC.
+# Downloads proxy through the server (no V4 signing without a private key).
 ```
+
+`JWT_SECRET` and `POSTGRES_URL` are supplied as environment variables.

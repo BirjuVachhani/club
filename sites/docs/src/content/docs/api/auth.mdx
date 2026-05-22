@@ -31,7 +31,7 @@ Authenticates with email and password. On success, returns the user object and s
 
 **Response: `200 OK`** — returns the user profile. Session cookies are set via `Set-Cookie`.
 
-**Errors:** `401 InvalidCredentials`, `429 RateLimited`.
+**Errors:** `401 MissingAuthentication` (bad email/password), `429 RateLimitExceeded`.
 
 ---
 
@@ -41,9 +41,9 @@ Authenticates with email and password. On success, returns the user object and s
 POST /api/auth/logout
 ```
 
-Clears the session cookie. Does not revoke PATs.
+Revokes the session this request rode in on and clears the auth cookies. Does not touch the user's other sessions or PATs.
 
-**Response: `200 OK`**
+**Response: `200 OK`**, body `{ "status": "ok" }`
 
 ---
 
@@ -76,7 +76,7 @@ Content-Type: application/json
 }
 ```
 
-**Response: `202 Accepted`** — the account is created (or an invite is issued, depending on server policy).
+**Response: `202 Accepted`**, body `{ "status": "ok" }`. The account is created with the `member` role. No session is issued; the client follows up with `POST /api/auth/login`. The response is intentionally identical whether the email was new or already existed (so signup cannot be used to enumerate accounts).
 
 ---
 
@@ -142,7 +142,7 @@ Authorization: Bearer club_pat_...
 GET /api/users/<userId>/avatar
 ```
 
-Returns the image bytes, or `404 NotFound` if the user has no avatar.
+Returns the PNG image bytes, or `404` if the user has no avatar.
 
 ---
 
@@ -171,12 +171,13 @@ Content-Type: application/json
 
 ```json
 {
-  "displayName": "Jane Doe",
   "password": "new-secret"
 }
 ```
 
-**Response: `200 OK`** — returns the newly-activated user and establishes a session.
+Only `password` is read; the display name is fixed by the admin who created the invite.
+
+**Response: `200 OK`** returns the newly-activated user. No session is established; the user follows up with `POST /api/auth/login`.
 
 ---
 
@@ -203,17 +204,17 @@ Content-Type: application/json
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | yes | Human-readable label |
-| `scopes` | string[] | yes | Any subset of `read`, `write`, `admin`; clamped to the caller's role |
-| `expiresInDays` | integer | no | Defaults to the server's configured expiry |
+| `scopes` | string[] | no | Any subset of `read`, `write`, `admin`; clamped to the caller's role. Defaults to `["read", "write"]` |
+| `expiresInDays` | integer | no | If omitted, the token never expires |
 
 **Response: `201 Created`**
 
 ```json
 {
-  "id": "key_a1b2c3d4",
+  "id": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
   "name": "CI/CD Deploy Token",
   "secret": "club_pat_x9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4",
-  "prefix": "club_pat_x9",
+  "prefix": "club_pat_x9y8",
   "scopes": ["read", "write"],
   "createdAt": "2026-04-09T10:00:00.000Z",
   "expiresAt": "2027-04-09T10:00:00.000Z"

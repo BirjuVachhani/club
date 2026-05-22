@@ -147,8 +147,11 @@ you have explicitly logged in to.
 | `--version <semver>` | | Override the version written into the tarball (useful in CI that derives versions from tags). **club-only.** |
 | `--server <host>` | `-s` | Target server override (bare host or URL). **club-only.** |
 
-The `--server` and `--version` flags are club-specific; the rest mirror
-[`dart pub publish`](https://dart.dev/tools/pub/cmd/pub-publish).
+Only `--directory`, `--dry-run`, and `--force` behave as they do in
+[`dart pub publish`](https://dart.dev/tools/pub/cmd/pub-publish); the
+rest are club-specific. `club publish` also accepts flags not listed
+here (`--enhanced`, `--auto`, `--from-git`, `--ref`). See
+[`club publish`](/cli/publishing/) for the complete flag reference.
 
 <Aside type="note" title="No automatic version bump">
 `club publish` will not rewrite `pubspec.yaml`. If you need a different

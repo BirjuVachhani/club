@@ -156,7 +156,7 @@ print('${score.grantedPoints}/${score.maxPoints} pub points');
 final v1Score = await client.getScore('my_package', version: '1.0.0');
 ```
 
-Returns `VersionScore`, which includes pana status, granted/max points, and the pana/Dart/Flutter versions used.
+Returns `VersionScore`, which includes `grantedPoints`, `maxPoints`, `likeCount`, `downloadCount30Days`, and `tags`. For the full pana report (including pana/Dart/Flutter versions), use `getScoringReport(package, version)`, which returns a `PackageScoringReport`.
 
 <Aside>
 Package scoring requires the server to be configured with a Dart SDK. See the [package scoring guide](/guides/package-scoring/) for setup instructions.

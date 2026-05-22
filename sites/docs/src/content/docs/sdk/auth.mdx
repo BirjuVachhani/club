@@ -14,8 +14,9 @@ Authenticate with email and password to obtain session information:
 ```dart
 final result = await client.login('jane@example.com', 'password123');
 
-// Inspect whatever the server returns. Typical fields include user info
-// and, where applicable, a session cookie already set on the http client.
+// Inspect whatever the server returns. Treat it as a plain JSON payload.
+// The SDK does not persist any session cookie automatically; for
+// programmatic access, create an API key and pass it as `token`.
 print(result);
 ```
 
@@ -37,9 +38,9 @@ final key = await client.createApiKey(
 );
 
 print(key);
-// The raw token is in the response and is shown ONLY ONCE.
-// It has the format: club_pat_<random-hex>
-final rawToken = key['token'] as String;
+// The raw token is in the response under the `secret` key and is shown
+// ONLY ONCE. It has the format: club_pat_<random-hex>
+final rawToken = key['secret'] as String;
 ```
 
 Parameters:
@@ -99,15 +100,15 @@ for (final key in keys) {
 ```
 
 <Aside type="note">
-Only the prefix (first 8 characters) and metadata are returned. The full token value is never available after creation.
+Only a short prefix (the `club_pat_` marker plus the first 4 random characters) and metadata are returned. The full token value is never available after creation.
 </Aside>
 
 ## Revoking API Keys
 
-Revoke a key by its ID. The key is immediately invalidated:
+Revoke a key by its ID (the `id` field from `listApiKeys()`, a UUID). The key is immediately invalidated:
 
 ```dart
-await client.revokeApiKey('tok_e5f6');
+await client.revokeApiKey('550e8400-e29b-41d4-a716-446655440000');
 print('Key revoked.');
 ```
 
@@ -170,9 +171,9 @@ try {
 ```dart
 try {
   final key = await client.createApiKey(name: 'test');
-  print(key['token']);
+  print(key['secret']);
 } on ClubApiException catch (e) {
-  print('API error ${e.code}: ${e.message}');
+  print('API error ${e.statusCode}: ${e.message}');
 }
 ```
 
@@ -192,5 +193,6 @@ Every `ClubApiException` has:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `code` | `int` | HTTP status code |
+| `statusCode` | `int` | HTTP status code |
+| `code` | `String` | Machine-readable error code (e.g. `MissingAuthentication`, `NotFound`) |
 | `message` | `String` | Human-readable error message from the server |

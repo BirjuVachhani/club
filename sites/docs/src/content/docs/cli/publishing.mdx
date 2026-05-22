@@ -52,9 +52,10 @@ Uploading to myclub.birju.dev...
 
 ## Flags
 
-The flag set is identical to `dart pub publish` (matched against the
-[upstream `LishCommand`](https://github.com/dart-lang/pub/blob/master/lib/src/command/lish.dart))
-plus `--server`.
+The core flag set mirrors `dart pub publish` (matched against the
+[upstream `LishCommand`](https://github.com/dart-lang/pub/blob/master/lib/src/command/lish.dart)),
+plus club-specific additions (`--server`, `--version`, `--enhanced`,
+`--from-git`, `--ref`, `--auto`).
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -67,6 +68,10 @@ plus `--server`.
 | `--from-archive <path>` | | Upload an existing `.tar.gz` instead of building one. Implies `--skip-validation`. |
 | `--server <host>` | `-s` | Override `publish_to` and the auto-picker. Accepts a bare host (`myclub.birju.dev`) or a full URL. Must be a server you have logged in to with `club login`. |
 | `--version <semver>` | | Override the version being published. Rewrites the version inside the tarball's `pubspec.yaml` without modifying source files. Must be valid semver. |
+| `--enhanced` | `-e` | Club extras on top of dart pub parity: stricter size limit, `dart analyze --fatal-warnings`, git deps as errors, extended leak patterns, DevTools `config.yaml` content checks, every file-case collision reported. |
+| `--from-git <url>` | | Clone a git repository and publish it as a package. Accepts an https or SSH git URL. The repo is cloned under `~/.club/clones/` and removed after a successful publish. |
+| `--ref <ref>` | | Git branch, tag, or commit to check out. Only valid with `--from-git`. Defaults to the remote default branch. |
+| `--auto` | | Switch into multi-package mode for monorepos. See [`club publish --auto`](/cli/auto-publish/). |
 
 ## How the target server is resolved
 
@@ -139,7 +144,7 @@ Validators are grouped by severity:
 
 The full list of validators (in run order):
 
-1. `AnalyzeValidator` — runs `dart analyze --fatal-infos`.
+1. `AnalyzeValidator` — runs `dart analyze` (issues surface as warnings; `--enhanced` upgrades it to `dart analyze --fatal-warnings`).
 2. `ChangelogValidator` — CHANGELOG present and mentions current version.
 3. `CompiledDartdocValidator` — no `doc/api/` or `.ddc.js` artifacts.
 4. `DependencyValidator` — no path/git deps; reasonable version constraints.

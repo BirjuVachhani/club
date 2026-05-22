@@ -64,7 +64,6 @@ See [Environment Variables](/configuration/env-vars/) for the full list of keys 
 
     ```sql
     PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = NORMAL;
     PRAGMA foreign_keys = ON;
     PRAGMA busy_timeout = 5000;
     ```
@@ -197,14 +196,15 @@ Consider switching from SQLite to PostgreSQL when:
     S3_SECRET_KEY=minioadmin
     ```
 
-    **Object layout:**
+    **Object layout** (identical to the filesystem layout):
 
     ```
     s3://club-packages/
-    ├── my_package/1.0.0.tar.gz
-    ├── my_package/1.1.0.tar.gz
-    ├── my_package/2.0.0.tar.gz
-    └── other_package/0.1.0.tar.gz
+    ├── my_package/1.0.0/artifacts/package.tar.gz
+    ├── my_package/1.0.0/artifacts/package.json
+    ├── my_package/1.1.0/artifacts/package.tar.gz
+    ├── my_package/2.0.0/artifacts/package.tar.gz
+    └── other_package/0.1.0/artifacts/package.tar.gz
     ```
 
     When a client downloads a package, the server issues a `302 redirect` to a pre-signed S3 URL. The client downloads directly from S3, reducing server bandwidth.
@@ -277,7 +277,7 @@ Consider switching from filesystem to S3 when:
     SEARCH_BACKEND=sqlite
     ```
 
-    The FTS5 index is maintained automatically via database triggers whenever packages are created, updated, or deleted.
+    The FTS5 index is maintained by the search-index layer, which updates the index whenever packages are created, updated, or deleted.
   </TabItem>
   <TabItem label="Meilisearch">
     Uses [Meilisearch](https://www.meilisearch.com/) as an external search engine. Provides advanced features like typo tolerance and better relevance ranking.

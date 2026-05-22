@@ -5,7 +5,7 @@ description: How to upgrade club using Docker or from source, including schema b
 
 import { Aside, Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
-club follows semantic versioning. The database schema is applied idempotently on every startup, so upgrading is typically as simple as pulling a new image and restarting — there are no manual migration commands.
+club follows semantic versioning. Pending database migrations are applied automatically on every startup, so upgrading is typically as simple as pulling a new image and restarting: there are no manual migration commands.
 
 ## Before You Upgrade
 
@@ -20,7 +20,7 @@ club follows semantic versioning. The database schema is applied idempotently on
 </Steps>
 
 <Aside type="caution">
-Always back up before upgrading. The schema is applied idempotently on every boot, but data-shape changes introduced by a new release may still be irreversible. A backup ensures you can roll back if something goes wrong.
+Always back up before upgrading. Pending migrations are applied automatically on every boot, but data-shape changes introduced by a new release may still be irreversible. A backup ensures you can roll back if something goes wrong.
 </Aside>
 
 ---
@@ -145,31 +145,29 @@ Always back up before upgrading. The schema is applied idempotently on every boo
 
 ## Schema Behavior
 
-### Idempotent, Not Versioned
+### Versioned Migrations
 
-club does **not** use a versioned migration table. Instead, the entire schema is expressed as a list of idempotent statements that run on every server startup:
+club tracks the SQLite schema version in a `club_schema` metadata table and applies a gap-free chain of numbered migrations on startup:
 
-- `CREATE TABLE IF NOT EXISTS ...`
-- `CREATE INDEX IF NOT EXISTS ...`
-- `ALTER TABLE ... ADD COLUMN ...` (with duplicate-column errors caught)
-- `CREATE VIRTUAL TABLE IF NOT EXISTS ... USING fts5(...)`
+- A **fresh database** has the canonical schema applied (`CREATE TABLE`, `CREATE VIRTUAL TABLE ... USING fts5(...)`, etc.) and is then stamped directly at the current schema version.
+- An **existing database** is read for its stamped version and stepped forward through each pending `SchemaMigration` (typically `ALTER TABLE ... ADD COLUMN` statements) until it reaches the current version.
 
-There is no `schema_migrations` table. There are no numbered script files. Every boot re-applies the full schema; the `IF NOT EXISTS` clauses and column-exists guards make this safe.
+The whole operation runs inside a single `BEGIN IMMEDIATE` transaction, so a crash or statement failure rolls the database back to its previous version cleanly, and two replicas starting concurrently can't race the same step.
 
 ### What This Means for Upgrades
 
 | Scenario | Behavior |
 |----------|----------|
-| New tables added in the new version | Created on first boot of the new binary |
-| New columns added to existing tables | Added via `ALTER TABLE` on first boot |
-| New indexes | Created on first boot |
-| Column renames or drops | Require explicit, release-specific data migration code — see release notes |
-| Unchanged schema | No-op; schema statements re-run but nothing changes |
+| Fresh install | Canonical schema applied, then stamped at the current version |
+| Existing database behind by one or more versions | Pending migrations applied in order on first boot of the new binary |
+| New columns added in a new version | Added via an `ALTER TABLE` migration step |
+| Column renames or drops | Shipped as explicit migration statements — see release notes |
+| Unchanged schema (already at current version) | No-op; nothing runs |
 
-You do not run a "migrate" command before or after upgrading. The server applies the schema during boot, **before** it starts accepting requests.
+You do not run a "migrate" command before or after upgrading. The server applies pending migrations during boot, **before** it starts accepting requests.
 
 <Aside type="note">
-Schema application typically completes in under a second. For very large databases, additive `ALTER TABLE` operations may take longer, but the server will not accept requests until the schema is fully applied.
+Schema application typically completes in under a second. For very large databases, additive `ALTER TABLE` migration steps may take longer, but the server will not accept requests until migrations are fully applied.
 </Aside>
 
 ---

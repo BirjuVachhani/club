@@ -44,11 +44,16 @@ There is no `--password` flag. If you need to paste an existing token, use `--ke
 
 ```bash
 $ club login myclub.birju.dev
-Opening browser for https://myclub.birju.dev/oauth/authorize...
-Waiting for authorization...
+Opening browser for authentication...
+
+  https://myclub.birju.dev/oauth/authorize?response_type=code&...
+
+Waiting for authorization (press Ctrl+C to cancel)...
+Exchanging authorization code for token...
+
 Logged in as jane@example.com
 Token stored for myclub.birju.dev
-Registered token with dart pub.
+Token registered with dart pub.
 ```
 
 ### Non-browser fallback

@@ -82,7 +82,7 @@ This is the recommended method. The Docker image bundles everything into a singl
      Set `SERVER_URL` to the public HTTPS URL where users will access club. This URL is embedded in API responses and must be reachable by all clients.
    </Aside>
 
-   The only required values are `SERVER_URL` and `JWT_SECRET`. See the [configuration reference](/configuration/) for all supported environment variables (listen port, DB backend, blob backend, search backend, signup, proxy trust, and so on).
+   `JWT_SECRET` is the only value the server strictly requires (it refuses to start without one of at least 32 characters). `SERVER_URL` is not enforced, but you should always set it: it is embedded in API responses and must be reachable by all clients. See the [configuration reference](/configuration/env-vars/) for all supported environment variables (listen port, DB backend, blob backend, search backend, signup, proxy trust, and so on).
 
 4. **Start club**
 
@@ -124,9 +124,9 @@ docker compose up -d
 
 The Dockerfile uses a three-stage build:
 
-1. **Stage 1 (Dart builder)** -- compiles the Dart server to a native AOT binary using `dart:3.7-sdk`
+1. **Stage 1 (Dart builder)** -- compiles the Dart server to a native binary with `dart build cli`, using the `dart:stable` image
 2. **Stage 2 (Node builder)** -- builds the SvelteKit frontend to static HTML/JS/CSS using `node:22-alpine`
-3. **Stage 3 (Runtime)** -- copies the binary and static files into `debian:bookworm-slim` (~80 MB total)
+3. **Stage 3 (Runtime)** -- copies the binary and static files into `debian:bookworm-slim`
 
 No Dart SDK or Node.js runtime is included in the final image.
 
@@ -253,4 +253,4 @@ You should see your server URL in the list of configured hosted repository token
 - **[First Package](/getting-started/first-package/)** -- publish your first private Dart package
 - **[Docker deployment](/self-hosting/docker/)** -- production deployment with volumes, health checks, and logging
 - **[TLS / HTTPS](/self-hosting/tls/)** -- set up HTTPS (required for production)
-- **[Configuration reference](/configuration/)** -- all environment variables and config options
+- **[Configuration reference](/configuration/env-vars/)** -- all environment variables and config options

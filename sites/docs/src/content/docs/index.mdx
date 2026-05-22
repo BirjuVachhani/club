@@ -33,7 +33,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
     A single Docker image. No extra database server, no message queue, no Node.js at runtime. Runs anywhere Docker runs.
   </Card>
   <Card title="Scales with you" icon="seti:db">
-    Start on SQLite and the local filesystem. Move to PostgreSQL, S3, or Google Cloud Storage when you need to — change a few environment variables, not your workflow.
+    Start on SQLite and the local filesystem. Move blob storage to S3-compatible object storage or Google Cloud Storage when you need to: change a few environment variables, not your workflow.
   </Card>
   <Card title="Familiar web UI" icon="laptop">
     A pub.dev-style web dashboard for browsing packages, reading docs, and managing publishers, users, and tokens.
@@ -73,7 +73,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 <CardGrid>
   <LinkCard
     title="Self-hosting"
-    description="Docker, PostgreSQL, S3, TLS, reverse proxies."
+    description="Docker, S3 storage, TLS, reverse proxies."
     href="/self-hosting/docker/"
   />
   <LinkCard

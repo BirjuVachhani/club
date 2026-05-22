@@ -393,11 +393,7 @@ The search index is updated during publish finalization. If a package was publis
    curl http://meilisearch:7700/health
    ```
 
-3. **If using SQLite FTS5**, the index may be corrupted. Rebuild it:
-
-   ```bash
-   sqlite3 /data/db/club.db "INSERT INTO package_fts(package_fts) VALUES ('rebuild');"
-   ```
+3. **If using SQLite FTS5**, the index may be out of sync. The search-index layer rebuilds the `package_fts` table from the metadata store; restart the server to trigger a re-index.
 
 ---
 

@@ -30,15 +30,23 @@ PATs are created via `POST /api/auth/keys` or through the OAuth flow used by the
 Authorization: Bearer club_pat_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
 ```
 
-Some endpoints are public and require no auth. These include health, the setup flow, public package metadata, archive downloads, search, user avatars, documentation, login/signup, invite acceptance, and the OAuth flow.
+club is a private repository: the default policy is auth-required, and `/api/packages/*`, `/api/archives/*`, `/api/search`, and `/documentation/*` all require authentication. Only a small set of routes is public: the health check (`/api/v1/health`), the version pill (`/api/v1/version`), login / `/me` / signup, the first-run setup flow (`/api/setup/status`, `/verify`, `/complete`), the legal pages (`/api/legal/privacy`, `/api/legal/terms`), OAuth (`/oauth/authorize`, `/oauth/token`), invite lookup/accept (`/api/invites/*`), and user avatars (`/api/users/*`).
 
 ### Token Scopes
 
-| Scope | Allows |
+A token is issued with a subset of these scopes, clamped to the user's role at creation time:
+
+| Scope | Intent |
 |-------|--------|
 | `read` | Download packages, search, list versions |
 | `write` | Publish packages, manage package options |
 | `admin` | User management, package/version deletion, server administration |
+
+<Aside type="note">
+  Authorization is enforced by the caller's **role** (and per-package
+  uploader/publisher membership), not by the token's scope set. Scopes
+  are recorded on the token but are not currently used as access gates.
+</Aside>
 
 ### User Roles
 
@@ -76,7 +84,7 @@ Certain sensitive endpoints are rate-limited per client IP:
 | `POST /api/setup/verify`, `POST /api/setup/complete` | 5 / 15 min |
 | `GET /api/invites/<token>`, `POST /api/invites/<token>/accept` | 10 / 15 min |
 
-Rate-limited responses return `429 RateLimited`.
+Rate-limited responses return `429 RateLimitExceeded`.
 
 ## Security Headers
 

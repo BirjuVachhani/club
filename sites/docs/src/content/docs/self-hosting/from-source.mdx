@@ -10,7 +10,7 @@ This guide covers running club directly on a server without Docker. Use this app
 ## Prerequisites
 
 - A Linux server (Debian/Ubuntu recommended, but any systemd-based distro works)
-- [Dart SDK](https://dart.dev/get-dart) >= 3.7
+- [Dart SDK](https://dart.dev/get-dart) >= 3.11
 - [Node.js](https://nodejs.org/) >= 22
 - Git
 
@@ -85,8 +85,8 @@ sudo useradd --system --home-dir /opt/club --create-home --shell /usr/sbin/nolog
 # Create directories
 sudo mkdir -p /opt/club
 sudo mkdir -p /opt/club/static/web
-sudo mkdir -p /var/lib/club/packages
-sudo mkdir -p /var/lib/club/docs
+sudo mkdir -p /var/lib/club/db
+sudo mkdir -p /var/lib/club/blobs
 sudo mkdir -p /etc/club
 
 # Copy the build output — keep bin/ and lib/ together
@@ -324,7 +324,7 @@ Set up logrotate at `/etc/logrotate.d/club`:
 1. **Back up the database**
 
    ```bash
-   sqlite3 /var/lib/club/club.db ".backup /var/lib/club/club-backup-$(date +%Y%m%d).db"
+   sqlite3 /var/lib/club/db/club.db ".backup /var/lib/club/club-backup-$(date +%Y%m%d).db"
    ```
 
 2. **Pull the latest code and rebuild**
@@ -378,20 +378,20 @@ Set up logrotate at `/etc/logrotate.d/club`:
 ### SQLite backup (safe while running)
 
 ```bash
-sqlite3 /var/lib/club/club.db ".backup /opt/backups/club-$(date +%Y%m%d).db"
+sqlite3 /var/lib/club/db/club.db ".backup /opt/backups/club-$(date +%Y%m%d).db"
 ```
 
 ### Package tarballs
 
 ```bash
-tar czf /opt/backups/club-packages-$(date +%Y%m%d).tar.gz -C /var/lib/club/packages .
+tar czf /opt/backups/club-blobs-$(date +%Y%m%d).tar.gz -C /var/lib/club/blobs .
 ```
 
 ### Automated daily backup via cron
 
 ```bash
 sudo tee /etc/cron.d/club-backup << 'EOF'
-0 2 * * * club sqlite3 /var/lib/club/club.db ".backup /opt/backups/club-$(date +\%Y\%m\%d).db" && tar czf /opt/backups/club-packages-$(date +\%Y\%m\%d).tar.gz -C /var/lib/club/packages .
+0 2 * * * club sqlite3 /var/lib/club/db/club.db ".backup /opt/backups/club-$(date +\%Y\%m\%d).db" && tar czf /opt/backups/club-blobs-$(date +\%Y\%m\%d).tar.gz -C /var/lib/club/blobs .
 EOF
 ```
 

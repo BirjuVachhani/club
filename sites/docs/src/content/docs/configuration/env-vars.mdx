@@ -205,7 +205,7 @@ POSTGRES_URL=postgres://club:secret@db.example.com:5432/club?sslmode=require
 | `BLOB_BACKEND` | No | `filesystem` | `filesystem`, `s3`, or `gcs` |
 | `BLOB_PATH` | No | `/data/blobs` | Root directory for filesystem-backed blob storage (tarballs + screenshots + blob-mode dartdoc) |
 | `S3_BUCKET` | Conditional | -- | S3 bucket name (required for `s3`) |
-| `S3_REGION` | Conditional | -- | S3 region (required for `s3`) |
+| `S3_REGION` | Optional | `us-east-1` | S3 region |
 | `S3_ACCESS_KEY` | Conditional | -- | S3 access key ID (required for `s3`) |
 | `S3_SECRET_KEY` | Conditional | -- | S3 secret access key (required for `s3`) |
 | `S3_ENDPOINT` | Optional | -- | S3-compatible endpoint (MinIO, R2, Spaces, B2, GCS interop) |
@@ -233,7 +233,7 @@ BLOB_PATH=/data/blobs      # Default (Docker)
 
 ### S3 Configuration
 
-`S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` are **required** when `BLOB_BACKEND=s3`. `S3_ENDPOINT` is optional for AWS but required for anything else.
+`S3_BUCKET`, `S3_ACCESS_KEY`, and `S3_SECRET_KEY` are **required** when `BLOB_BACKEND=s3`. `S3_REGION` is optional and defaults to `us-east-1`. `S3_ENDPOINT` is optional for AWS but required for anything else.
 
 ```bash
 # AWS S3
@@ -392,7 +392,8 @@ The server validates configuration at startup and fails fast with a clear error 
 | `JWT_SECRET` not set | `JWT_SECRET is required.` |
 | `JWT_SECRET` < 32 chars | `JWT_SECRET must be at least 32 characters.` |
 | `DB_BACKEND=postgres` without URL | `POSTGRES_URL must be set when DB_BACKEND=postgres.` |
-| `BLOB_BACKEND=s3` without bucket/keys | `S3_ACCESS_KEY and S3_SECRET_KEY are required when BLOB_BACKEND=s3.` |
+| `BLOB_BACKEND=s3` without `S3_BUCKET` | `S3 configuration required when BLOB_BACKEND=s3.` |
+| `BLOB_BACKEND=s3` without access/secret keys | `S3_ACCESS_KEY and S3_SECRET_KEY are required when BLOB_BACKEND=s3.` |
 | `BLOB_BACKEND=gcs` without bucket | `GCS_BUCKET is required when BLOB_BACKEND=gcs.` |
 | `SEARCH_BACKEND=meilisearch` without URL | `MEILISEARCH_URL must be set when SEARCH_BACKEND=meilisearch.` |
 

@@ -13,11 +13,10 @@ Docker is the recommended way to deploy club. The image bundles the AOT-compiled
 |----------|-------|
 | Build stages | 3 (Dart AOT, Node static, Debian runtime) |
 | Runtime base | `debian:bookworm-slim` |
-| Final image size | ~80 MB |
-| Runtime user | `club` (UID 1000) |
 | Exposed port | 8080 |
 | Data volume | `/data` |
-| Entrypoint | `/app/bin/server` (AOT-compiled Dart binary) |
+| Runtime user | Server runs as `root` by default (override with `docker run --user` or compose `user:`). The pana scoring subprocess always drops to the unprivileged `scoring` user (UID/GID 1001). |
+| Entrypoint | `/app/bin/entrypoint.sh` (prepares `/data` directories, then execs the AOT-compiled `/app/bin/server`) |
 | Health check | TCP `GET /api/v1/health` on port 8080 |
 
 No Dart SDK or Node.js runtime is included in the final image. The Dart server is an AOT-compiled native binary. The SvelteKit frontend is pre-built static HTML/JS/CSS.
@@ -240,12 +239,13 @@ volumes:
   - /var/lib/club:/data
 ```
 
-Make sure the directory is owned by UID 1000 (the `club` user inside the container):
+By default the server runs as `root` inside the container, so it can write to a freshly created host directory without any `chown`:
 
 ```bash
 sudo mkdir -p /var/lib/club
-sudo chown 1000:1000 /var/lib/club
 ```
+
+If you run the container as a non-root user (`docker run --user` or compose `user:`), make sure that UID owns the directory. The scoring subprocess always runs as UID/GID 1001 regardless; the entrypoint relaxes permissions on the shared cache/tmp paths when started as root.
 
 ## Health Checks
 
@@ -268,13 +268,13 @@ Example response:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0",
-  "timestamp": "2026-01-01T00:00:00Z",
   "checks": {
     "metadata_store": {"status": "ok", "latencyMs": 2},
     "blob_store":     {"status": "ok", "latencyMs": 1},
     "search_index":   {"status": "ok", "latencyMs": 1}
-  }
+  },
+  "version": "0.3.0",
+  "timestamp": "2026-01-01T00:00:00Z"
 }
 ```
 
@@ -421,7 +421,7 @@ The three-stage Dockerfile:
 
 1. **`dart:stable`** -- installs Dart dependencies, runs `dart build cli` to produce an AOT-compiled server binary at `/app/build/server/bundle/bin/server`
 2. **`node:22-alpine`** -- installs npm dependencies, builds the SvelteKit frontend to static HTML/JS/CSS via `adapter-static`
-3. **`debian:bookworm-slim`** -- copies the binary + dynamic libraries and the web build, installs runtime dependencies (`ca-certificates`, `curl`, `git`, `unzip`, `webp`) needed by pana for scoring, creates the non-root `club` user (UID 1000)
+3. **`debian:bookworm-slim`** -- copies the binary + dynamic libraries and the web build, installs runtime dependencies (`ca-certificates`, `curl`, `git`, `unzip`, `webp`) needed by pana for scoring, and creates the unprivileged `scoring` user (UID/GID 1001) that the pana scoring subprocess drops to. The server itself runs as `root` by default.
 
 ## Production Checklist
 
@@ -434,6 +434,5 @@ The three-stage Dockerfile:
 - [ ] Set up automated backups (daily cron recommended)
 - [ ] Monitor the health endpoint
 - [ ] Configure log aggregation
-- [ ] Consider [PostgreSQL](/self-hosting/docker-postgres/) for concurrent access
 - [ ] Consider [S3 storage](/self-hosting/docker-s3/) for large or numerous packages
 - [ ] Set Docker container resource limits (memory, CPU)

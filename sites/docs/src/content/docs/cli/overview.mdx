@@ -31,17 +31,22 @@ club --version
 club
 ├── login <host>                     Authenticate via browser OAuth (default), --no-browser, or --key
 ├── logout [--server <host>] [--all] Remove stored credentials
+├── config                           Show or change default server
+│   ├── show                         Alias for: club config
+│   └── set-server <host>            Set default server
 ├── setup [--env-var <NAME>]         Register the stored token with dart pub
 ├── publish [--auto]                 Publish a package (native flow; resolves server automatically).
 │                                    Add --auto for orchestrated monorepo publishing.
 ├── prepare                          Rewrite path/workspace deps to hosted refs in topo order
 │                                    (monorepo prep without publishing)
-├── mcp [--server <host> --token <pat>]
-│                                    Start a stdio MCP server so AI clients can browse, search,
-│                                    and reason about packages on a club server.
-└── config                           Show or change default server
-    ├── show                         Alias for: club config
-    └── set-server <host>            Set default server
+├── add [<section>:]<package>[:<descriptor>] ...
+│                                    Add hosted dependencies to pubspec.yaml from a logged-in server
+├── global                           Manage globally-installed packages from a club server
+│   ├── activate <package>           Globally activate a package from a club server
+│   └── deactivate <package>         Deactivate a globally-installed package
+└── mcp [--server <host> --token <pat>]
+                                     Start a stdio MCP server so AI clients can browse, search,
+                                     and reason about packages on a club server.
 ```
 
 `<host>` is a bare host like `myclub.birju.dev`. A full URL

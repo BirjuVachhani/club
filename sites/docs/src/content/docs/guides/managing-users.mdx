@@ -45,11 +45,15 @@ The server generates a 16-character random password, saves the account (marked `
   }
   ```
 
-  Response:
+  Response (`201 Created`) — the user fields are returned at the top level alongside `mode` and the generated password:
   ```json
   {
-    "user": { "id": "...", "email": "jane@example.com", "role": "member" },
-    "password": "7nQx2VpD9aLh6K3m"
+    "userId": "...",
+    "email": "jane@example.com",
+    "role": "member",
+    "mustChangePassword": true,
+    "mode": "password",
+    "generatedPassword": "7nQx2VpD9aLh6K3m"
   }
   ```
   </TabItem>
@@ -79,11 +83,15 @@ The server creates a signup invite with a configurable expiry (in hours) and ret
   }
   ```
 
-  Response:
+  Response (`201 Created`) — the user fields are returned at the top level alongside `mode`, the invite URL, and its expiry window in hours:
   ```json
   {
+    "userId": "...",
+    "email": "jane@example.com",
+    "role": "member",
+    "mode": "invite",
     "inviteUrl": "https://club.example.com/invite/abc123...",
-    "expiresAt": "2026-04-20T12:00:00Z"
+    "inviteExpiresInHours": 72
   }
   ```
   </TabItem>

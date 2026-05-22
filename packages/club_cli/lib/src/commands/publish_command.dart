@@ -12,9 +12,12 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../prepare/conflict_resolver.dart';
 import '../prepare/tree_renderer.dart';
 import '../publish/auto_publish_runner.dart';
+import '../publish/git_source.dart';
 import '../publish/publish_runner.dart';
 import '../util/log.dart';
 import 'base/club_command.dart';
@@ -132,6 +135,23 @@ class PublishCommand extends ClubCommand {
         'no-tree',
         negatable: false,
         help: 'Suppress the dependency tree section (only used with --auto).',
+      )
+      ..addOption(
+        'from-git',
+        help:
+            'Clone a git repository and publish it as a package. Accepts '
+            'an https or SSH git URL. The repo is cloned under '
+            '~/.club/clones/ and removed after a successful publish. '
+            'Combine with --auto for monorepos, or -C to target a '
+            'package in a subdirectory of the repo.',
+        valueHelp: 'url',
+      )
+      ..addOption(
+        'ref',
+        help:
+            'Git branch, tag, or commit to check out (only used with '
+            '--from-git). Defaults to the remote default branch.',
+        valueHelp: 'ref',
       );
   }
 
@@ -149,6 +169,68 @@ class PublishCommand extends ClubCommand {
     configureColors();
 
     final results = argResults!;
+    final fromGit = results['from-git'] as String?;
+    final gitRef = results['ref'] as String?;
+
+    // --ref is meaningless without a repository to check out.
+    if (gitRef != null && fromGit == null) {
+      error('--ref can only be used together with --from-git.');
+      exitCode = ExitCodes.config;
+      return;
+    }
+
+    // ── --from-git: clone the repo, publish from the clone, clean up ─────
+    if (fromGit != null) {
+      if (results['from-archive'] != null) {
+        error('--from-git cannot be combined with --from-archive.');
+        exitCode = ExitCodes.config;
+        return;
+      }
+
+      final GitClone clone;
+      try {
+        clone = await prepareGitClone(url: fromGit, ref: gitRef);
+      } on GitSourceError catch (e) {
+        error(e.message);
+        if (e.hint != null) hint(e.hint!);
+        exitCode = ExitCodes.unavailable;
+        return;
+      }
+
+      var succeeded = false;
+      try {
+        await _runPublish(baseDirectory: clone.root);
+        succeeded = exitCode == ExitCodes.success;
+      } finally {
+        info('');
+        if (succeeded) {
+          detail(gray('Removing clone ${clone.root}'));
+          deleteGitClone(clone.root);
+        } else {
+          hint(
+            'Clone kept at ${clone.root}. Re-running --from-git reuses it '
+            '(hard reset + force checkout, no re-clone).',
+          );
+        }
+      }
+      return;
+    }
+
+    // ── Plain publish (current directory or -C) ──────────────────────────
+    await _runPublish(baseDirectory: null);
+  }
+
+  /// Runs the single-package or `--auto` publish flow.
+  ///
+  /// When [baseDirectory] is set (a `--from-git` clone root) the effective
+  /// package directory is that root, with any `-C/--directory` value
+  /// resolved relative to it. Otherwise `-C` is used as given.
+  Future<void> _runPublish({required String? baseDirectory}) async {
+    final results = argResults!;
+    final dirFlag = (results['directory'] as String?) ?? '';
+    final directory = baseDirectory == null
+        ? dirFlag
+        : (dirFlag.isEmpty ? baseDirectory : p.join(baseDirectory, dirFlag));
 
     // ── --auto branch: multi-package orchestrated publish ────────────────
     if (results['auto'] as bool) {
@@ -171,7 +253,7 @@ class PublishCommand extends ClubCommand {
       final treeStyle = parseTreeStyle(results['tree'] as String) ??
           TreeStyle.stacked;
       final autoOptions = AutoPublishOptions(
-        directory: (results['directory'] as String?) ?? '',
+        directory: directory,
         targets: results.rest,
         dryRun: results['dry-run'] as bool,
         force: results['force'] as bool,
@@ -201,7 +283,7 @@ class PublishCommand extends ClubCommand {
 
     // ── Single-package publish (default) ─────────────────────────────────
     final options = PublishOptions(
-      directory: (results['directory'] as String?) ?? '',
+      directory: directory,
       dryRun: results['dry-run'] as bool,
       force: results['force'] as bool,
       skipValidation:

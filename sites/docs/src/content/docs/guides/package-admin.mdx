@@ -9,14 +9,16 @@ Package administration covers the operations available to package uploaders, pub
 
 ## Who Can Do What
 
-Every package is owned in one of two ways:
+Every package is owned in exactly one of two ways, decided by whether a publisher is set:
 
-- **Uploader list** — one or more users with publish rights on this package.
-- **Publisher** — a single organization whose admins and members all share rights.
+- **Uploader list** — one or more users with rights on this package. Used when no publisher is set.
+- **Publisher** — a single organization. Used when a publisher is set.
 
-A package can have both: if a publisher is set, publisher admins **and** named uploaders both have write access.
+The two are mutually exclusive: once a publisher is set the package is publisher-owned, and the uploader list is no longer consulted for permission checks. Clearing the publisher returns the package to uploader ownership (the server ensures at least one uploader remains).
 
-| Action | Any uploader / publisher admin | Server admin only |
+For a **publisher-owned** package: any publisher **member** can publish new versions, but the administrative actions in the table below require publisher **admin** rights. For an **uploader-owned** package, every named uploader can do all of these actions.
+
+| Action | Uploader (uploader-owned) / publisher admin (publisher-owned) | Server admin only |
 |--------|:------------------------------:|:-----------------:|
 | Add / remove uploaders | yes | yes |
 | Set or clear publisher | yes | yes |
@@ -92,13 +94,12 @@ See [Retracting a Version](/guides/retracting-versions/) for the full flow, solv
 
 ## Managing Uploaders
 
-For user-owned packages (and alongside a publisher), uploaders control who can push new versions.
+For uploader-owned packages, the uploader list controls who can push new versions and perform package administration. While a publisher is set the uploader list is not consulted; publisher membership governs access instead.
 
 ### Add an uploader
 
 ```http
-POST /api/packages/<pkg>/uploaders
-{ "email": "bob@example.com" }
+PUT /api/packages/<pkg>/uploaders/<email>
 ```
 
 ### Remove an uploader
@@ -107,7 +108,7 @@ POST /api/packages/<pkg>/uploaders
 DELETE /api/packages/<pkg>/uploaders/<email>
 ```
 
-The last uploader cannot be removed — every package must have at least one uploader (or a publisher set).
+The last uploader cannot be removed — `DELETE /api/packages/<pkg>/uploaders/<email>` rejects the request when only one uploader remains, so every package always has at least one uploader on record.
 
 ### List uploaders
 
@@ -131,7 +132,7 @@ PUT /api/packages/<pkg>/publisher
 { "publisherId": null }
 ```
 
-Setting a publisher does **not** remove existing uploaders — they continue to have write access alongside publisher admins/members. Clearing it requires there to still be at least one uploader.
+Setting a publisher does **not** delete the existing uploader rows, but while a publisher is set those uploaders no longer have effective access: permission checks for a publisher-owned package consult publisher membership only. If the publisher is later cleared, the package returns to uploader ownership; if no uploaders remain, the server adds the user who cleared it so the package is never orphaned.
 
 ## Deleting Your Own Package
 
@@ -163,7 +164,7 @@ It records events such as:
 - Publisher set / cleared
 - Package or version deleted
 
-Each entry carries a timestamp, actor, event kind, summary, and full JSON payload.
+Each entry carries a timestamp, actor, event kind, summary, and the affected version (when applicable).
 
 ## Admin-Only Operations
 

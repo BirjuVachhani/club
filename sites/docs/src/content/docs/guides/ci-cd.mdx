@@ -113,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
 
-      - uses: BirjuVachhani/club/actions/setup-club@v1
+      - uses: BirjuVachhani/club/actions/setup-club@0.3.0
         with:
           server: https://club.example.com
           token: \${{ secrets.CLUB_TOKEN }}
@@ -137,18 +137,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
-      - uses: BirjuVachhani/club/actions/setup-club@v1
+      - uses: BirjuVachhani/club/actions/setup-club@0.3.0
         with:
           server: https://club.example.com
           token: \${{ secrets.CLUB_TOKEN }}
 
       - run: club publish`} lang="yaml" title=".github/workflows/publish.yml" />
 
-  No `--force` needed — `setup-club` exports `CI=true` and
-  `CLUB_TOKEN` to `$GITHUB_ENV`, and CI auto-detection skips the
-  confirmation prompt. The publish target is read from
-  `publish_to:` in the pubspec, or pass `--server <host>`
-  explicitly.
+  No `--force` needed — `setup-club` exports `CLUB_TOKEN` to
+  `$GITHUB_ENV`, and the GitHub Actions runner sets `CI=true`
+  automatically, so CI auto-detection skips the confirmation
+  prompt. The publish target is read from `publish_to:` in the
+  pubspec, or pass `--server <host>` explicitly.
   </TabItem>
   <TabItem label="club publish --auto (monorepo)">
   <Code code={`name: Publish
@@ -163,7 +163,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
-      - uses: BirjuVachhani/club/actions/setup-club@v1
+      - uses: BirjuVachhani/club/actions/setup-club@0.3.0
         with:
           server: https://club.example.com
           token: \${{ secrets.CLUB_TOKEN }}
@@ -192,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
 
-      - uses: BirjuVachhani/club/actions/setup-club@v1
+      - uses: BirjuVachhani/club/actions/setup-club@0.3.0
         with:
           server: https://club.example.com
           token: \${{ secrets.CLUB_TOKEN }}
@@ -222,7 +222,7 @@ jobs:
         with:
           flutter-version: '3.x'
 
-      - uses: BirjuVachhani/club/actions/setup-club@v1
+      - uses: BirjuVachhani/club/actions/setup-club@0.3.0
         with:
           server: https://club.example.com
           token: \${{ secrets.CLUB_TOKEN }}

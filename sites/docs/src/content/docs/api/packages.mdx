@@ -7,7 +7,14 @@ import { Aside } from '@astrojs/starlight/components';
 
 These endpoints cover the Pub Spec v2 read surface (metadata and archives) plus club's package-level administration, likes, scoring, and download stats.
 
-## Pub Spec v2 (public)
+<Aside type="note">
+  club is a private repository. The Pub Spec v2 read endpoints below
+  require authentication (a Bearer PAT or a session cookie), even though
+  the upstream pub spec allows them to be public. The `dart pub` client
+  sends the configured token automatically.
+</Aside>
+
+## Pub Spec v2
 
 ### List All Versions of a Package
 
@@ -60,7 +67,7 @@ GET /api/packages/<package>/versions/<version>/content
 GET /api/packages/<package>/content
 ```
 
-Returns the rendered README, CHANGELOG, and example text for a version. The `/<package>/content` alias resolves to the latest non-retracted version.
+Returns the rendered README, CHANGELOG, and example text for a version. The `/<package>/content` alias resolves to the package's latest version.
 
 ```json
 {
@@ -68,7 +75,10 @@ Returns the rendered README, CHANGELOG, and example text for a version. The `/<p
   "version": "2.1.0",
   "readme": "# my_package ...",
   "changelog": "## 2.1.0 ...",
-  "example": "import ..."
+  "example": "import ...",
+  "examplePath": "example/main.dart",
+  "binExecutables": [],
+  "screenshots": []
 }
 ```
 
@@ -134,7 +144,7 @@ PUT    /api/packages/<package>/uploaders/<email>
 DELETE /api/packages/<package>/uploaders/<email>
 ```
 
-Each endpoint returns the current uploaders list. The server refuses to remove the last uploader (`400 BadRequest`).
+`GET` returns the current uploaders list. `PUT` and `DELETE` return `{ "status": "ok" }`. The server refuses to remove the last uploader (`400 InvalidInput`).
 
 ```json
 {
@@ -144,7 +154,7 @@ Each endpoint returns the current uploaders list. The server refuses to remove t
 }
 ```
 
-**Errors:** `404 NotFound` (unknown email), `409 Conflict` (already an uploader), `400 BadRequest` (last uploader).
+**Errors:** `404 NotFound` (unknown email), `400 InvalidInput` (removing the last uploader), `403 InsufficientPermissions` (caller is not a package admin).
 
 ---
 
@@ -184,21 +194,24 @@ Returns whether the caller can administer this package (as uploader, publisher a
 GET /api/packages/<package>/activity-log?before=<iso8601>
 ```
 
-Returns up to 50 audit log entries for this package, newest first. Pass the `createdAt` of the oldest entry as `before=` to paginate.
+Returns up to 50 audit log entries for this package, newest first. Pass the `createdAt` of the oldest entry as `before=` to paginate. Requires authentication as a package admin (uploader, publisher admin, or server admin).
 
 ```json
 {
   "entries": [
     {
       "id": "...",
-      "action": "publish",
-      "actor": { "userId": "...", "email": "..." },
       "createdAt": "2026-04-01T10:00:00.000Z",
-      "details": { "version": "2.1.0" }
+      "kind": "package.version_published",
+      "summary": "Published my_package 2.1.0.",
+      "version": "2.1.0",
+      "agent": { "email": "jane@example.com", "displayName": "Jane Doe" }
     }
   ]
 }
 ```
+
+The `version` and `agent` fields are present only when applicable.
 
 ---
 
@@ -265,7 +278,7 @@ DELETE /api/publishers/<id>/members/<userId>
 
 ## Likes
 
-### Get Package Like Count (public)
+### Get Package Like Count
 
 ```http
 GET /api/packages/<package>/likes
@@ -317,15 +330,16 @@ GET /api/packages/<package>/versions/<version>/score
 GET /api/packages/<package>/versions/<version>/scoring-report
 ```
 
-Returns the full pana report JSON. The report's `status` is one of:
+Returns the pana report. The response `status` is one of:
 
 | Status | Meaning |
 |--------|---------|
+| `disabled` | Scoring is disabled for this server |
+| `not_analyzed` | No score record exists yet for this version |
 | `pending` | Queued for analysis |
 | `running` | Pana is currently scoring this version |
-| `completed` | Report available |
+| `completed` | Report available (includes `grantedPoints`, `maxPoints`, `sections`) |
 | `failed` | Pana exited with an error |
-| `disabled` | Scoring disabled for this server |
 
 ---
 
@@ -335,13 +349,19 @@ Returns the full pana report JSON. The report's `status` is one of:
 GET /api/packages/<package>/downloads
 ```
 
-Returns a 53-week rolling history of per-week download counts for a package.
+Returns a rolling history of per-week download counts for a package.
 
 ```json
 {
-  "package": "my_package",
+  "packageName": "my_package",
+  "total30Days": 540,
   "weeks": [
-    { "weekStart": "2025-04-14", "count": 120 }
+    {
+      "weekStart": "2025-04-14",
+      "weekLabel": "Apr 14",
+      "total": 120,
+      "byVersion": { "2.1.0": 100, "2.0.0": 20 }
+    }
   ]
 }
 ```

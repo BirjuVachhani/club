@@ -16,7 +16,7 @@ club supports two authentication mechanisms, each for a different surface:
 | **Web session** | Browser UI | Cookie set at login |
 | **Personal Access Token (PAT)** | CLI, API clients, `dart pub`, CI | `Authorization: Bearer <token>` header |
 
-Web sessions can only drive the web UI. PATs can only drive API calls and `dart pub` traffic. The two never overlap.
+The browser UI authenticates with the session cookie; the CLI, API clients, and `dart pub` authenticate with a PAT. A session token presented as a `Bearer` header is also accepted, but a bearer-presented session does not slide its expiry, so it cannot keep itself alive without going back through the cookie flow. In practice, use a PAT for everything outside the browser.
 
 ## Personal Access Tokens
 
