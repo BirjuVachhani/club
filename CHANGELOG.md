@@ -2,7 +2,7 @@
 
 ### Added
 
-- **`club publish --from-git <url>`**: publish a package straight from a git repository. The repo is cloned into `~/.club/clones/<host>/<org>/<repo>`, and the existing publish flow (dependency resolution, validation, upload) runs on the clone unchanged. Use `--ref <branch|tag|commit>` to publish a specific ref (defaults to the remote default branch), combine with `--auto` for monorepos, or `-C` to target a package in a subdirectory. The clone is removed after a successful publish; on failure it is kept so a re-run reuses it via hard reset and force checkout instead of re-cloning.
+- **`club publish --from-git <url>`**: publish a package straight from a git repository. The repo is shallow-cloned (`--depth 1`, single branch) into `~/.club/clones/<host>/<org>/<repo>`, and the existing publish flow (dependency resolution, validation, upload) runs on the clone unchanged. Use `--ref <branch|tag|commit>` to publish a specific ref (defaults to the remote default branch), combine with `--auto` for monorepos, or `-C` to target a package in a subdirectory. The clone is removed after a successful publish; on failure it is kept so a re-run reuses it via a shallow fetch and force checkout instead of re-cloning.
 
 ### Docs
 

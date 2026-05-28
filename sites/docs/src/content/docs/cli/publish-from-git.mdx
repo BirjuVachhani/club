@@ -1,0 +1,398 @@
+---
+title: club publish --from-git
+description: Publish a Dart package straight from a git repository. Club clones the repo into a managed cache, runs the normal publish flow on the clone, and cleans up after a successful publish.
+sidebar:
+  label: Publish from Git directly
+  order: 7
+---
+
+import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+`club publish --from-git` extends [`club publish`](/cli/publishing/) so you
+can publish a package from a git URL without cloning the repo yourself.
+In one command it:
+
+1. Clones the repository into `~/.club/clones/<host>/<org>/<repo>`.
+2. Checks out a branch, tag, or commit (defaults to the remote default branch).
+3. Runs the **standard publish flow** on the clone.
+4. Deletes the clone on success.
+5. Keeps the clone on failure so a re-run reuses it via a fast hard
+   reset, no re-clone.
+
+Everything downstream of the clone is the unchanged single-package or
+`--auto` flow. The on-disk state of your current shell is never touched.
+
+<Aside type="tip" title="When to use this">
+Use `--from-git` when the source of truth for a package is a git
+repository you do not want to check out locally: publishing a fork or
+patch branch, mirroring an upstream package onto your private club
+server, or running a one-off republish from CI without preparing a
+workspace.
+</Aside>
+
+## Quick start
+
+Publish the default branch of a public repo:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package
+```
+
+Publish a specific tag or branch:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package --ref v1.2.0
+club publish --from-git https://github.com/your-org/your-package --ref main
+```
+
+Publish a package that lives in a subdirectory of the repo:
+
+```bash
+club publish --from-git https://github.com/your-org/your-monorepo -C packages/foo
+```
+
+Publish every package of a monorepo in topological order:
+
+```bash
+club publish --from-git https://github.com/your-org/your-monorepo --auto
+```
+
+Preview without uploading:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package --dry-run
+```
+
+A typical successful run looks like:
+
+```text
+Preparing git source ────────────────────────────────────────
+   repo: your-org/your-package (github.com)
+   cache: /home/me/.club/clones/github.com/your-org/your-package
+   cloning…
+   ✓ cloned, checked out main (a1b2c3d) (1.4s)
+
+📦 Publishing your_package 1.2.0
+   from /home/me/.club/clones/github.com/your-org/your-package
+   to myclub.birju.dev (auto-selected (only logged-in server))
+
+Building package archive ────────────────────────────────────
+   /tmp/club-publish-1779431135919322.tar.gz
+   12.2 KiB, 16 files (42ms)
+
+Resolving dependencies ──────────────────────────────────────
+   ✓ Resolved (1.2s)
+
+Running 25 validators ───────────────────────────────────────
+   ✓ All validators passed. (642ms)
+
+Uploading ───────────────────────────────────────────────────
+   Server: published your_package 1.2.0
+   (982ms)
+
+  ┌──────────────────────────────────────────────────────┐
+  │  🎉 your_package 1.2.0 published                     │
+  │  URL   https://myclub.birju.dev/packages/your_package│
+  │  Size  12.2 KiB (16 files)                           │
+  └──────────────────────────────────────────────────────┘
+
+   Removing clone /home/me/.club/clones/github.com/your-org/your-package
+```
+
+## How it works
+
+<Steps>
+
+1. **URL parsing.** Both `https://host/org/repo(.git)` and SCP-style
+   `git@host:org/repo.git` URLs are accepted. The host and repo path
+   are mapped to a namespaced cache directory under `~/.club/clones/`
+   so two repos with the same name from different orgs never collide.
+
+2. **Clone or reuse (shallow).** If the cache directory does not exist
+   (or its `origin` remote does not match the requested URL, or the
+   directory is not a healthy git work tree), Club does a fresh
+   `--depth 1` clone of just the ref being published, on a single
+   branch. If the cache directory is a healthy match, Club reuses it
+   and runs a shallow `git fetch` for the same ref. Either way the
+   cache holds only the single commit being published, no history.
+
+3. **Checkout.** Club force-checks-out the requested ref. Local
+   branches are reset to the matching remote tip, tags and commits are
+   checked out detached, and `git clean -ffdx` removes any untracked or
+   ignored files (stale `.dart_tool`, lockfiles, build output). The
+   working tree is pristine before the publish runs.
+
+4. **Standard publish flow.** From here on the run is identical to a
+   regular `club publish` (or `club publish --auto`) executed in the
+   clone directory: server resolution, version conflict pre-check,
+   `dart pub get`, the 25 validators, tarball build, upload.
+
+5. **Cleanup.** After a successful publish the clone is deleted and any
+   empty parent directories under `~/.club/clones/` are pruned. If the
+   publish fails the clone is kept so a re-run can fast-path through
+   step 2 with no re-clone.
+
+</Steps>
+
+<Aside type="note" title="No effect on your working tree">
+`--from-git` only writes inside `~/.club/clones/`. Your current
+directory, your existing workspaces, and your other git checkouts are
+untouched.
+</Aside>
+
+## Monorepos: `--auto` and subdirectories
+
+`--from-git` composes with both ways `club publish` handles monorepos:
+
+<Tabs>
+  <TabItem label="--auto (recommended)">
+  Publish every package in a workspace-style monorepo in topological
+  order, with in-memory dependency rewrites, in a single command:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-monorepo --auto
+  ```
+
+  The full [`--auto`](/cli/auto-publish/) pipeline runs against the
+  clone: discovery walks the cloned tree, the dependency graph and
+  topo order are computed, internal `path:` deps are rewritten in
+  memory, and every package is published in order. Target a specific
+  subset by passing package names as positional args:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-monorepo \
+    --auto pkg_a pkg_b
+  ```
+  </TabItem>
+  <TabItem label="-C subdirectory">
+  Publish a single package that lives in a subdirectory of the repo,
+  without involving `--auto`:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-monorepo \
+    -C packages/foo
+  ```
+
+  `-C` (`--directory`) is resolved relative to the clone root when
+  `--from-git` is set, so you can point at any subdirectory inside the
+  repo. The single-package flow then runs as if you had `cd`'d into
+  that directory.
+  </TabItem>
+</Tabs>
+
+## Reuse and the clone cache
+
+`~/.club/clones/<host>/<org>/<repo>` is treated as a managed cache,
+not a persistent checkout. Two rules govern it:
+
+| Outcome | What happens to the clone |
+|---------|---------------------------|
+| Publish succeeded | Clone is deleted. Empty parent dirs under `~/.club/clones/` are pruned. |
+| Publish failed | Clone is kept so the next run can hard-reset and re-checkout instead of cloning from scratch. |
+
+A re-run after failure is foolproof: regardless of what was committed,
+modified, or left behind in the working tree, Club fetches the latest
+refs, force-checks-out the requested ref (resetting any local
+divergence), and runs `git clean -ffdx` to wipe untracked and ignored
+files. There is no way for stale state to leak into a publish.
+
+The reuse path is also safe across different repos: each one has its
+own namespaced directory, and a directory pointing at a different
+remote is wiped and re-cloned automatically.
+
+### Cleaning the cache manually
+
+The cache is just a directory. Safe to delete by hand at any time:
+
+```bash
+rm -rf ~/.club/clones
+```
+
+The next `--from-git` run will recreate any directories it needs.
+
+## URL formats
+
+| Form | Example |
+|------|---------|
+| HTTPS | `https://github.com/your-org/your-package` |
+| HTTPS with `.git` | `https://github.com/your-org/your-package.git` |
+| SSH (SCP-style) | `git@github.com:your-org/your-package.git` |
+| SSH (URL-style) | `ssh://git@github.com/your-org/your-package.git` |
+| Nested groups | `https://gitlab.com/group/subgroup/repo.git` |
+
+Nested groups (GitLab subgroups, Gitea organisations with sub-orgs,
+etc.) map naturally onto nested cache directories:
+
+```text
+~/.club/clones/gitlab.com/group/subgroup/repo
+```
+
+### Private repositories
+
+Authentication is delegated to your local `git` setup. Whatever lets
+`git clone` succeed in a regular terminal (SSH key in `ssh-agent`, an
+HTTPS credential helper, an OAuth token, a `~/.netrc` entry) is what
+Club uses. No `--from-git`-specific auth flags exist.
+
+## Flags
+
+`--from-git` accepts every standard `club publish` flag, with two
+additions and one restriction.
+
+| Flag | Description |
+|------|-------------|
+| `--from-git <url>` | Git URL to clone and publish from. HTTPS and SSH (SCP-style or URL-style) are both accepted. |
+| `--ref <ref>` | Branch, tag, or commit SHA to check out. Defaults to the remote default branch. Only valid with `--from-git`. |
+| `--directory <path>`, `-C` | When `--from-git` is set, resolved relative to the clone root. Useful for publishing a single package in a monorepo without `--auto`. |
+| `--auto` | Run multi-package discovery + topological publish over the clone. See [`club publish --auto`](/cli/auto-publish/). |
+| `--dry-run`, `-n` | Clone (or reuse), validate, and bail before uploading. The clone is still removed on success. |
+| `--force`, `-f` | Skip confirmation prompts, force-publish existing versions. |
+| `--ref` without `--from-git` | Rejected with a config error. |
+| `--from-archive` | **Not compatible** with `--from-git` (the archive is already built; there is nothing to clone). |
+
+All other `club publish` flags (`--server`, `--enhanced`,
+`--skip-validation`, `--to-archive`, `--version`, the `--auto` flags
+`--on-conflict`, `--tree`, `--no-tree`) behave exactly as in the
+standard flow.
+
+## Examples
+
+<Tabs>
+  <TabItem label="Tag">
+  Publish exactly what was released as `v1.4.0` upstream:
+
+  ```bash
+  club publish --from-git https://github.com/upstream/cool_package \
+    --ref v1.4.0
+  ```
+  </TabItem>
+  <TabItem label="Branch">
+  Publish the current tip of a feature branch in a fork:
+
+  ```bash
+  club publish --from-git https://github.com/your-fork/cool_package \
+    --ref my-patch-branch
+  ```
+  </TabItem>
+  <TabItem label="Commit">
+  Publish a specific commit (full or short SHA both work):
+
+  ```bash
+  club publish --from-git https://github.com/upstream/cool_package \
+    --ref a1b2c3d
+  ```
+  </TabItem>
+  <TabItem label="Monorepo (auto)">
+  Publish every package in a Dart workspace monorepo:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-monorepo \
+    --auto \
+    --on-conflict skip
+  ```
+
+  Combines with all the [`--auto`](/cli/auto-publish/) flags:
+  `--on-conflict`, `--tree`, `--no-tree`, positional package names.
+  </TabItem>
+  <TabItem label="Subpackage">
+  Publish a single subpackage of a monorepo without invoking `--auto`:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-monorepo \
+    -C packages/core
+  ```
+  </TabItem>
+  <TabItem label="Server override">
+  Pin which club server the publish targets, regardless of stored
+  credentials or any `publish_to:` in the pubspec:
+
+  ```bash
+  club publish --from-git https://github.com/your-org/your-package \
+    --server myclub.birju.dev
+  ```
+  </TabItem>
+</Tabs>
+
+## CI usage
+
+`--from-git` is CI-friendly. The non-TTY rules from
+[`club publish`](/cli/publishing/) and [`club publish --auto`](/cli/auto-publish/#ci-usage)
+apply unchanged. The one extra consideration is git auth: the CI runner
+needs to be able to `git clone` the URL you pass.
+
+```yaml title=".github/workflows/mirror.yml"
+- name: Mirror upstream release to private club server
+  run: |
+    club publish --from-git https://github.com/upstream/cool_package \
+      --ref ${{ github.event.release.tag_name }} \
+      --server myclub.birju.dev \
+      --on-conflict abort
+  env:
+    CLUB_TOKEN: ${{ secrets.CLUB_TOKEN }}
+```
+
+For private source repos, configure your CI's standard git credential
+mechanism (SSH key, deploy token, OAuth token), then `--from-git` works
+with no additional flags.
+
+The cache lives under `$HOME` on the runner. If your CI persists
+`$HOME` across job runs, expect the fast reuse path to kick in on
+subsequent invocations of the same repo.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success. Clone was removed. |
+| `65` | Data error from the publish flow (validation failed, version conflict without `--force`, etc.). Clone is kept. |
+| `66` | No input (e.g. missing `pubspec.yaml` at the resolved directory). Clone is kept. |
+| `69` | Git failure (`git` not on PATH, unknown ref, network error, repo not accessible). Clone is kept if it was created. |
+| `78` | Config error (`--ref` without `--from-git`, `--from-git` combined with `--from-archive`, etc.). No clone happens. |
+
+When the clone is kept, the CLI prints the cache path and a hint that a
+re-run will reuse it.
+
+## Limitations
+
+- **Authentication for the source repo is the user's responsibility.**
+  Whatever lets `git clone <url>` succeed is what makes `--from-git`
+  succeed. Club does not prompt for git credentials.
+- **Git submodules are not initialised.** If the package being
+  published depends on submodule content at build time, run
+  `git clone --recurse-submodules` into a regular checkout and use the
+  plain `club publish` flow instead.
+- **Commit refs must be full 40-char SHAs.** When `--ref` is a commit
+  (rather than a branch or tag), pass the complete SHA. Abbreviated
+  SHAs are rejected by every git remote and cannot be fetched
+  shallowly. Branch and tag names accept their usual form.
+- **Commit refs need server-side SHA fetch support.** Fetching a
+  specific commit by SHA requires the remote's
+  `uploadpack.allowAnySHA1InWant` to be enabled. GitHub, GitLab, and
+  Gitea enable this by default; some self-hosted servers may need a
+  config change. Branch/tag refs work everywhere.
+
+## Related
+
+<LinkCard
+  title="club publish (single package)"
+  description="The standard single-package publish flow. --from-git delegates to this once the clone is ready."
+  href="/cli/publishing/"
+/>
+
+<LinkCard
+  title="club publish --auto"
+  description="Multi-package monorepo flow. Combine with --from-git to publish every package of a remote workspace in topological order."
+  href="/cli/auto-publish/"
+/>
+
+<LinkCard
+  title="Monorepo Publishing Guide"
+  description="End-to-end walkthrough of publishing a Dart monorepo, with versioning and CI patterns."
+  href="/guides/monorepo-publishing/"
+/>
+
+<LinkCard
+  title="Smart Publishing"
+  description="How club publish resolves the target server without a publish_to: entry in pubspec.yaml."
+  href="/guides/smart-publishing/"
+/>

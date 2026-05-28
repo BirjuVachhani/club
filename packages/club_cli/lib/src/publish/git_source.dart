@@ -74,15 +74,10 @@ Future<GitClone> prepareGitClone({required String url, String? ref}) async {
   final sw = Stopwatch()..start();
   if (reusable) {
     detail('reusing existing clone, fetching latest…');
-    await _git(
-      ['fetch', 'origin', '--prune', '--tags', '--force'],
-      cwd: root,
-      action: 'fetch updates for',
-    );
+    await _shallowFetch(root: root, ref: wantRef);
   } else {
-    Directory(p.dirname(root)).createSync(recursive: true);
-    detail('cloning…');
-    await _git(['clone', url, root], action: 'clone');
+    detail('cloning (shallow)…');
+    await _shallowClone(url: url, root: root, ref: wantRef);
   }
 
   final checkedOut = await _checkout(root, wantRef);
@@ -120,6 +115,109 @@ void deleteGitClone(String root) {
     // Best-effort cleanup; ignore failures.
   }
 }
+
+// ── Shallow clone / fetch ───────────────────────────────────────────────────
+
+/// Performs a fresh `--depth 1` clone of [url] into [root], picking the most
+/// economical strategy that still works for the kind of ref the user asked
+/// for:
+///
+/// * Empty ref — clone the default branch only, depth 1.
+/// * Branch or tag name — clone just that branch/tag, depth 1.
+/// * Commit SHA — `git init` then `git fetch --depth 1 origin SHA`, because
+///   `git clone --branch` does not accept SHAs. Works on every host that
+///   allows fetching commits by SHA (GitHub, GitLab, Gitea default to this
+///   via `uploadpack.allowAnySHA1InWant=true`).
+Future<void> _shallowClone({
+  required String url,
+  required String root,
+  required String ref,
+}) async {
+  Directory(p.dirname(root)).createSync(recursive: true);
+  if (ref.isEmpty) {
+    await _git(
+      ['clone', '--depth', '1', '--single-branch', url, root],
+      action: 'clone',
+    );
+    return;
+  }
+  if (_looksLikeSha(ref)) {
+    Directory(root).createSync(recursive: true);
+    await _git(['init', '--quiet'], cwd: root, action: 'initialise');
+    await _git(
+      ['remote', 'add', 'origin', url],
+      cwd: root,
+      action: 'set the remote of',
+    );
+    await _git(
+      ['fetch', '--depth', '1', 'origin', ref],
+      cwd: root,
+      action: 'fetch commit "$ref" for',
+    );
+    return;
+  }
+  await _git(
+    ['clone', '--depth', '1', '--branch', ref, '--single-branch', url, root],
+    action: 'clone ref "$ref" for',
+  );
+}
+
+/// Refreshes a reusable clone in-place with a `--depth 1` fetch of just the
+/// ref the next checkout cares about. Keeps the clone shallow (no full
+/// history is ever downloaded into the cache).
+Future<void> _shallowFetch({
+  required String root,
+  required String ref,
+}) async {
+  if (ref.isNotEmpty) {
+    await _git(
+      ['fetch', '--depth', '1', '--force', '--tags', 'origin', ref],
+      cwd: root,
+      action: 'fetch ref "$ref" for',
+    );
+    return;
+  }
+  // No ref: refresh the remote's default branch only. Resolve its name from
+  // origin/HEAD (set by the original `git clone`); fall back to asking the
+  // remote if it's missing (e.g. the dir was last populated by an init+fetch
+  // for a SHA and has no symbolic HEAD).
+  final branch = await _resolveOriginHeadBranch(root);
+  if (branch == null) {
+    throw GitSourceError(
+      'Could not determine the repository default branch.',
+      hint: 'Specify the branch explicitly with --ref.',
+    );
+  }
+  await _git(
+    ['fetch', '--depth', '1', '--force', 'origin', branch],
+    cwd: root,
+    action: 'fetch branch "$branch" for',
+  );
+}
+
+/// Returns the local short branch name of `origin/HEAD` (e.g. `main`), or
+/// null if it cannot be resolved even after asking the remote.
+Future<String?> _resolveOriginHeadBranch(String root) async {
+  Future<String?> read() => _runOutput(
+        ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+        cwd: root,
+      );
+  var head = await read();
+  if (head == null || head.isEmpty) {
+    await _runOk(['remote', 'set-head', 'origin', '--auto'], cwd: root);
+    head = await read();
+  }
+  if (head == null || head.isEmpty) return null;
+  const prefix = 'origin/';
+  return head.startsWith(prefix) ? head.substring(prefix.length) : head;
+}
+
+/// True when [ref] is a full 40-character hex commit SHA — the only form
+/// `git fetch origin <sha>` accepts. Abbreviated SHAs are rejected by every
+/// remote, so they're routed through the branch/tag path instead (where
+/// git's "remote branch not found" message points the user at the issue).
+bool _looksLikeSha(String ref) =>
+    RegExp(r'^[0-9a-f]{40}$').hasMatch(ref);
 
 // ── Checkout ────────────────────────────────────────────────────────────────
 

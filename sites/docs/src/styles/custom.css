@@ -293,11 +293,11 @@ header.header {
   color: var(--sl-color-text) !important;
 }
 
-/* Brand logo — keep in the same visual scale as the web app header (~20px). */
+/* Brand logo — matches the web app header (1.5rem / 24px, Tailwind h-6). */
 .site-title img {
-  height: 2rem !important;
+  height: 1.5rem !important;
   width: auto !important;
-  max-height: 2rem !important;
+  max-height: 1.5rem !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -838,12 +838,6 @@ starlight-tabs .tab>[role='tab'][aria-selected='true'] {
     font-size: 0.85rem !important;
   }
 
-  /* Site title / logo — scale down for small headers */
-  .site-title img {
-    height: 1.625rem !important;
-    max-height: 1.625rem !important;
-  }
-
   .site-title {
     font-size: 0.875rem !important;
   }
@@ -933,12 +927,6 @@ starlight-tabs .tab>[role='tab'][aria-selected='true'] {
 
   .sl-markdown-content h2 {
     font-size: 1.075rem;
-  }
-
-  /* Site title — very small screens hide inline text if logo replaces it */
-  .site-title img {
-    height: 1.5rem !important;
-    max-height: 1.5rem !important;
   }
 
   /* Callouts — minimum workable padding */

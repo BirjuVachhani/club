@@ -56,6 +56,28 @@ export default defineConfig({
             });
           `,
         },
+        {
+          tag: 'script',
+          content: `
+            document.addEventListener('DOMContentLoaded', () => {
+              const link = document.querySelector('.sidebar-pane a[aria-current="page"], #starlight__sidebar a[aria-current="page"]');
+              if (!link) return;
+              let el = link.parentElement;
+              while (el && el !== document.body) {
+                const style = getComputedStyle(el);
+                if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight) {
+                  const linkRect = link.getBoundingClientRect();
+                  const elRect = el.getBoundingClientRect();
+                  const offset = (linkRect.top - elRect.top) - (el.clientHeight / 2) + (linkRect.height / 2);
+                  el.scrollTop = Math.max(0, el.scrollTop + offset);
+                  return;
+                }
+                el = el.parentElement;
+              }
+              link.scrollIntoView({ block: 'center' });
+            });
+          `,
+        },
       ],
       logo: {
         src: './src/assets/club_full_logo.svg',

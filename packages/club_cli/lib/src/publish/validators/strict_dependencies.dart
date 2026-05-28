@@ -6,16 +6,14 @@ library;
 
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:path/path.dart' as p;
 
 import 'validator.dart';
 
 class StrictDependenciesValidator extends Validator {
   StrictDependenciesValidator(super.context);
-
-  static final _importRegex = RegExp(
-    r'''(?:import|export)\s+['"]package:(\w+)/''',
-  );
 
   @override
   String get name => 'StrictDependenciesValidator';
@@ -36,8 +34,7 @@ class StrictDependenciesValidator extends Validator {
       if (category == _Category.ignore) continue;
 
       final source = File(p.join(pubspec.directory, rel)).readAsStringSync();
-      for (final m in _importRegex.allMatches(source)) {
-        final imported = m.group(1)!;
+      for (final imported in _collectPackageImports(source)) {
         if (declaredDeps.contains(imported)) continue;
 
         if (category == _Category.publicCode) {
@@ -65,6 +62,32 @@ class StrictDependenciesValidator extends Validator {
         }
       }
     }
+  }
+
+  /// Set of package names referenced by `import`/`export` directives in
+  /// [source], including conditional `if (...) '...'` URIs. Uses the
+  /// analyzer's AST so URIs inside comments, dartdoc code blocks, and
+  /// ordinary string literals are not matched.
+  Set<String> _collectPackageImports(String source) {
+    final result = parseString(content: source, throwIfDiagnostics: false);
+    final names = <String>{};
+    for (final directive in result.unit.directives) {
+      if (directive is! NamespaceDirective) continue;
+      _addIfPackage(names, directive.uri);
+      for (final config in directive.configurations) {
+        _addIfPackage(names, config.uri);
+      }
+    }
+    return names;
+  }
+
+  void _addIfPackage(Set<String> out, StringLiteral uri) {
+    final value = uri.stringValue;
+    if (value == null || !value.startsWith('package:')) return;
+    final rest = value.substring('package:'.length);
+    final slash = rest.indexOf('/');
+    if (slash <= 0) return;
+    out.add(rest.substring(0, slash));
   }
 
   _Category _categoryFor(String rel) {
