@@ -1,6 +1,6 @@
 name: club_cli
 description: CLI tool for club server interaction.
-version: 0.3.0
+version: 0.4.0
 homepage: https://club.birju.dev
 repository: https://github.com/BirjuVachhani/club
 issue_tracker: https://github.com/BirjuVachhani/club/issues
