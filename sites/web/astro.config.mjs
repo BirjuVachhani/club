@@ -5,7 +5,7 @@ import svelte from '@astrojs/svelte';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'http://club.birju.dev',
+  site: 'https://club.birju.dev',
   integrations: [
     svelte(),
     sitemap({
