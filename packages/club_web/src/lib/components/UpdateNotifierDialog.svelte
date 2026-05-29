@@ -202,16 +202,23 @@
   }
   .notes {
     color: var(--foreground);
-    line-height: 1.55;
+    line-height: 1.7;
   }
   .notes :global(h1),
-  .notes :global(h2),
+  .notes :global(h2) {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 24px 0 10px;
+    color: var(--foreground);
+    letter-spacing: -0.005em;
+  }
   .notes :global(h3),
   .notes :global(h4) {
-    font-size: 13px;
-    font-weight: 600;
-    margin: 12px 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    margin: 22px 0 10px;
     color: var(--foreground);
+    letter-spacing: -0.005em;
   }
   .notes :global(h1:first-child),
   .notes :global(h2:first-child),
@@ -220,23 +227,29 @@
     margin-top: 0;
   }
   .notes :global(p) {
-    margin: 0 0 8px;
+    margin: 0 0 12px;
   }
   /* Tailwind preflight zeroes out list-style on ul/ol; restore the
      default disc/decimal markers inside the dialog so release notes
      render with visible bullets. */
   .notes :global(ul) {
-    margin: 0 0 8px;
-    padding-left: 18px;
+    margin: 0 0 12px;
+    padding-left: 22px;
     list-style: disc outside;
   }
   .notes :global(ol) {
-    margin: 0 0 8px;
-    padding-left: 18px;
+    margin: 0 0 12px;
+    padding-left: 22px;
     list-style: decimal outside;
   }
   .notes :global(li) {
-    margin-bottom: 3px;
+    margin-bottom: 10px;
+  }
+  .notes :global(li:last-child) {
+    margin-bottom: 0;
+  }
+  .notes :global(li) :global(p) {
+    margin-bottom: 6px;
   }
   .notes :global(code) {
     font-family: var(--pub-code-font-family);

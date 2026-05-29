@@ -1,4 +1,10 @@
-## 0.4.0 (Unreleased)
+## 0.4.1 (Unreleased)
+
+### Fixed
+
+- Release-notes dialog: looser line-height, more space between bullets, larger section headings.
+
+## 0.4.0
 
 ### Added
 
