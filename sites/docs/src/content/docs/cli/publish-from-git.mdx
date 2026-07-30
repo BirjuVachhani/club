@@ -125,7 +125,8 @@ Uploading ───────────────────────�
 4. **Standard publish flow.** From here on the run is identical to a
    regular `club publish` (or `club publish --auto`) executed in the
    clone directory: server resolution, version conflict pre-check,
-   `dart pub get`, the 25 validators, tarball build, upload.
+   tarball build, standalone dependency resolution, the 25 validators,
+   upload.
 
 5. **Cleanup.** After a successful publish the clone is deleted and any
    empty parent directories under `~/.club/clones/` are pruned. If the

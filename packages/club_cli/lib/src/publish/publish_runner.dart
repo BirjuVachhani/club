@@ -23,8 +23,9 @@ import 'package:pub_semver/pub_semver.dart' as semver;
 import '../util/exit_codes.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
-import '../util/pub_get.dart';
 import '../util/url.dart';
+import 'archive_extractor.dart';
+import 'isolated_resolution.dart';
 import 'pubspec_reader.dart';
 import 'server_resolver.dart';
 import 'tarball_builder.dart';
@@ -176,6 +177,10 @@ class PublishRunner {
 
     BuiltTarball? builtTarball;
     var weCreatedTempTarball = false;
+    // Scratch copy of the archive that the resolution step unpacks. Kept
+    // alive through validation so AnalyzeValidator can run against a tree
+    // that is both resolved and byte-identical to what ships.
+    Directory? resolvedDir;
 
     try {
       // ── Version collision pre-check ─────────────────────────────────────
@@ -262,18 +267,21 @@ class PublishRunner {
       builtTarball = tarball;
 
       // ── Dependency resolution ─────────────────────────────────────────────
-      // Mirrors dart pub's `entrypoint.acquireDependencies(SolveType.get)`
-      // at lish.dart:327 — resolving before validation surfaces
-      // unresolvable constraints (including cross-workspace conflicts)
-      // that static validators can't see.
+      // Club diverges from dart pub here. `dart pub publish` resolves the
+      // workspace; we resolve the built archive on its own, the way a
+      // consumer receives it. See isolated_resolution.dart for why.
       if (!options.skipValidation && options.fromArchive == null) {
-        final resolveDir = workspace.workspaceRootDir ?? pkgDir;
-        final ok = await runDartPubGet(
-          resolveDir,
+        final resolution = await resolveInIsolation(
+          archivePath: tarball.path,
+          pubspec: pubspec,
+          serverUrl: server.url,
+          serverToken: server.token,
+          extract: extractPackageArchive,
           errorHint:
               'Fix the pubspec, or pass --skip-validation to skip this step.',
         );
-        if (!ok) return ExitCodes.data;
+        resolvedDir = resolution.directory;
+        if (!resolution.ok) return ExitCodes.data;
       }
 
       // ── Validation ────────────────────────────────────────────────────────
@@ -286,6 +294,7 @@ class PublishRunner {
           publishedVersions: publishedVersions,
           enhanced: options.enhanced,
           workspaceRootDir: workspace.workspaceRootDir,
+          resolvedPackageDir: resolvedDir?.path,
           fetchPublishedPubspec: (version) async {
             try {
               final info = await client.getVersion(pubspec.name, version);
@@ -383,6 +392,7 @@ class PublishRunner {
       return ExitCodes.success;
     } finally {
       client.close();
+      disposeIsolatedResolution(resolvedDir);
       if (weCreatedTempTarball && builtTarball != null) {
         try {
           File(builtTarball.path).deleteSync();

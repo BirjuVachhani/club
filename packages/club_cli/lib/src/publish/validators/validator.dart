@@ -39,6 +39,7 @@ class ValidationContext {
     this.enhanced = false,
     this.fetchPublishedPubspec,
     this.workspaceRootDir,
+    this.resolvedPackageDir,
   });
 
   final PackagePubspec pubspec;
@@ -68,6 +69,20 @@ class ValidationContext {
   /// workspace, otherwise `null`. Used for workspace-wide checks like
   /// dependency overrides.
   final String? workspaceRootDir;
+
+  /// Absolute path of the scratch directory the archive was unpacked and
+  /// resolved into, or `null` when resolution was skipped (`--from-archive`,
+  /// `--skip-validation`).
+  ///
+  /// Validators that read package sources should prefer this over
+  /// [PackagePubspec.directory]: it contains exactly the files that will
+  /// ship, and it is the only tree guaranteed to have a
+  /// `.dart_tool/package_config.json`. Use [sourceDir].
+  final String? resolvedPackageDir;
+
+  /// Directory to read package sources from — the resolved scratch copy when
+  /// available, the original package directory otherwise.
+  String get sourceDir => resolvedPackageDir ?? pubspec.directory;
 }
 
 /// Base class for all publish-time validators.

@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:yaml/yaml.dart';
 
+import '../../util/pub_tool.dart';
 import 'validator.dart';
 
 class DependencyOverrideValidator extends Validator {
@@ -51,21 +52,21 @@ class DependencyOverrideValidator extends Validator {
   /// current package via pub's resolved graph. `null` if we can't compute
   /// (Dart SDK missing, parse error, etc.).
   Future<Set<String>?> _transitiveNonDevClosure() async {
-    final ProcessResult result;
-    try {
-      result = await Process.run(
-        'dart',
-        ['pub', 'deps', '--json'],
-        workingDirectory: context.pubspec.directory,
-      );
-    } on ProcessException {
-      return null;
-    }
-    if (result.exitCode != 0) return null;
+    // This check is deliberately about the *live* workspace — which overrides
+    // the developer is actually building against — so it runs in the source
+    // directory, not the resolved scratch copy. That means it needs the
+    // Flutter front-end when the workspace pulls in the Flutter SDK, or pub
+    // refuses to produce a graph at all.
+    final result = await runPub(
+      ['deps', '--json'],
+      workingDirectory: context.pubspec.directory,
+      tool: pubToolFor(context.pubspec.parsed),
+    );
+    if (!result.ok) return null;
 
     final Map<String, dynamic> data;
     try {
-      data = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+      data = jsonDecode(result.stdout) as Map<String, dynamic>;
     } on FormatException {
       return null;
     }

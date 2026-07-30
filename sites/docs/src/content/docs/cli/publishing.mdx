@@ -128,9 +128,48 @@ club publish --to-archive ./pkg.tar.gz
 club publish --from-archive ./pkg.tar.gz --force
 ```
 
+## Dependency resolution
+
+Before the validators run, `club publish` resolves the package's
+dependencies. It does this in isolation: the archive it just built is
+unpacked into a scratch directory, `resolution: workspace` is dropped
+from the unpacked copy, and `pub get` runs there. The archive that gets
+uploaded is untouched (`resolution: workspace` is normal in a published
+pubspec and consumers ignore it).
+
+This is a deliberate divergence from `dart pub publish`, which resolves
+the whole workspace instead. Resolving what actually ships means:
+
+- The check answers the question that matters: does this package resolve
+  for someone who installs it? A workspace resolve can pass because the
+  root's `dependency_overrides` quietly substitute local `path:` copies
+  for the real hosted versions.
+- An unrelated dependency problem elsewhere in the workspace can't block
+  publishing a leaf package.
+- It works when the workspace root needs the Flutter SDK but the package
+  being published does not, or the reverse. Pub escalates resolution to
+  the workspace root, so `dart pub get` inside a Flutter workspace fails
+  with `Because <root> requires the Flutter SDK, version solving failed`
+  no matter which package you were trying to publish.
+
+`flutter pub get` is used instead of `dart pub get` when the pubspec
+pulls in the Flutter SDK: any `sdk: flutter` entry in `dependencies` or
+`dev_dependencies` (`flutter_test` counts), or an
+`environment: flutter:` constraint.
+
+Because a scratch directory has no `pubspec.lock` to fall back on, this
+step needs network access and a valid token for any club server the
+package depends on. Run `club login` first, or pass `--skip-validation`
+to skip resolution and validation together.
+
+If the package still has `path:` or `git:` dependencies, the standalone
+resolve fails by design: consumers can't reach them. Use
+[`club publish --auto`](/cli/auto-publish/) or
+[`club prepare`](/cli/prepare/) to rewrite them to hosted refs.
+
 ## Validation
 
-Before uploading, `club publish` runs the same 25 validators as
+After resolution, `club publish` runs the same 25 validators as
 `dart pub publish`. Each validator mirrors the upstream implementation —
 see the inline doc comments in `lib/src/publish/validators/` for the
 GitHub link to its upstream counterpart.
@@ -144,7 +183,7 @@ Validators are grouped by severity:
 
 The full list of validators (in run order):
 
-1. `AnalyzeValidator` — runs `dart analyze` (issues surface as warnings; `--enhanced` upgrades it to `dart analyze --fatal-warnings`).
+1. `AnalyzeValidator` — runs `dart analyze` against the resolved scratch copy of the archive (issues surface as warnings; `--enhanced` upgrades it to `dart analyze --fatal-warnings`).
 2. `ChangelogValidator` — CHANGELOG present and mentions current version.
 3. `CompiledDartdocValidator` — no `doc/api/` or `.ddc.js` artifacts.
 4. `DependencyValidator` — no path/git deps; reasonable version constraints.
@@ -307,6 +346,33 @@ still validate).
 Run `dart analyze` directly to see the issues, fix them, then retry. If
 you must publish anyway, `--skip-validation` bypasses the analyzer.
 
+### `Dependency resolution failed.`
+
+The package did not resolve on its own. The pub output below the message
+names the cause. Common ones:
+
+- **`depends on <pkg> from path which doesn't exist`** — you still have a
+  `path:` dependency. It resolves inside your workspace but not for
+  anyone installing the package. Use
+  [`club publish --auto`](/cli/auto-publish/) or
+  [`club prepare`](/cli/prepare/) to rewrite it to a hosted ref.
+- **`could not find a package named <pkg>` / an auth error** — the
+  package depends on a club server you are not logged in to. Run
+  `club login <host>` and retry.
+- **`version solving failed`** on a hosted dep — the constraint genuinely
+  cannot be satisfied from the server. Note that a workspace root's
+  `dependency_overrides` do *not* apply here, so a constraint you never
+  actually exercised locally can surface at this point.
+
+`--skip-validation` skips this step along with the validators.
+
+### `Because <root> requires the Flutter SDK, version solving failed`
+
+You are on a club version older than 0.5.0. Publishing a package from a
+pub workspace whose root is a Flutter app used to run `dart pub get` at
+the workspace root, which cannot solve Flutter SDK dependencies.
+Upgrade, or pass `--skip-validation` on the old version.
+
 ## Implementation notes
 
 The publish flow is laid out as small, focused modules under
@@ -315,11 +381,14 @@ publish` can be mirrored cheaply:
 
 ```
 publish/
-├── publish_runner.dart    # Orchestration (matches LishCommand.runProtected)
-├── pubspec_reader.dart    # Pubspec parsing (uses pubspec_parse package)
-├── server_resolver.dart   # The --server / publish_to / picker logic
-├── tarball_builder.dart   # tar + gzip (matches createTarGz)
-├── ignore_filter.dart     # .pubignore + .gitignore handling
+├── publish_runner.dart       # Orchestration (matches LishCommand.runProtected)
+├── pubspec_reader.dart       # Pubspec parsing (uses pubspec_parse package)
+├── server_resolver.dart      # The --server / publish_to / picker logic
+├── workspace_resolver.dart   # Pub workspace root discovery
+├── tarball_builder.dart      # tar + gzip (matches createTarGz)
+├── archive_extractor.dart    # Unpacks the archive into a scratch dir
+├── isolated_resolution.dart  # Standalone `pub get` on the unpacked archive
+├── ignore_filter.dart        # .pubignore + .gitignore handling
 └── validators/
     ├── validator.dart     # Base class + ValidationContext + Severity
     ├── runner.dart        # Concurrent runner + report aggregation

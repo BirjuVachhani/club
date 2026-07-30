@@ -21,12 +21,19 @@ class AnalyzeValidator extends Validator {
     final args = context.enhanced
         ? ['analyze', '--fatal-warnings']
         : ['analyze'];
+    // Analyze the resolved scratch copy of the archive when we have one: it
+    // holds exactly the files that ship (so a source file left out of the
+    // archive shows up as a broken import here) and it is guaranteed to have
+    // a `.dart_tool/package_config.json`, which a fresh `--from-git` clone
+    // does not. `dart analyze` is correct for Flutter packages too — the
+    // analyzer resolves `package:flutter` through package_config regardless
+    // of which SDK's `dart` binary runs it.
     final ProcessResult result;
     try {
       result = await Process.run(
         'dart',
         args,
-        workingDirectory: context.pubspec.directory,
+        workingDirectory: context.sourceDir,
       );
     } on ProcessException {
       hint('Could not run `dart analyze` — Dart SDK not on PATH.');

@@ -224,9 +224,11 @@ class AutoPublishRunner {
     // ── Publish each package in topo order ───────────────────────────────
     // PublishRunner receives the override string (when present) and uses
     // it for both validation and the tarball — the on-disk pubspec is
-    // never read. Pub workspace shadowing means `dart pub get` (run at
-    // the workspace root by PublishRunner during validation) still
-    // resolves locally from the unchanged source pubspec.
+    // never read. PublishRunner resolves each package standalone from its
+    // built archive, so the rewritten hosted refs are what get resolved.
+    // Publishing in topological order is what makes that work: by the time
+    // a package is resolved, every internal dependency it points at is
+    // already on the server.
     final published = <String>[];
     for (var i = 0; i < publishOrder.length; i++) {
       final name = publishOrder[i];

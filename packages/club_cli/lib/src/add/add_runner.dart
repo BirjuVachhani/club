@@ -5,16 +5,18 @@
 ///   2. For each request, resolve which club server provides it
 ///      (fanning out or prompting when needed).
 ///   3. Write all resolved entries into pubspec.yaml atomically.
-///   4. Run `dart pub get` unless `--dry-run`.
+///   4. Run `pub get` unless `--dry-run`.
 library;
 
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../publish/pubspec_reader.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/pub_get.dart';
+import '../util/pub_tool.dart';
 import '../util/url.dart';
 import 'add_options.dart';
 import 'descriptor_parser.dart';
@@ -98,7 +100,11 @@ class AddRunner {
       return ExitCodes.success;
     }
 
-    final ok = await runDartPubGet(pkgDir);
+    // `club add` resolves the project in place, so it inherits pub's
+    // workspace escalation: in a workspace, this resolves the whole
+    // workspace. Detect the front-end from this package's pubspec; runPub's
+    // retry covers the case where a *sibling* is the one needing Flutter.
+    final ok = await runPubGet(pkgDir, tool: _pubToolFor(pkgDir));
     if (!ok) return ExitCodes.data;
 
     info('');
@@ -107,5 +113,16 @@ class AddRunner {
       '${changes.length == 1 ? 'package' : 'packages'}.',
     );
     return ExitCodes.success;
+  }
+
+  /// Front-end needed to resolve the package at [dir]. Falls back to
+  /// [PubTool.dart] when the pubspec cannot be parsed — [runPub] still
+  /// recovers via its Flutter retry.
+  PubTool _pubToolFor(String dir) {
+    try {
+      return pubToolFor(readPubspec(dir).parsed);
+    } on Object {
+      return PubTool.dart;
+    }
   }
 }

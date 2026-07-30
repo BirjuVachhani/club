@@ -33,7 +33,9 @@ class StrictDependenciesValidator extends Validator {
       final category = _categoryFor(rel);
       if (category == _Category.ignore) continue;
 
-      final source = File(p.join(pubspec.directory, rel)).readAsStringSync();
+      // Read from the resolved scratch copy when available — those are the
+      // exact bytes in the archive, which is what consumers compile.
+      final source = File(p.join(context.sourceDir, rel)).readAsStringSync();
       for (final imported in _collectPackageImports(source)) {
         if (declaredDeps.contains(imported)) continue;
 
