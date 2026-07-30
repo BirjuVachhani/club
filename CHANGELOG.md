@@ -1,7 +1,15 @@
 ## 0.4.1 (Unreleased)
 
+### Changed
+
+- `club publish` resolves dependencies on the unpacked archive in a temp dir instead of the surrounding pub workspace.
+- `AnalyzeValidator` and `StrictDependenciesValidator` now read the resolved archive copy rather than the source tree.
+
 ### Fixed
 
+- Publishing a package from a pub workspace whose root needs the Flutter SDK no longer fails version solving.
+- `club publish` and `club add` pick `flutter pub` over `dart pub` when the pubspec pulls in the Flutter SDK.
+- `DependencyOverrideValidator` no longer silently skips its check in Flutter workspaces.
 - Release-notes dialog: looser line-height, more space between bullets, larger section headings.
 
 ## 0.4.0
