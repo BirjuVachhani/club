@@ -11,6 +11,12 @@
 #
 # The action does NOT install the Dart SDK. Run `dart-lang/setup-dart@v1`
 # (or equivalent) before this step.
+#
+# Pin `version:` for reproducible builds. Left unset, the installer resolves
+# the newest *stable* release at run time, so a workflow can change behaviour
+# without the workflow file changing. Do not add a `club upgrade` step to a
+# workflow: it reintroduces exactly that nondeterminism, and CI has nothing
+# to gain from a self-updating binary.
 # =============================================================================
 name: 'Setup club'
 description: 'Install the club CLI and configure dart pub for a self-hosted club registry.'
@@ -24,7 +30,7 @@ inputs:
     description: 'club personal access token (club_pat_...). Pass via secrets.'
     required: true
   version:
-    description: 'CLI release tag to install (e.g. 0.1.0). Empty installs the latest release.'
+    description: 'CLI release tag to install (e.g. 0.1.0). Empty installs the latest stable release.'
     required: false
     default: ''
   set-default-registry:

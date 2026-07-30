@@ -44,9 +44,11 @@ club
 ├── global                           Manage globally-installed packages from a club server
 │   ├── activate <package>           Globally activate a package from a club server
 │   └── deactivate <package>         Deactivate a globally-installed package
-└── mcp [--server <host> --token <pat>]
-                                     Start a stdio MCP server so AI clients can browse, search,
-                                     and reason about packages on a club server.
+├── mcp [--server <host> --token <pat>]
+│                                    Start a stdio MCP server so AI clients can browse, search,
+│                                    and reason about packages on a club server.
+└── upgrade [--check] [--version <v>] [--pre]
+                                     Upgrade the club CLI itself to the latest release
 ```
 
 `<host>` is a bare host like `myclub.birju.dev`. A full URL

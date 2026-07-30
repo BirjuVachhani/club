@@ -48,9 +48,13 @@ against the release's `SHA256SUMS.txt`, and installs the binary to
 
 | Flag | Env var | Description |
 |---|---|---|
-| `--version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest tag. |
+| `--version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest stable one. |
+| `--pre` | `CLUB_PRE` | Include pre-releases when resolving the newest version. |
 | `--install-dir <path>` | — | Install to a different directory. Default `~/.local/bin`. |
 | `--repo <owner/name>` | `CLUB_REPO` | Pull from a fork or mirror. Default `BirjuVachhani/club`. |
+
+By default the script installs the newest **stable** release. Pass
+`--pre` to include pre-releases.
 
 Examples:
 
@@ -58,6 +62,10 @@ Examples:
 # Pin to a specific version
 curl -fsSL https://club.birju.dev/install.sh \
   | bash -s -- --version 0.1.0
+
+# Include pre-releases
+curl -fsSL https://club.birju.dev/install.sh \
+  | bash -s -- --pre
 
 # Install into /usr/local/bin instead of ~/.local/bin
 curl -fsSL https://club.birju.dev/install.sh \
@@ -108,9 +116,13 @@ copies `club.exe` into `%USERPROFILE%\.club\bin`.
 
 | Parameter | Env var | Description |
 |---|---|---|
-| `-Version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest tag. |
+| `-Version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest stable one. |
+| `-Pre` | `CLUB_PRE` | Include pre-releases when resolving the newest version. |
 | `-InstallDir <path>` | `CLUB_INSTALL_DIR` | Install to a different directory. Default `%USERPROFILE%\.club\bin`. |
 | `-Repo <owner/name>` | `CLUB_REPO` | Pull from a fork or mirror. Default `BirjuVachhani/club`. |
+
+By default the script installs the newest **stable** release. Pass
+`-Pre` to include pre-releases.
 
 Parameters require direct invocation. When piping to `iex`, set the
 matching env var first:
@@ -274,11 +286,83 @@ server.
 
 ## Upgrading
 
-Re-running the install script replaces the existing binary:
+Use `club upgrade`:
 
 ```bash
-curl -fsSL https://club.birju.dev/install.sh | bash
+club upgrade
 ```
+
+It resolves the newest stable release, then hands off to the same install
+script that put the binary there, so the result is identical to re-running
+the one-liner. Replacing the running binary is safe on every platform.
+
+### Options
+
+| Flag | Description |
+|---|---|
+| `--check` | Report whether a newer release exists, then exit without installing. |
+| `--version <x>` | Install this exact version. Accepts `0.4.2` or `v0.4.2`. Downgrades are allowed and prompt for confirmation. |
+| `--pre` | Consider pre-release tags when resolving the newest version. |
+| `--force` | Reinstall when already current, and proceed on a local build. |
+| `--dry-run` | Print what would be installed and where, then exit. |
+| `-y, --yes` | Skip the downgrade confirmation. |
+| `--install-dir <path>` | Override the auto-detected install directory. |
+| `--json` | Machine-readable output. |
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Upgraded, already current, or `--check` found nothing newer. |
+| `65` | `--check` only: a newer version is available. |
+| `66` | A downgrade needed confirmation but the shell is not interactive. Pass `--yes`. |
+| `69` | GitHub was unreachable, or a pinned `--version` has no build for your platform. |
+| `70` | The installer ran and failed. |
+| `78` | This install cannot upgrade itself, or the target directory is not writable. |
+
+`--check` returning `65` follows the `git diff --exit-code` convention, which
+trips up CI steps that treat any non-zero code as failure. Prefer `--json`
+there:
+
+```bash
+club upgrade --check --json | jq -e .updateAvailable
+```
+
+### Homebrew installs
+
+`club upgrade` refuses when the binary came from Homebrew, because Homebrew
+owns its own files. Use [`brew upgrade`](#homebrew-macos-and-linux) instead:
+
+```bash
+brew update && brew upgrade club
+```
+
+The same applies to `dart pub global activate` installs and to running from
+a source checkout, both of which are detected and refused with the right
+command to run instead.
+
+### Pre-releases
+
+`club upgrade` and both install scripts default to the newest **stable**
+release. Pass `--pre` to any of them to include pre-releases.
+
+### Newly published releases
+
+A release is only offered once its build artifacts have finished uploading.
+Releases are published manually and the build runs afterwards, so a tag can
+be visible on GitHub for a few minutes before it is installable. During that
+window `club upgrade` reports that you are up to date rather than sending
+you into an installer that would fail. `--json` reports the pending version
+as `pendingVersion` so the state is still visible.
+
+### Update notifications
+
+After a command runs, `club` may print a one-line hint when a newer release
+exists. It checks at most once every 24 hours and caches the result in
+`~/.config/club/update_check.json`. Set `NO_UPDATE_CHECK` to turn it off; it
+is already skipped in CI.
+
+### Manual installs
 
 For manual installs, repeat the download step with the new version.
 

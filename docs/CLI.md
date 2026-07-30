@@ -285,6 +285,34 @@ Moderate a package (admin only).
 club admin package moderate <package> --action <discontinue|delete>
 ```
 
+### club upgrade
+
+Upgrade the club CLI itself to the latest release. Resolves the newest
+stable release from GitHub, then hands off to the install script that put
+the binary there.
+
+```
+club upgrade [--check] [--version <v>] [--pre] [--force] [--dry-run] [--yes]
+             [--install-dir <path>] [--json]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Report whether a newer release exists, then exit. Exits 65 when one is. |
+| `--version <v>` | Install this exact version. Downgrades prompt for confirmation. |
+| `--pre` | Consider pre-release tags. Off by default. |
+| `--force` | Reinstall when already current, and proceed on a local build. |
+| `--dry-run` | Print what would happen, then exit. |
+| `-y, --yes` | Skip the downgrade confirmation. |
+| `--install-dir <path>` | Override the auto-detected install directory. |
+| `--json` | Machine-readable output. |
+
+Refuses, with the right command to run instead, when the CLI came from
+Homebrew (`brew upgrade club`), from `dart pub global activate`, or from a
+source checkout. A release is only offered once its build artifacts have
+finished uploading, so a tag that is visible on GitHub may take a few
+minutes to become installable.
+
 ---
 
 ## Credential Storage

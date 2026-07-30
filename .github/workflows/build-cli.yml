@@ -199,6 +199,21 @@ jobs:
             echo "--help exited non-zero — the binary loads but subcommands failed to register." >&2
             exit 1
           fi
+          # Exercise `upgrade --check` against the real GitHub API. This is
+          # the only automated coverage of arch detection and the release
+          # asset-name contract, and it runs on every target in the matrix.
+          # Exit 65 means "an update is available", which is a pass here:
+          # the release being built has not finished uploading yet.
+          set +e
+          check_out="$("$binary" upgrade --check --json 2>&1)"
+          check_code=$?
+          set -e
+          if [ "$check_code" != "0" ] && [ "$check_code" != "65" ]; then
+            echo "upgrade --check failed with exit $check_code" >&2
+            echo "$check_out" >&2
+            exit 1
+          fi
+          echo "$check_out"
           echo "Smoke test passed: $actual"
 
       # Lay out the bundle under a versioned top-level directory so that

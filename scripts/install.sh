@@ -6,18 +6,21 @@
 #   curl -fsSL https://club.birju.dev/install.sh | bash
 #
 # Common flags:
-#   ./scripts/install.sh                          # newest release (incl. pre-releases)
+#   ./scripts/install.sh                          # newest stable release
+#   ./scripts/install.sh --pre                    # include pre-releases
 #   ./scripts/install.sh --version 0.1.0          # pin a specific version
 #   ./scripts/install.sh --install-dir /usr/local/bin
 #
 # Env vars:
 #   CLUB_VERSION   Same as --version.
+#   CLUB_PRE       Same as --pre (set to any non-empty value).
 #   CLUB_REPO      Override repo (default: BirjuVachhani/club). For forks.
 # =============================================================================
 set -euo pipefail
 
 REPO="${CLUB_REPO:-BirjuVachhani/club}"
 VERSION="${CLUB_VERSION:-}"
+PRE="${CLUB_PRE:-}"
 INSTALL_DIR="${HOME}/.local/bin"
 
 while [[ $# -gt 0 ]]; do
@@ -25,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     --version)       VERSION="${2:?--version requires a value}"; shift 2 ;;
     --install-dir)   INSTALL_DIR="${2:?--install-dir requires a value}"; shift 2 ;;
     --repo)          REPO="${2:?--repo requires a value}"; shift 2 ;;
+    --pre)           PRE=1; shift ;;
     -h|--help)       sed -n '2,/^# ====/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -60,14 +64,17 @@ esac
 TARGET="${os}-${arch}"
 
 # ── Resolve tag ──────────────────────────────────────────────────────────
-# With an explicit --version we just use it. Otherwise list the releases
-# and take the newest entry — unlike /releases/latest, this includes
-# pre-releases, so `install.sh` with no args always pulls the most
-# recently published tag.
+# With an explicit --version we just use it.
+#
+# Otherwise we default to /releases/latest, which GitHub filters to stable
+# releases (no drafts, no pre-releases). `--pre` switches to listing
+# releases and taking the newest entry of any kind. `club upgrade` makes
+# the same distinction and always passes an explicit --version, so the two
+# never disagree about what "latest" means.
 if [[ -n "$VERSION" ]]; then
   TAG="$VERSION"
-else
-  echo "Resolving latest release from ${REPO}..."
+elif [[ -n "$PRE" ]]; then
+  echo "Resolving newest release (including pre-releases) from ${REPO}..."
   TAG="$(curl -fsSL -H "Accept: application/vnd.github+json" \
            "https://api.github.com/repos/${REPO}/releases?per_page=1" \
            | tr -d '\n' \
@@ -78,6 +85,29 @@ else
     echo "No releases found for ${REPO}." >&2
     exit 1
   fi
+else
+  echo "Resolving latest stable release from ${REPO}..."
+  # /releases/latest 404s when a repo has only ever published
+  # pre-releases, which is a normal state for a fork. curl -f turns that
+  # into a non-zero exit, so tell the user about --pre rather than
+  # leaving them with a bare HTTP error.
+  if ! LATEST_JSON="$(curl -fsSL -H "Accept: application/vnd.github+json" \
+           "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null)"; then
+    echo "No stable release found for ${REPO}." >&2
+    echo "Pass --pre (or set CLUB_PRE=1) to include pre-releases." >&2
+    exit 1
+  fi
+  # Unlike the list endpoint this returns a single object, so there is
+  # only ever one tag_name to match.
+  TAG="$(printf '%s' "$LATEST_JSON" \
+           | tr -d '\n' \
+           | grep -oE '"tag_name":[[:space:]]*"[^"]+"' \
+           | cut -d'"' -f4)"
+  if [[ -z "$TAG" ]]; then
+    echo "No stable release found for ${REPO}." >&2
+    echo "Pass --pre (or set CLUB_PRE=1) to include pre-releases." >&2
+    exit 1
+  fi
 fi
 
 # Strip any leading `v` to get the bare semver used inside asset names.
@@ -85,6 +115,31 @@ RESOLVED_VERSION="${TAG#v}"
 ARCHIVE_NAME="club-cli-${RESOLVED_VERSION}-${TARGET}.tar.gz"
 SUMS_NAME="SHA256SUMS.txt"
 BASE="https://github.com/${REPO}/releases/download/${TAG}"
+
+# ── Version comparison ───────────────────────────────────────────────────
+# Prints whichever of $1/$2 is the older version.
+#
+# `sort -V` alone is not enough: it orders `0.4.1` before `0.4.1-rc.1`,
+# whereas semver says a pre-release precedes its own release. Local builds
+# from build-cli.sh look like `0.4.1-<sha>.dev`, so that case is not
+# hypothetical. Compare the base versions first and break ties on whether
+# a pre-release suffix is present.
+older_version() {
+  local a="$1" b="$2"
+  local abase="${a%%-*}" bbase="${b%%-*}"
+  if [[ "$abase" != "$bbase" ]]; then
+    if [[ "$(printf '%s\n%s\n' "$abase" "$bbase" | sort -V | head -n1)" == "$abase" ]]; then
+      printf '%s' "$a"
+    else
+      printf '%s' "$b"
+    fi
+    return
+  fi
+  # Same base version: the one carrying a pre-release suffix is older.
+  if [[ "$a" == *-* && "$b" != *-* ]]; then printf '%s' "$a"; return; fi
+  if [[ "$b" == *-* && "$a" != *-* ]]; then printf '%s' "$b"; return; fi
+  printf '%s' "$(printf '%s\n%s\n' "$a" "$b" | sort -V | head -n1)"
+}
 
 # ── Detect existing installation ─────────────────────────────────────────
 # We look in three places, in order of likely interference:
@@ -114,7 +169,14 @@ if [[ -n "$INSTALLED_VERSION" ]]; then
   if [[ "$INSTALLED_VERSION" == "$RESOLVED_VERSION" ]]; then
     echo "Reinstalling club ${RESOLVED_VERSION} (${TARGET}) over existing ${INSTALLED_PATH}"
   else
-    echo "Upgrading club ${INSTALLED_VERSION} → ${RESOLVED_VERSION} (${TARGET})"
+    # `--version` can move backwards, so pick the verb rather than
+    # assuming forward.
+    OLDEST="$(older_version "$INSTALLED_VERSION" "$RESOLVED_VERSION")"
+    if [[ "$OLDEST" == "$RESOLVED_VERSION" ]]; then
+      echo "Downgrading club ${INSTALLED_VERSION} → ${RESOLVED_VERSION} (${TARGET})"
+    else
+      echo "Upgrading club ${INSTALLED_VERSION} → ${RESOLVED_VERSION} (${TARGET})"
+    fi
   fi
 else
   echo "Installing club CLI ${RESOLVED_VERSION} (${TARGET})"
@@ -179,6 +241,14 @@ EOF
   echo "Wrapper at:          ${INSTALL_DIR}/club"
 else
   mkdir -p "$INSTALL_DIR"
+  # `install`, not `cp`. This path runs while the old binary may itself be
+  # executing (`club upgrade` re-runs this script), and writing through to
+  # a running executable fails with ETXTBSY. `install` avoids that on both
+  # platforms: BSD/macOS writes a temp file in the destination directory
+  # and renames it ("Temporary files are no longer optional" per `man
+  # install`), and GNU coreutils unlinks the destination before opening
+  # it. Either way the running process keeps its inode and the directory
+  # entry points at the new file.
   install -m 0755 "$BIN" "${INSTALL_DIR}/club"
   # Switching from a bundled layout back to a standalone binary leaves
   # the old bundle dir behind. It still works (the new wrapper would

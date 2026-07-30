@@ -70,9 +70,11 @@ One-line install on Linux or macOS:
 curl -fsSL https://club.birju.dev/install.sh | bash
 ```
 
-The script detects your OS and CPU, pulls the matching archive from the latest [GitHub release](https://github.com/BirjuVachhani/club/releases), verifies its SHA-256, and installs `club` to `~/.local/bin`.
+The script detects your OS and CPU, pulls the matching archive from the latest stable [GitHub release](https://github.com/BirjuVachhani/club/releases), verifies its SHA-256, and installs `club` to `~/.local/bin`.
 
-Pin a specific version, change the install dir, or install on Windows — see [scripts/install.sh](scripts/install.sh) and the [CLI installation guide](docs/CLI.md) for the full set of options.
+Upgrade later with `club upgrade`.
+
+Pin a specific version, include pre-releases, change the install dir, or install on Windows — see [scripts/install.sh](scripts/install.sh) and the [CLI installation guide](docs/CLI.md) for the full set of options.
 
 Verify:
 

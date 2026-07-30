@@ -8,8 +8,12 @@
     the checksum, and copies the binary into the install directory.
 
 .EXAMPLE
-    # One-liner (newest release, including pre-releases):
+    # One-liner (newest stable release):
     iwr -useb https://club.birju.dev/install.ps1 | iex
+
+.EXAMPLE
+    # Include pre-releases when piped through iex:
+    $env:CLUB_PRE = '1'; iwr -useb https://club.birju.dev/install.ps1 | iex
 
 .EXAMPLE
     # Pin a version when piped through iex:
@@ -21,7 +25,11 @@
 
 .PARAMETER Version
     Specific release tag to install (e.g. '0.1.0'). Falls back to
-    $env:CLUB_VERSION, then to the newest release on GitHub.
+    $env:CLUB_VERSION, then to the newest stable release on GitHub.
+
+.PARAMETER Pre
+    Include pre-releases when resolving the newest version. Falls back to
+    $env:CLUB_PRE. Ignored when -Version is given.
 
 .PARAMETER InstallDir
     Directory to copy club.exe into. Falls back to $env:CLUB_INSTALL_DIR,
@@ -37,7 +45,8 @@
 param(
     [string]$Version,
     [string]$InstallDir,
-    [string]$Repo
+    [string]$Repo,
+    [switch]$Pre
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,24 +60,48 @@ $ProgressPreference = 'SilentlyContinue'
 if (-not $Version)     { $Version     = $env:CLUB_VERSION }
 if (-not $InstallDir)  { $InstallDir  = if ($env:CLUB_INSTALL_DIR) { $env:CLUB_INSTALL_DIR } else { "$env:USERPROFILE\.club\bin" } }
 if (-not $Repo)        { $Repo        = if ($env:CLUB_REPO) { $env:CLUB_REPO } else { 'BirjuVachhani/club' } }
+if (-not $Pre)         { $Pre         = [bool]$env:CLUB_PRE }
 
 # Only x64 Windows builds exist today; arm64 Windows would need a new
 # matrix entry in build-cli.yml first.
 $target = 'windows-x64'
 
-# Resolve the tag. /releases/latest skips pre-releases; /releases?per_page=1
-# returns the newest entry of any kind, matching install.sh's behaviour.
+# Resolve the tag. By default /releases/latest, which GitHub filters to
+# stable releases; -Pre switches to /releases?per_page=1, which returns the
+# newest entry of any kind. install.sh makes the same distinction, and
+# `club upgrade` always passes an explicit -Version, so all three agree on
+# what "latest" means.
 if (-not $Version) {
-    Write-Host "Resolving latest release from $Repo..."
     $headers = @{ Accept = 'application/vnd.github+json' }
-    # @() forces array context — Invoke-RestMethod can unwrap a 1-element
-    # JSON array into a single object, which would break $releases[0].
-    $releases = @(Invoke-RestMethod -Headers $headers -UseBasicParsing `
-        -Uri "https://api.github.com/repos/$Repo/releases?per_page=1")
-    if ($releases.Count -eq 0) {
-        throw "No releases found for $Repo."
+    if ($Pre) {
+        Write-Host "Resolving newest release (including pre-releases) from $Repo..."
+        # @() forces array context — Invoke-RestMethod can unwrap a 1-element
+        # JSON array into a single object, which would break $releases[0].
+        $releases = @(Invoke-RestMethod -Headers $headers -UseBasicParsing `
+            -Uri "https://api.github.com/repos/$Repo/releases?per_page=1")
+        if ($releases.Count -eq 0) {
+            throw "No releases found for $Repo."
+        }
+        $tag = $releases[0].tag_name
+    } else {
+        Write-Host "Resolving latest stable release from $Repo..."
+        # /releases/latest 404s when a repo has only ever published
+        # pre-releases, which is a normal state for a fork. Turn that into
+        # advice rather than a bare HTTP error. This endpoint returns a
+        # single object, so no @() wrapping is needed here.
+        try {
+            $release = Invoke-RestMethod -Headers $headers -UseBasicParsing `
+                -Uri "https://api.github.com/repos/$Repo/releases/latest"
+        } catch {
+            throw "No stable release found for $Repo. Pass -Pre (or set " +
+                  "`$env:CLUB_PRE = '1') to include pre-releases."
+        }
+        $tag = $release.tag_name
+        if (-not $tag) {
+            throw "No stable release found for $Repo. Pass -Pre (or set " +
+                  "`$env:CLUB_PRE = '1') to include pre-releases."
+        }
     }
-    $tag = $releases[0].tag_name
 } else {
     $tag = $Version
 }
@@ -168,6 +201,13 @@ try {
 
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
+    # Sweep leftovers from a previous self-upgrade. Windows refuses to
+    # delete the image file of a running process, so the .old file that
+    # `club upgrade` renames aside always survives that run and has to be
+    # collected by the next one.
+    Get-ChildItem -Path $InstallDir -Filter 'club.exe.old-*' -ErrorAction SilentlyContinue |
+        ForEach-Object { Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue }
+
     # Mirror install.sh: if the bundle ships a non-empty lib/ directory
     # (future native deps), keep it next to the binary so the dynamic
     # loader can find it. dart build cli emits these alongside bin/.
@@ -203,7 +243,41 @@ try {
         Write-Host "Installed bundle to: $shareDir"
         Write-Host "Wrapper at:          $wrapper"
     } else {
-        Copy-Item -Path $exeSrc -Destination (Join-Path $InstallDir 'club.exe') -Force
+        $destExe = Join-Path $InstallDir 'club.exe'
+
+        # Windows will not let us overwrite or delete the image file of a
+        # running process, which is exactly what `club upgrade` asks for:
+        # the club.exe being replaced is the one doing the replacing. A
+        # running .exe *can* be renamed, so move it aside first and let a
+        # later run's sweep collect it. Fresh installs skip all of this
+        # because there is no destination yet.
+        $renamed = $null
+        if (Test-Path $destExe) {
+            $renamed = "$destExe.old-$([System.IO.Path]::GetRandomFileName())"
+            try {
+                Move-Item -Path $destExe -Destination $renamed -Force
+            } catch {
+                $renamed = $null
+                throw "Could not move the existing club.exe aside: $_"
+            }
+        }
+
+        try {
+            Copy-Item -Path $exeSrc -Destination $destExe -Force
+        } catch {
+            # Put the old binary back rather than leaving the user with
+            # no club at all.
+            if ($renamed -and (Test-Path $renamed) -and -not (Test-Path $destExe)) {
+                Move-Item -Path $renamed -Destination $destExe -Force -ErrorAction SilentlyContinue
+            }
+            throw
+        }
+
+        if ($renamed -and (Test-Path $renamed)) {
+            # Expected to fail when the old binary is still running. The
+            # sweep at the top of the next run picks it up.
+            Remove-Item -Path $renamed -Force -ErrorAction SilentlyContinue
+        }
         # A previous install may have used the bundle layout (exe + DLLs
         # in a sibling share dir with a .cmd shim on PATH). Running the
         # new standalone .exe works, but leaving the old bundle around

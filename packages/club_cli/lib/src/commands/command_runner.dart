@@ -13,6 +13,7 @@ import 'mcp_command.dart';
 import 'prepare_command.dart';
 import 'publish_command.dart';
 import 'setup_command.dart';
+import 'upgrade_command.dart';
 
 /// The club CLI command runner.
 ///
@@ -33,6 +34,7 @@ CommandRunner<void> buildCommandRunner() {
   runner.addCommand(AddCommand());
   runner.addCommand(GlobalCommand());
   runner.addCommand(McpCommand());
+  runner.addCommand(UpgradeCommand());
   return runner;
 }
 

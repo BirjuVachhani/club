@@ -1,3 +1,21 @@
+## 0.5.0 (Unreleased)
+
+### Added
+
+- `club upgrade` upgrades the CLI in place, with `--check`, `--version`, `--pre`, `--dry-run`, and `--json`.
+- `club upgrade` refuses Homebrew, `pub global activate`, and source-checkout installs, naming the right command instead.
+- A one-line update hint after commands, checked at most daily and silenced by `NO_UPDATE_CHECK`.
+- `--pre` / `-Pre` on both install scripts to include pre-releases.
+
+### Changed
+
+- The install one-liner now installs the newest stable release instead of the newest tag. Pass `--pre` for the old behaviour.
+- `install.sh` reports "Downgrading" when moving to an older version.
+
+### Fixed
+
+- `install.ps1` can now replace a running `club.exe` instead of failing with a sharing violation.
+
 ## 0.4.1
 
 ### Changed

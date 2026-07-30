@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'util/paths.dart';
+
 /// Manages club credential storage.
 ///
 /// Credentials are stored in `~/.config/club/credentials.json` (Unix)
@@ -14,18 +16,8 @@ import 'package:path/path.dart' as p;
 /// both `dart pub token add` (which requires a URL) and lookups from
 /// host-style CLI input.
 class CredentialStore {
-  static String get _configDir {
-    if (Platform.isWindows) {
-      return p.join(Platform.environment['APPDATA']!, 'club');
-    }
-    return p.join(
-      Platform.environment['HOME'] ?? '.',
-      '.config',
-      'club',
-    );
-  }
-
-  static String get _credentialsPath => p.join(_configDir, 'credentials.json');
+  static String get _credentialsPath =>
+      p.join(clubConfigDir(), 'credentials.json');
 
   /// Load the full credentials file.
   static Map<String, dynamic> _load() {
