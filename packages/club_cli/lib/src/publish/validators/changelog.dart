@@ -59,12 +59,22 @@ class ChangelogValidator extends Validator {
 
     final ver = context.pubspec.version;
     if (ver.isEmpty) return;
-    if (!contents.contains(ver)) {
-      warning(
-        "$changelog doesn't mention current version ($ver).\n"
-        'Consider updating it with notes on this version prior to '
-        'publication.',
-      );
+    if (contents.contains(ver)) return;
+
+    // The published version is not always the one an author could have
+    // written about. A pull request publishes as `X.Y.Z-pr<n>` and
+    // `--version` substitutes a version at publish time; in both cases the
+    // only version the CHANGELOG can reasonably mention is the one in the
+    // pubspec, so accept that as covering this publish.
+    final declared = context.pubspec.parsed.version?.toString();
+    if (declared != null && declared.isNotEmpty && contents.contains(declared)) {
+      return;
     }
+
+    warning(
+      "$changelog doesn't mention current version ($ver).\n"
+      'Consider updating it with notes on this version prior to '
+      'publication.',
+    );
   }
 }

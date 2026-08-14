@@ -10,6 +10,10 @@
 /// re-fetched and the working tree is forced back to a pristine checkout
 /// of the requested ref (hard reset + `git clean`), so a reused clone can
 /// never carry stale state into a publish.
+///
+/// A GitHub pull request URL is also accepted. [parseGitSource] normalises
+/// it to the plain repository clone URL plus a PR number, and the PR head is
+/// fetched from `refs/pull/<n>/head`. See [parseGitSource].
 library;
 
 import 'dart:io';
@@ -20,7 +24,12 @@ import '../util/log.dart';
 
 /// A prepared git clone ready to be published.
 class GitClone {
-  GitClone({required this.url, required this.root, required this.ref});
+  GitClone({
+    required this.url,
+    required this.root,
+    required this.ref,
+    this.pullRequest,
+  });
 
   /// The git URL that was cloned.
   final String url;
@@ -30,6 +39,9 @@ class GitClone {
 
   /// The branch, tag, or commit that is checked out.
   final String ref;
+
+  /// The pull request number when this clone came from a PR URL, else null.
+  final int? pullRequest;
 }
 
 /// Thrown when a git operation fails. Carries a user-facing [message] and
@@ -44,22 +56,31 @@ class GitSourceError implements Exception {
   String toString() => message;
 }
 
-/// Clones [url] into the clone cache — or refreshes an existing clone — and
-/// checks out [ref] (a branch, tag, or commit). When [ref] is null/empty
-/// the remote default branch is used.
+/// Clones [source] into the clone cache (or refreshes an existing clone)
+/// and checks out [ref] (a branch, tag, or commit). When [ref] is null/empty
+/// the remote default branch is used, unless [source] names a pull request,
+/// in which case the PR head is checked out.
 ///
 /// Returns a [GitClone] describing the local checkout. Throws
 /// [GitSourceError] on any failure (missing `git`, bad URL, network error,
-/// unknown ref).
-Future<GitClone> prepareGitClone({required String url, String? ref}) async {
+/// unknown ref, unknown PR).
+Future<GitClone> prepareGitClone({
+  required GitSource source,
+  String? ref,
+}) async {
   await _ensureGitAvailable();
 
+  final url = source.cloneUrl;
   final parts = _parseGitUrl(url);
   final root = _cloneRootFor(parts);
-  final wantRef = (ref ?? '').trim();
+  final pr = source.pullRequest;
+  // A PR is fetched into `refs/remotes/origin/pr/<n>`, so from the checkout
+  // step onward it behaves exactly like a remote branch of that name.
+  final wantRef = pr != null ? _prLocalRef(pr) : (ref ?? '').trim();
 
   heading('Preparing git source');
   detail('repo: ${bold(parts.segments.join('/'))} ${gray('(${parts.host})')}');
+  if (pr != null) detail('pr: ${bold('#$pr')} ${gray('(refs/pull/$pr/head)')}');
   detail('cache: $root');
 
   final exists = Directory(root).existsSync();
@@ -74,10 +95,19 @@ Future<GitClone> prepareGitClone({required String url, String? ref}) async {
   final sw = Stopwatch()..start();
   if (reusable) {
     detail('reusing existing clone, fetching latest…');
-    await _shallowFetch(root: root, ref: wantRef);
+    if (pr != null) {
+      await _fetchPullRequest(root: root, pr: pr, repo: parts);
+    } else {
+      await _shallowFetch(root: root, ref: wantRef);
+    }
   } else {
     detail('cloning (shallow)…');
-    await _shallowClone(url: url, root: root, ref: wantRef);
+    if (pr != null) {
+      await _initRemote(url: url, root: root);
+      await _fetchPullRequest(root: root, pr: pr, repo: parts);
+    } else {
+      await _shallowClone(url: url, root: root, ref: wantRef);
+    }
   }
 
   final checkedOut = await _checkout(root, wantRef);
@@ -90,8 +120,16 @@ Future<GitClone> prepareGitClone({required String url, String? ref}) async {
     '${gray('(${formatDuration(sw.elapsed)})')}',
   );
 
-  return GitClone(url: url, root: root, ref: checkedOut);
+  return GitClone(
+    url: url,
+    root: root,
+    ref: checkedOut,
+    pullRequest: pr,
+  );
 }
+
+/// Local remote-tracking branch name a pull request is fetched into.
+String _prLocalRef(int pr) => 'pr/$pr';
 
 /// Deletes the clone at [root] and prunes now-empty parent directories up
 /// to (but not including) `~/.club/clones`. Best-effort — never throws.
@@ -142,13 +180,7 @@ Future<void> _shallowClone({
     return;
   }
   if (_looksLikeSha(ref)) {
-    Directory(root).createSync(recursive: true);
-    await _git(['init', '--quiet'], cwd: root, action: 'initialise');
-    await _git(
-      ['remote', 'add', 'origin', url],
-      cwd: root,
-      action: 'set the remote of',
-    );
+    await _initRemote(url: url, root: root);
     await _git(
       ['fetch', '--depth', '1', 'origin', ref],
       cwd: root,
@@ -160,6 +192,55 @@ Future<void> _shallowClone({
     ['clone', '--depth', '1', '--branch', ref, '--single-branch', url, root],
     action: 'clone ref "$ref" for',
   );
+}
+
+/// Creates an empty repository at [root] with `origin` pointing at [url].
+///
+/// Used for the two cases `git clone --branch` cannot express: a bare commit
+/// SHA, and a pull request ref.
+Future<void> _initRemote({required String url, required String root}) async {
+  Directory(root).createSync(recursive: true);
+  await _git(['init', '--quiet'], cwd: root, action: 'initialise');
+  await _git(
+    ['remote', 'add', 'origin', url],
+    cwd: root,
+    action: 'set the remote of',
+  );
+}
+
+/// Fetches the head commit of pull request [pr] into
+/// `refs/remotes/origin/pr/<n>`, so the checkout step can treat it like any
+/// other remote branch.
+///
+/// GitHub publishes every PR at `refs/pull/<n>/head` on the repository
+/// itself, including PRs opened from forks, so no second remote is needed.
+/// `--force` matters on the reuse path: a PR branch is routinely rebased or
+/// amended, and the new head is frequently not a fast-forward of the old one.
+Future<void> _fetchPullRequest({
+  required String root,
+  required int pr,
+  required _GitUrlParts repo,
+}) async {
+  try {
+    await _git(
+      [
+        'fetch',
+        '--depth', '1',
+        '--force',
+        'origin',
+        'refs/pull/$pr/head:refs/remotes/origin/${_prLocalRef(pr)}',
+      ],
+      cwd: root,
+      action: 'fetch pull request #$pr for',
+    );
+  } on GitSourceError catch (e) {
+    throw GitSourceError(
+      'Pull request #$pr was not found on ${repo.segments.join('/')}.',
+      hint: 'Check the number is right. A PR whose fork was deleted has no '
+          'fetchable head, and a private repository needs git credentials '
+          'that can read it.\n${e.hint ?? ''}'.trimRight(),
+    );
+  }
 }
 
 /// Refreshes a reusable clone in-place with a `--depth 1` fetch of just the
@@ -300,6 +381,101 @@ Future<String> _defaultBranch(String root) async {
 }
 
 // ── URL parsing ─────────────────────────────────────────────────────────────
+
+/// What the user passed to `--from-git`, normalised into something git can
+/// actually clone plus the pull request it referred to (if any).
+class GitSource {
+  GitSource({required this.cloneUrl, this.pullRequest});
+
+  /// URL handed to `git clone` / `git remote add`. For a PR URL this is the
+  /// plain repository URL with the `/pull/<n>` part removed; for everything
+  /// else it is the user's input, untouched.
+  final String cloneUrl;
+
+  /// Pull request number when the input was a PR URL, else null.
+  final int? pullRequest;
+
+  /// True when this source points at a pull request.
+  bool get isPullRequest => pullRequest != null;
+}
+
+/// GitHub PR URL: `/<owner>/<repo>/pull/<n>` with any trailing segments
+/// (`/files`, `/commits`, `/checks/…`) the browser may have added.
+final _githubPrPath = RegExp(r'^/([^/]+)/([^/]+)/pull/(\d+)(?:/.*)?/?$');
+
+/// A PR URL on a forge we do not support yet. Matched only to produce a
+/// better error than git's "repository not found".
+final _otherForgePrPath = RegExp(
+  r'/(?:-/)?(?:merge_requests|pull-requests|pulls)/\d+',
+);
+
+/// Hosts whose `/pull/<n>` URLs we know how to resolve.
+const _githubHosts = {'github.com', 'www.github.com'};
+
+/// Normalises the raw `--from-git` value into a [GitSource].
+///
+/// A GitHub pull request URL such as
+/// `https://github.com/owner/repo/pull/2` becomes the clone URL
+/// `https://github.com/owner/repo.git` plus PR number 2. Query strings and
+/// fragments (`?w=1`, `#issuecomment-…`) are ignored, so a URL copied
+/// straight out of the browser works.
+///
+/// Every other form (HTTPS, SSH in either style, nested groups) passes
+/// through unchanged with a null [GitSource.pullRequest]; those are
+/// validated later by [_parseGitUrl] and by git itself.
+///
+/// Throws [GitSourceError] for a pull request URL on a forge other than
+/// GitHub, which is not supported yet.
+GitSource parseGitSource(String raw) {
+  final url = raw.trim();
+  if (url.isEmpty) {
+    throw GitSourceError('Git URL cannot be empty.');
+  }
+
+  // SSH and SCP-style URLs never carry a PR path, so skip the web-URL
+  // handling entirely and let the existing parser deal with them.
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return GitSource(cloneUrl: url);
+  }
+
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.host.isEmpty) return GitSource(cloneUrl: url);
+
+  final host = uri.host.toLowerCase();
+  final match = _githubPrPath.firstMatch(uri.path);
+
+  if (match == null) {
+    if (_otherForgePrPath.hasMatch(uri.path)) {
+      throw GitSourceError(
+        'Publishing from a pull request currently supports GitHub only.',
+        hint: 'Pass the plain repository URL and select the ref yourself, '
+            'e.g. --ref refs/merge-requests/1/head.',
+      );
+    }
+    return GitSource(cloneUrl: url);
+  }
+
+  if (!_githubHosts.contains(host)) {
+    throw GitSourceError(
+      'Publishing from a pull request currently supports GitHub only '
+      '(got host "$host").',
+      hint: 'Pass the plain repository URL and select the ref yourself, '
+          'e.g. --ref refs/pull/${match.group(3)}/head.',
+    );
+  }
+
+  final owner = match.group(1)!;
+  final repo = _stripDotGit(match.group(2)!);
+  final number = int.parse(match.group(3)!);
+  if (number < 1) {
+    throw GitSourceError('Invalid pull request number in URL: $raw');
+  }
+
+  return GitSource(
+    cloneUrl: 'https://$host/$owner/$repo.git',
+    pullRequest: number,
+  );
+}
 
 /// Host and repository path segments parsed out of a git URL.
 class _GitUrlParts {

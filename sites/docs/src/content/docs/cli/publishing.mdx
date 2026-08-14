@@ -67,10 +67,10 @@ plus club-specific additions (`--server`, `--version`, `--enhanced`,
 | `--to-archive <path>` | | Write the produced `.tar.gz` to `<path>` instead of uploading. |
 | `--from-archive <path>` | | Upload an existing `.tar.gz` instead of building one. Implies `--skip-validation`. |
 | `--server <host>` | `-s` | Override `publish_to` and the auto-picker. Accepts a bare host (`myclub.birju.dev`) or a full URL. Must be a server you have logged in to with `club login`. |
-| `--version <semver>` | | Override the version being published. Rewrites the version inside the tarball's `pubspec.yaml` without modifying source files. Must be valid semver. |
+| `--version <semver>` | | Override the version being published. Rewrites the version inside the tarball's `pubspec.yaml` without modifying source files. Must be valid semver. With `--auto`, applies to every package in the closure. With `--from-git`, skips the interactive version step. |
 | `--enhanced` | `-e` | Club extras on top of dart pub parity: stricter size limit, `dart analyze --fatal-warnings`, git deps as errors, extended leak patterns, DevTools `config.yaml` content checks, every file-case collision reported. |
-| `--from-git <url>` | | Clone a git repository and publish it as a package. Accepts an https or SSH git URL. The repo is cloned under `~/.club/clones/` and removed after a successful publish. See [`club publish --from-git`](/cli/publish-from-git/). |
-| `--ref <ref>` | | Git branch, tag, or commit to check out. Only valid with `--from-git`. Defaults to the remote default branch. |
+| `--from-git <url>` | | Clone a git repository and publish it as a package. Accepts an https or SSH git URL, or a GitHub pull request URL (which publishes the PR head as `X.Y.Z-pr<n>`). The repo is cloned under `~/.club/clones/` and removed after a successful publish. See [Publishing from Git](/cli/publish-from-git/). |
+| `--ref <ref>` | | Git branch, tag, or full commit SHA to check out. Only valid with `--from-git`, and not with a pull request URL. Defaults to the remote default branch. |
 | `--auto` | | Switch into multi-package mode for monorepos. See [`club publish --auto`](/cli/auto-publish/). |
 
 ## How the target server is resolved

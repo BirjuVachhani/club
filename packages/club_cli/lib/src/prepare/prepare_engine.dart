@@ -37,6 +37,8 @@ class WorkspaceInputs {
     required this.headerLabel,
     this.serverFlag,
     this.dryRunLabel = false,
+    this.versionSuffix,
+    this.versionOverride,
   });
 
   /// Workspace root. Empty -> cwd.
@@ -59,6 +61,14 @@ class WorkspaceInputs {
   /// When true, the header is decorated with `(dry-run)` so the user
   /// knows the run will not touch disk.
   final bool dryRunLabel;
+
+  /// Prerelease identifier applied to every discovered package's version,
+  /// e.g. `pr2` for a pull request publish. Null for a normal run.
+  final String? versionSuffix;
+
+  /// One version to use for every discovered package, replacing whatever
+  /// their pubspecs declare. Takes precedence over [versionSuffix].
+  final String? versionOverride;
 }
 
 /// Snapshot of the workspace ready for the rewrite/publish phase.
@@ -115,7 +125,11 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
   // ── Discovery ────────────────────────────────────────────────────────────
   final Map<String, DiscoveredPackage> packages;
   try {
-    packages = discoverPackages(rootDir);
+    packages = discoverPackages(
+      rootDir,
+      versionSuffix: inputs.versionSuffix,
+      versionOverride: inputs.versionOverride,
+    );
   } on FormatException catch (e) {
     error(e.message);
     throw PrepareEngineError(ExitCodes.data);

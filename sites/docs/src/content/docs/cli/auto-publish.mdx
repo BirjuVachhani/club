@@ -222,10 +222,17 @@ multi-package controls:
 | `--skip-validation` | Bypass the 25 client-side validators per package. |
 | `--ignore-warnings` | With `--dry-run`: do not exit non-zero on warnings. |
 | `--enhanced`, `-e` | Club extras (stricter size limit, enhanced analyzer rules, extra leak patterns). Applied to every package in the chain. |
+| `--version <semver>` | Publish **every** package in the closure as this one version, instead of each using its own. Rewritten internal constraints point at it too, so the stack resolves against itself. |
 
-The single-package flags `--to-archive`, `--from-archive`, and
-`--version` are **not compatible** with `--auto` and produce a usage
-error if combined.
+The single-package flags `--to-archive` and `--from-archive` are **not
+compatible** with `--auto` and produce a usage error if combined.
+
+<Aside type="caution" title="--version applies to the whole stack">
+Under `--auto`, `--version` is not "the version of the package I named",
+it is the version of every package that gets published. A package whose
+version is already correct is republished under the new number along
+with everything else.
+</Aside>
 
 ### Positional arguments
 

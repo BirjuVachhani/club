@@ -26,6 +26,7 @@ import '../util/prompt.dart';
 import '../util/url.dart';
 import 'archive_extractor.dart';
 import 'isolated_resolution.dart';
+import 'pr_version.dart';
 import 'pubspec_reader.dart';
 import 'server_resolver.dart';
 import 'tarball_builder.dart';
@@ -49,6 +50,7 @@ class PublishOptions {
     this.versionOverride,
     this.enhanced = false,
     this.pubspecOverride,
+    this.pullRequest,
   });
 
   /// Package directory (resolves to cwd if null/empty).
@@ -84,6 +86,14 @@ class PublishOptions {
   /// the source `pubspec.yaml` is never read or modified. Used by
   /// `club publish --auto` to apply dependency rewrites virtually.
   final String? pubspecOverride;
+
+  /// Pull request this publish came from (`--from-git <pr-url>`).
+  ///
+  /// Publishes the package as a prerelease of its own version, so `1.2.0`
+  /// from PR #2 becomes `1.2.0-pr2` and a PR build can never overwrite a
+  /// real release. See `pr_version.dart`. Ignored when [versionOverride] is
+  /// set, which the command layer rejects up front.
+  final int? pullRequest;
 }
 
 /// The orchestrator. Construct once per `club publish` invocation.
@@ -104,13 +114,35 @@ class PublishRunner {
     // of disk so every downstream consumer (workspace resolver, validators,
     // tarball builder) sees the post-rewrite shape. The source pubspec
     // file is never read or mutated.
-    final pubspec = options.pubspecOverride != null
-        ? parsePubspec(
-            pkgDir,
-            options.pubspecOverride!,
-            versionOverride: options.versionOverride,
-          )
-        : readPubspec(pkgDir, versionOverride: options.versionOverride);
+    PackagePubspec readWith(String? versionOverride) =>
+        options.pubspecOverride != null
+            ? parsePubspec(
+                pkgDir,
+                options.pubspecOverride!,
+                versionOverride: versionOverride,
+              )
+            : readPubspec(pkgDir, versionOverride: versionOverride);
+
+    var pubspec = readWith(options.versionOverride);
+
+    // A PR publish derives its version from the package's own: the base
+    // version has to be read before the override can be computed, so parse
+    // once to learn it and re-parse with the derived version.
+    if (options.pullRequest != null && options.versionOverride == null) {
+      final base = pubspec.parsed.version?.toString();
+      if (base == null || base.isEmpty) {
+        error(
+          'Cannot publish ${pubspec.name} from a pull request: its '
+          'pubspec.yaml has no version: field.',
+        );
+        hint('A PR publish is versioned as a prerelease of the package '
+            'version, so there has to be one to derive from.');
+        return ExitCodes.data;
+      }
+      pubspec = readWith(
+        applyPrereleaseSuffix(base, prSuffix(options.pullRequest!)),
+      );
+    }
 
     // Club deliberately diverges from dart pub here: `publish_to: none`,
     // `publish_to` missing, and `publish_to: https://pub.dev/` are all
@@ -136,14 +168,17 @@ class PublishRunner {
 
     // ── Header ──────────────────────────────────────────────────────────────
     info('');
-    if (options.versionOverride != null) {
-      info(
-        '📦 Publishing ${bold(pubspec.name)} ${cyan(pubspec.version)}'
-        ' ${gray('(overridden)')}',
-      );
-    } else {
-      info('📦 Publishing ${bold(pubspec.name)} ${cyan(pubspec.version)}');
-    }
+    final versionNote = switch (options) {
+      PublishOptions(versionOverride: != null, pullRequest: final pr?) =>
+        gray('(PR #$pr, overridden)'),
+      PublishOptions(versionOverride: != null) => gray('(overridden)'),
+      PublishOptions(pullRequest: final pr?) => gray('(PR #$pr)'),
+      _ => null,
+    };
+    info(
+      '📦 Publishing ${bold(pubspec.name)} ${cyan(pubspec.version)}'
+      '${versionNote == null ? '' : ' $versionNote'}',
+    );
     detail('from $pkgDir');
     if (workspace.isWorkspaceMember) {
       detail('workspace root: ${workspace.workspaceRootDir}');

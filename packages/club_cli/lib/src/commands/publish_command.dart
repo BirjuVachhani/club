@@ -18,8 +18,12 @@ import '../prepare/conflict_resolver.dart';
 import '../prepare/tree_renderer.dart';
 import '../publish/auto_publish_runner.dart';
 import '../publish/git_source.dart';
+import '../publish/pr_version.dart';
 import '../publish/publish_runner.dart';
+import '../publish/pubspec_reader.dart';
+import '../publish/version_prompt.dart';
 import '../util/log.dart';
+import '../util/prompt.dart';
 import 'base/club_command.dart';
 
 class PublishCommand extends ClubCommand {
@@ -140,17 +144,20 @@ class PublishCommand extends ClubCommand {
         'from-git',
         help:
             'Clone a git repository and publish it as a package. Accepts '
-            'an https or SSH git URL. The repo is cloned under '
-            '~/.club/clones/ and removed after a successful publish. '
-            'Combine with --auto for monorepos, or -C to target a '
-            'package in a subdirectory of the repo.',
+            'an https or SSH git URL, or a GitHub pull request URL '
+            '(https://github.com/<owner>/<repo>/pull/<n>), which publishes '
+            'the PR head as a prerelease: 1.2.0 becomes 1.2.0-pr<n>. The '
+            'repo is cloned under ~/.club/clones/ and removed after a '
+            'successful publish. Combine with --auto for monorepos, or -C '
+            'to target a package in a subdirectory of the repo.',
         valueHelp: 'url',
       )
       ..addOption(
         'ref',
         help:
             'Git branch, tag, or commit to check out (only used with '
-            '--from-git). Defaults to the remote default branch.',
+            '--from-git). Defaults to the remote default branch. Cannot be '
+            'combined with a pull request URL, which selects its own ref.',
         valueHelp: 'ref',
       );
   }
@@ -179,6 +186,18 @@ class PublishCommand extends ClubCommand {
       return;
     }
 
+    // Check --version before anything expensive: a typo should not cost
+    // the user a clone and a dependency resolution first.
+    final versionFlag = results['version'] as String?;
+    if (versionFlag != null) {
+      final problem = versionFormatError(versionFlag);
+      if (problem != null) {
+        error(problem);
+        exitCode = ExitCodes.config;
+        return;
+      }
+    }
+
     // ── --from-git: clone the repo, publish from the clone, clean up ─────
     if (fromGit != null) {
       if (results['from-archive'] != null) {
@@ -187,9 +206,29 @@ class PublishCommand extends ClubCommand {
         return;
       }
 
+      // Resolve a PR URL to a repository + PR number before doing any
+      // network work, so bad flag combinations fail instantly.
+      final GitSource source;
+      try {
+        source = parseGitSource(fromGit);
+      } on GitSourceError catch (e) {
+        error(e.message);
+        if (e.hint != null) hint(e.hint!);
+        exitCode = ExitCodes.config;
+        return;
+      }
+
+      if (source.isPullRequest && gitRef != null) {
+        error('--ref cannot be combined with a pull request URL.');
+        hint('The PR URL already selects the commit to publish '
+            '(refs/pull/${source.pullRequest}/head).');
+        exitCode = ExitCodes.config;
+        return;
+      }
+
       final GitClone clone;
       try {
-        clone = await prepareGitClone(url: fromGit, ref: gitRef);
+        clone = await prepareGitClone(source: source, ref: gitRef);
       } on GitSourceError catch (e) {
         error(e.message);
         if (e.hint != null) hint(e.hint!);
@@ -199,7 +238,11 @@ class PublishCommand extends ClubCommand {
 
       var succeeded = false;
       try {
-        await _runPublish(baseDirectory: clone.root);
+        await _runPublish(
+          baseDirectory: clone.root,
+          pullRequest: clone.pullRequest,
+          offerVersionStep: true,
+        );
         succeeded = exitCode == ExitCodes.success;
       } finally {
         info('');
@@ -220,26 +263,81 @@ class PublishCommand extends ClubCommand {
     await _runPublish(baseDirectory: null);
   }
 
+  /// Version the single-package flow would publish with if the user
+  /// overrides nothing: the pubspec's own version, carrying the `-pr<n>`
+  /// suffix when this came from a pull request.
+  ///
+  /// Returns null when the version cannot be read (no pubspec, no
+  /// `version:` field, malformed YAML). The prompt then simply has no
+  /// default, and the publish flow reports the real problem shortly after.
+  String? _detectVersion(String directory, int? pullRequest) {
+    try {
+      final dir = directory.isEmpty ? Directory.current.path : directory;
+      final version = readPubspec(dir).parsed.version?.toString();
+      if (version == null || version.isEmpty) return null;
+      return pullRequest == null
+          ? version
+          : applyPrereleaseSuffix(version, prSuffix(pullRequest));
+    } on Exception {
+      return null;
+    }
+  }
+
   /// Runs the single-package or `--auto` publish flow.
   ///
   /// When [baseDirectory] is set (a `--from-git` clone root) the effective
   /// package directory is that root, with any `-C/--directory` value
   /// resolved relative to it. Otherwise `-C` is used as given.
-  Future<void> _runPublish({required String? baseDirectory}) async {
+  ///
+  /// [pullRequest] is set when the clone came from a pull request URL; it
+  /// makes every package publish as a `-pr<n>` prerelease of its own
+  /// version.
+  ///
+  /// [offerVersionStep] turns on the interactive "publish as which
+  /// version?" step, used by `--from-git` where the version in someone
+  /// else's pubspec is frequently not the one you want to occupy.
+  Future<void> _runPublish({
+    required String? baseDirectory,
+    int? pullRequest,
+    bool offerVersionStep = false,
+  }) async {
     final results = argResults!;
+    final isAuto = results['auto'] as bool;
     final dirFlag = (results['directory'] as String?) ?? '';
     final directory = baseDirectory == null
         ? dirFlag
         : (dirFlag.isEmpty ? baseDirectory : p.join(baseDirectory, dirFlag));
 
+    // ── Version ──────────────────────────────────────────────────────────
+    // --version was already validated in [run]; an explicit value skips
+    // the prompt entirely.
+    var versionOverride = results['version'] as String?;
+    if (versionOverride == null &&
+        offerVersionStep &&
+        !(results['force'] as bool) &&
+        isInteractive &&
+        !isCI) {
+      // --force means "stop asking me things", and CI has nobody to ask.
+      try {
+        versionOverride = await promptPublishVersion(
+          isAuto: isAuto,
+          detected: isAuto ? null : _detectVersion(directory, pullRequest),
+          pullRequest: pullRequest,
+        );
+      } on NonInteractiveError {
+        // Terminal disappeared between the check and the prompt; publish
+        // with the version the package already declares.
+        versionOverride = null;
+      }
+    }
+
     // ── --auto branch: multi-package orchestrated publish ────────────────
-    if (results['auto'] as bool) {
+    if (isAuto) {
       // Reject single-package-only flags so the user gets a clear error
       // rather than silently-ignored options.
       for (final incompatible in const [
         'to-archive',
         'from-archive',
-        'version',
       ]) {
         if (results.wasParsed(incompatible)) {
           error('--$incompatible cannot be combined with --auto.');
@@ -264,6 +362,8 @@ class PublishCommand extends ClubCommand {
         onConflict: onConflict,
         treeStyle: treeStyle,
         showTree: !(results['no-tree'] as bool),
+        pullRequest: pullRequest,
+        versionOverride: versionOverride,
       );
       try {
         exitCode = await AutoPublishRunner(autoOptions).run();
@@ -293,8 +393,9 @@ class PublishCommand extends ClubCommand {
       toArchive: results['to-archive'] as String?,
       fromArchive: results['from-archive'] as String?,
       serverFlag: results['server'] as String?,
-      versionOverride: results['version'] as String?,
+      versionOverride: versionOverride,
       enhanced: results['enhanced'] as bool,
+      pullRequest: pullRequest,
     );
 
     try {

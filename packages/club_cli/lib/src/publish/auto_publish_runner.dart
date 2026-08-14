@@ -26,6 +26,7 @@ import '../prepare/tree_renderer.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/url.dart';
+import 'pr_version.dart';
 import 'publish_runner.dart';
 
 class AutoPublishOptions {
@@ -41,6 +42,8 @@ class AutoPublishOptions {
     this.onConflict = OnConflictMode.prompt,
     this.treeStyle = TreeStyle.stacked,
     this.showTree = true,
+    this.pullRequest,
+    this.versionOverride,
   });
 
   final String directory;
@@ -59,6 +62,24 @@ class AutoPublishOptions {
 
   /// When false, the dependency tree section is suppressed (`--no-tree`).
   final bool showTree;
+
+  /// Pull request this stack is being published from
+  /// (`--from-git <pr-url> --auto`).
+  ///
+  /// Every package in the closure is published as `X.Y.Z-pr<n>`, and
+  /// because the suffix is applied at discovery the rewritten sibling
+  /// constraints point at the prerelease too (`^X.Y.Z-pr<n>`), so the stack
+  /// resolves against itself rather than against the released versions.
+  final int? pullRequest;
+
+  /// One version to publish every package in the closure as, from
+  /// `--version` or the interactive version step.
+  ///
+  /// Applied at discovery, so the rewritten sibling constraints all become
+  /// `^<versionOverride>` and the stack resolves against itself. Takes
+  /// precedence over [pullRequest]: an explicit version is used verbatim,
+  /// with no `-pr<n>` suffix added on top.
+  final String? versionOverride;
 }
 
 class AutoPublishRunner {
@@ -74,8 +95,16 @@ class AutoPublishRunner {
           targets: options.targets,
           serverFlag: options.serverFlag,
           onConflict: options.onConflict,
-          headerLabel: '🚀  ${bold('club publish --auto')}',
+          headerLabel: '🚀  ${bold('club publish --auto')}'
+              '${options.pullRequest == null ? '' : gray(' (PR #${options.pullRequest})')}',
           dryRunLabel: options.dryRun,
+          versionOverride: options.versionOverride,
+          // An explicit version wins outright; the PR suffix is only the
+          // default for when the user did not name one.
+          versionSuffix:
+              options.versionOverride != null || options.pullRequest == null
+                  ? null
+                  : prSuffix(options.pullRequest!),
         ),
       );
     } on PrepareEngineError catch (e) {
@@ -247,6 +276,8 @@ class AutoPublishRunner {
           enhanced: options.enhanced,
           serverFlag: ws.server.url,
           pubspecOverride: pubspecOverrides[name],
+          pullRequest: options.pullRequest,
+          versionOverride: options.versionOverride,
         ),
       ).run();
 

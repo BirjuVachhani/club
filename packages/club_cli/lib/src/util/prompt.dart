@@ -74,6 +74,57 @@ Future<bool> confirm(String question, {bool defaultAnswer = false}) async {
   return line == 'y' || line == 'yes';
 }
 
+// ── Free-text prompt ────────────────────────────────────────────────────────
+
+/// Ask the user to type a value, with an optional [defaultValue] shown in
+/// brackets and used when the reply is empty.
+///
+/// [validate] is given the trimmed input and returns an error message to
+/// show, or null when the value is acceptable. Invalid input re-prompts
+/// rather than aborting, so a typo does not cost the user the whole
+/// command. The default value is never passed through [validate]: the
+/// caller supplied it, so it is taken as already valid.
+///
+/// Returns null when the user accepted the default and no [defaultValue]
+/// was supplied. In non-interactive environments throws
+/// [NonInteractiveError]; callers that can proceed without an answer should
+/// check [isInteractive] first rather than catching.
+///
+/// [readLine] and [write] exist so the retry loop can be tested without a
+/// terminal. When [readLine] is supplied the interactive check is skipped,
+/// since the caller has provided the input itself. A [readLine] that
+/// returns null (EOF) is treated as accepting the default, so a closed
+/// stdin cannot spin the loop forever.
+Future<String?> askText(
+  String question, {
+  String? defaultValue,
+  String? Function(String value)? validate,
+  String? Function()? readLine,
+  void Function(String text)? write,
+}) async {
+  if (readLine == null && !isInteractive) {
+    throw NonInteractiveError(
+      'Cannot prompt for input in a non-interactive shell.',
+    );
+  }
+
+  final read = readLine ?? () => stdin.readLineSync(encoding: utf8);
+  final out = write ?? stdout.write;
+
+  while (true) {
+    final suffix = defaultValue == null ? '' : ' [$defaultValue]';
+    out('$question$suffix: ');
+    final line = read();
+    if (line == null) return defaultValue;
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) return defaultValue;
+
+    final problem = validate?.call(trimmed);
+    if (problem == null) return trimmed;
+    out('   $problem\n');
+  }
+}
+
 // ── Arrow-key picker ────────────────────────────────────────────────────────
 
 /// A single option in a [pick] menu.

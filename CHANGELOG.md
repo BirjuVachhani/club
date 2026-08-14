@@ -6,6 +6,20 @@
 - `club upgrade` refuses Homebrew, `pub global activate`, and source-checkout installs, naming the right command instead.
 - A one-line update hint after commands, checked at most daily and silenced by `NO_UPDATE_CHECK`.
 - `--pre` / `-Pre` on both install scripts to include pre-releases.
+- `club publish --from-git` accepts a GitHub pull request URL and publishes the PR head.
+- A pull request publishes as a prerelease of its own version, so `1.2.0` from PR #2 becomes `1.2.0-pr2`.
+- `--from-git <pr-url> --auto` suffixes a whole monorepo stack and points the rewritten internal constraints at the prereleases.
+- `--from-git` asks which version to publish as, pre-filled with the detected one, skipped by `--version`, `--force`, and CI.
+- A version entered at that step is used verbatim, so a PR can be published as any version rather than the derived prerelease.
+
+### Changed
+
+- `--version` is now allowed with `--auto` and applies to every package in the closure, including the rewritten internal constraints.
+- `--version` is validated as semver before any cloning or resolution work happens.
+
+### Fixed
+
+- The CHANGELOG validator accepts the version declared in the pubspec, so a derived version from `--version` or a pull request no longer warns.
 
 ### Changed
 

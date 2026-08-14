@@ -12,12 +12,15 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:pubspec_parse/pubspec_parse.dart';
 
+import '../publish/pr_version.dart';
+
 /// One package found by [discoverPackages].
 class DiscoveredPackage {
   DiscoveredPackage({
     required this.directory,
     required this.pubspec,
     required this.rawYaml,
+    this.versionOverride,
   });
 
   /// Absolute, canonicalized path to the package directory.
@@ -31,11 +34,17 @@ class DiscoveredPackage {
   /// Raw pubspec.yaml contents (preserved for downstream rewriters).
   final String rawYaml;
 
+  /// When set, replaces the pubspec's own version everywhere this package's
+  /// version is consulted: the constraint written into dependents, the
+  /// already-published check, and the publish stack display. Mirrors
+  /// `PackagePubspec.versionOverride`; source files are never modified.
+  final String? versionOverride;
+
   String get name => pubspec.name;
 
   /// Pubspec version as a string, or `null` when the pubspec has no
   /// `version:` field.
-  String? get version => pubspec.version?.toString();
+  String? get version => versionOverride ?? pubspec.version?.toString();
 }
 
 /// Directory names that should never be descended into during discovery.
@@ -52,9 +61,24 @@ const _skipDirs = {
 /// Walk [rootDir] and return every package whose pubspec has both a name and
 /// a version. Result is keyed by package name.
 ///
+/// [versionSuffix], when set, is applied to every discovered package's
+/// version as a prerelease identifier (see [applyPrereleaseSuffix]). This is
+/// how `--from-git <pr-url> --auto` publishes a whole monorepo stack as
+/// `-pr<n>` builds: because dependent constraints and the already-published
+/// check both read [DiscoveredPackage.version], suffixing here keeps the
+/// stack internally consistent, with siblings resolving to `^X.Y.Z-pr<n>`.
+///
+/// [versionOverride] instead replaces every package's version outright,
+/// which is how `--version` publishes a whole stack as one version. It wins
+/// over [versionSuffix]: a version the user named is used verbatim.
+///
 /// Throws [FormatException] when two discovered packages share the same
 /// `name`, since a graph keyed by name cannot disambiguate them.
-Map<String, DiscoveredPackage> discoverPackages(String rootDir) {
+Map<String, DiscoveredPackage> discoverPackages(
+  String rootDir, {
+  String? versionSuffix,
+  String? versionOverride,
+}) {
   final root = Directory(p.absolute(rootDir));
   if (!root.existsSync()) {
     throw FileSystemException('Directory not found', root.path);
@@ -93,10 +117,15 @@ Map<String, DiscoveredPackage> discoverPackages(String rootDir) {
         final isWorkspaceRoot =
             parsed.workspace != null && parsed.workspace!.isNotEmpty;
         if (!isWorkspaceRoot) {
+          final baseVersion = parsed.version?.toString();
           final pkg = DiscoveredPackage(
             directory: p.canonicalize(dir.path),
             pubspec: parsed,
             rawYaml: raw,
+            versionOverride: versionOverride ??
+                (versionSuffix == null || baseVersion == null
+                    ? null
+                    : applyPrereleaseSuffix(baseVersion, versionSuffix)),
           );
           final existing = found[parsed.name];
           if (existing != null) {

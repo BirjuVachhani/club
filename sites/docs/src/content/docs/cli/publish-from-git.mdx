@@ -1,8 +1,8 @@
 ---
-title: club publish --from-git
-description: Publish a Dart package straight from a git repository. Club clones the repo into a managed cache, runs the normal publish flow on the clone, and cleans up after a successful publish.
+title: Publishing from Git
+description: Publish a Dart package straight from a git repository or a GitHub pull request. Club clones the repo into a managed cache, runs the normal publish flow on the clone, and cleans up after a successful publish.
 sidebar:
-  label: Publish from Git directly
+  label: Publishing from Git
   order: 7
 ---
 
@@ -13,7 +13,8 @@ can publish a package from a git URL without cloning the repo yourself.
 In one command it:
 
 1. Clones the repository into `~/.club/clones/<host>/<org>/<repo>`.
-2. Checks out a branch, tag, or commit (defaults to the remote default branch).
+2. Checks out a branch, tag, commit, or pull request (defaults to the
+   remote default branch).
 3. Runs the **standard publish flow** on the clone.
 4. Deletes the clone on success.
 5. Keeps the clone on failure so a re-run reuses it via a fast hard
@@ -43,6 +44,12 @@ Publish a specific tag or branch:
 ```bash
 club publish --from-git https://github.com/your-org/your-package --ref v1.2.0
 club publish --from-git https://github.com/your-org/your-package --ref main
+```
+
+Publish the code on a GitHub pull request, as a prerelease:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package/pull/2
 ```
 
 Publish a package that lives in a subdirectory of the repo:
@@ -107,6 +114,8 @@ Uploading ───────────────────────�
    `git@host:org/repo.git` URLs are accepted. The host and repo path
    are mapped to a namespaced cache directory under `~/.club/clones/`
    so two repos with the same name from different orgs never collide.
+   A GitHub pull request URL is reduced to its repository here, and the
+   PR number is remembered for the next two steps.
 
 2. **Clone or reuse (shallow).** If the cache directory does not exist
    (or its `origin` remote does not match the requested URL, or the
@@ -115,6 +124,9 @@ Uploading ───────────────────────�
    branch. If the cache directory is a healthy match, Club reuses it
    and runs a shallow `git fetch` for the same ref. Either way the
    cache holds only the single commit being published, no history.
+   A pull request is fetched from `refs/pull/<n>/head` into a local
+   `pr/<n>` tracking branch, so from here on it behaves like any other
+   branch.
 
 3. **Checkout.** Club force-checks-out the requested ref. Local
    branches are reset to the matching remote tip, tags and commits are
@@ -181,6 +193,237 @@ untouched.
   </TabItem>
 </Tabs>
 
+## Pull requests
+
+Pass a GitHub pull request URL and Club publishes the code on that PR:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package/pull/2
+```
+
+This is the review-before-merge case: get a contributor's branch onto
+your private server so downstream projects can depend on it and try it
+for real, without merging first and without the PR author needing
+publish rights.
+
+The derived version below is a **default**, not a constraint. The
+[version step](#choosing-the-version) offers it and you can publish as
+anything else instead.
+
+### The version is derived, never the one in the pubspec
+
+A PR is published as a **prerelease of the package's own version**. If
+`pubspec.yaml` on the PR says `1.2.0`, PR #2 publishes as:
+
+```text
+1.2.0-pr2
+```
+
+The pubspec on disk is never modified. Only the copy inside the
+uploaded tarball carries the derived version, exactly like
+[`--version`](/cli/publishing/).
+
+This matters because contributors almost never bump the version in a
+PR. Without the suffix, publishing PR #2 of a package sitting at `1.2.0`
+would overwrite the real released `1.2.0` with unreviewed code. The
+suffix makes that impossible.
+
+It also means a PR build can never be picked up by accident. Under
+semver a prerelease sorts *below* its release, so a consumer with
+`^1.2.0` will not resolve `1.2.0-pr2`. Depending on a PR build has to
+be deliberate:
+
+```yaml
+dependencies:
+  your_package:
+    hosted: https://myclub.birju.dev
+    version: 1.2.0-pr2
+```
+
+How the suffix is applied in the less obvious cases:
+
+| Version in the PR | Published as |
+|-------------------|--------------|
+| `1.2.0` | `1.2.0-pr2` |
+| `1.2.0-dev.3` | `1.2.0-dev.3.pr2` |
+| `1.2.0+5` | `1.2.0-pr2+5` |
+
+Validators run against the derived version, with one accommodation: the
+CHANGELOG check is satisfied by an entry for the version declared in the
+pubspec. Nobody writes a changelog entry for a version that only comes
+into existence at publish time.
+
+### Updating a PR build
+
+The suffix is deliberately **stable**: it contains the PR number and
+nothing else, no commit hash. Every publish of PR #2 produces
+`1.2.0-pr2`. When the author pushes new commits, re-publish the same
+version with `--force`:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package/pull/2 --force
+```
+
+Consumers keep the constraint they already have and just re-resolve.
+The alternative, encoding the commit into the version, would leave a
+pile of dead `1.2.0-pr2.a1b2c3d` versions nobody ever cleans up.
+
+<Aside type="caution" title="--force is required to update">
+Without `--force` a second publish of the same PR fails the version
+conflict pre-check, the same as any other re-publish. That is
+deliberate: it keeps an accidental re-run from silently replacing a
+build someone is currently testing against.
+</Aside>
+
+### Accepted URL forms
+
+Anything you can copy out of the browser address bar while looking at a
+PR works. Trailing tabs, query strings, and fragments are ignored:
+
+```text
+https://github.com/your-org/your-package/pull/2
+https://github.com/your-org/your-package/pull/2/files
+https://github.com/your-org/your-package/pull/2/commits
+https://github.com/your-org/your-package/pull/2#issuecomment-12345
+```
+
+Club resolves the PR head from `refs/pull/<n>/head`, which GitHub
+publishes on the repository itself. PRs opened **from forks** work with
+no extra configuration, and the fork does not have to be reachable.
+
+<Aside type="note" title="GitHub only, for now">
+Pull request URLs are supported for `github.com` only. A merge request
+or pull request URL from GitLab, Gitea, or Bitbucket is rejected with a
+clear error rather than a confusing git failure.
+
+Other forges still work through `--ref`, since they expose their own PR
+refs. GitLab, for example:
+
+```bash
+club publish --from-git https://gitlab.com/group/repo \
+  --ref refs/merge-requests/4/head
+```
+</Aside>
+
+### Monorepos
+
+A PR against a monorepo composes with `--auto`, and the whole stack is
+suffixed together:
+
+```bash
+club publish --from-git https://github.com/your-org/your-monorepo/pull/7 --auto
+```
+
+Every package in the closure publishes as `X.Y.Z-pr7`, **and the
+rewritten internal constraints point at the prereleases too**. If
+`pkg_a` depends on `pkg_b`, `pkg_a` is published with:
+
+```yaml
+dependencies:
+  pkg_b:
+    hosted: https://myclub.birju.dev
+    version: ^1.2.0-pr7
+```
+
+So the published stack resolves against itself rather than falling back
+to the last released versions of its siblings. The rewrite preview
+printed before the upload shows the exact constraints, so you can check
+this before anything is sent.
+
+<Aside type="caution" title="Re-publishing a PR stack needs --on-conflict overwrite">
+For a single package, `--force` re-publishes. Under `--auto`, `--force`
+only skips the confirmation prompt, and what to do about an
+already-published version is governed by
+[`--on-conflict`](/cli/auto-publish/). To push an updated PR stack over
+the previous one:
+
+```bash
+club publish --from-git https://github.com/your-org/your-monorepo/pull/7 \
+  --auto --on-conflict overwrite
+```
+</Aside>
+
+### Restrictions
+
+| Combination | Result |
+|-------------|--------|
+| `--ref` with a PR URL | Rejected. The PR URL already selects the commit. |
+| `--version` with a PR URL | Publishes that version verbatim, with no `-pr<n>` suffix. See [Choosing the version](#choosing-the-version). |
+| `-C`, `--auto`, `--dry-run`, `--force`, `--server` | All work normally. |
+
+## Choosing the version
+
+Publishing from git is usually a republish of code you do not own, where
+the version in the source pubspec is not the one you want to occupy on
+your server. So `--from-git` asks:
+
+```text
+Version ─────────────────────────────────────────────────────
+   detected: 0.0.8-pr2 (PR #2)
+   Publish as [0.0.8-pr2]: 
+```
+
+Press Enter to take the detected version. Type anything else and that
+becomes the published version, **used verbatim**: entering `2.0.0` while
+publishing PR #2 publishes `2.0.0`, not `2.0.0-pr2`. The suffix is the
+default, not a rule imposed on a version you chose yourself.
+
+The value is checked as semver before anything is published, and a
+typo just re-asks rather than losing the run:
+
+```text
+   Publish as [0.0.8-pr2]: v2.0
+   Not valid semver: "v2.0". Try 1.2.3, 1.2.3-beta.1, or 1.2.3+build5.
+   Publish as [0.0.8-pr2]: 
+```
+
+The step is skipped, and the detected version used, whenever there is
+nobody to ask or the answer is already known:
+
+| Situation | Why |
+|-----------|-----|
+| `--version` was passed | The answer is already given. |
+| `--force` | Means "stop asking me things", the same as for every other prompt. |
+| CI, or a non-interactive shell | Nobody to ask. |
+
+`--version` is the non-interactive equivalent, and is validated the same
+way before any cloning happens:
+
+```bash
+club publish --from-git https://github.com/your-org/your-package/pull/2 \
+  --version 2.0.0
+```
+
+### With `--auto`
+
+In a monorepo there is no single detected version to offer, so the step
+asks whether to publish the whole stack as one version:
+
+```text
+Version ─────────────────────────────────────────────────────
+   every package publishes with its own version
+   suffixed for PR #7, e.g. 1.2.0-pr7
+   enter a version to publish the whole stack as that version instead
+   Publish all packages as: 
+```
+
+Enter nothing and each package keeps its own version. Enter `2.0.0` and
+every package in the closure publishes as `2.0.0`, with the rewritten
+internal constraints pointing at it:
+
+```yaml
+dependencies:
+  pkg_b:
+    hosted: https://myclub.birju.dev
+    version: ^2.0.0
+```
+
+<Aside type="note" title="--version now works with --auto">
+Passing `--version` alongside `--auto` used to be rejected. It now
+applies that one version to every package in the stack, from git or
+locally, which is the same thing the prompt does.
+</Aside>
+
 ## Reuse and the clone cache
 
 `~/.club/clones/<host>/<org>/<repo>` is treated as a managed cache,
@@ -220,6 +463,11 @@ The next `--from-git` run will recreate any directories it needs.
 | SSH (SCP-style) | `git@github.com:your-org/your-package.git` |
 | SSH (URL-style) | `ssh://git@github.com/your-org/your-package.git` |
 | Nested groups | `https://gitlab.com/group/subgroup/repo.git` |
+| GitHub pull request | `https://github.com/your-org/your-package/pull/2` |
+
+A pull request URL is normalised to the plain repository URL before
+cloning, so PR and branch publishes of the same repo share one cache
+directory. See [Pull requests](#pull-requests).
 
 Nested groups (GitLab subgroups, Gitea organisations with sub-orgs,
 etc.) map naturally onto nested cache directories:
@@ -242,17 +490,19 @@ additions and one restriction.
 
 | Flag | Description |
 |------|-------------|
-| `--from-git <url>` | Git URL to clone and publish from. HTTPS and SSH (SCP-style or URL-style) are both accepted. |
-| `--ref <ref>` | Branch, tag, or commit SHA to check out. Defaults to the remote default branch. Only valid with `--from-git`. |
+| `--from-git <url>` | Git URL to clone and publish from. HTTPS, SSH (SCP-style or URL-style), and GitHub pull request URLs are all accepted. |
+| `--ref <ref>` | Branch, tag, or full commit SHA to check out. Defaults to the remote default branch. Only valid with `--from-git`, and not with a PR URL. |
 | `--directory <path>`, `-C` | When `--from-git` is set, resolved relative to the clone root. Useful for publishing a single package in a monorepo without `--auto`. |
 | `--auto` | Run multi-package discovery + topological publish over the clone. See [`club publish --auto`](/cli/auto-publish/). |
 | `--dry-run`, `-n` | Clone (or reuse), validate, and bail before uploading. The clone is still removed on success. |
-| `--force`, `-f` | Skip confirmation prompts, force-publish existing versions. |
+| `--force`, `-f` | Skip confirmation prompts (including the version step), force-publish existing versions. Required to re-publish an updated PR. |
+| `--version <semver>` | Publish as this version, skipping the version step. Applies to every package under `--auto`. Validated before cloning. |
 | `--ref` without `--from-git` | Rejected with a config error. |
+| `--ref` with a PR URL | Rejected with a config error. The PR URL already selects the commit. |
 | `--from-archive` | **Not compatible** with `--from-git` (the archive is already built; there is nothing to clone). |
 
 All other `club publish` flags (`--server`, `--enhanced`,
-`--skip-validation`, `--to-archive`, `--version`, the `--auto` flags
+`--skip-validation`, `--to-archive`, the `--auto` flags
 `--on-conflict`, `--tree`, `--no-tree`) behave exactly as in the
 standard flow.
 
@@ -276,12 +526,30 @@ standard flow.
   ```
   </TabItem>
   <TabItem label="Commit">
-  Publish a specific commit (full or short SHA both work):
+  Publish a specific commit. The SHA has to be the full 40 characters,
+  because abbreviated SHAs cannot be fetched from a remote:
 
   ```bash
   club publish --from-git https://github.com/upstream/cool_package \
-    --ref a1b2c3d
+    --ref a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
   ```
+  </TabItem>
+  <TabItem label="Pull request">
+  Publish the head of PR #2 as a prerelease (`1.2.0` becomes
+  `1.2.0-pr2`):
+
+  ```bash
+  club publish --from-git https://github.com/upstream/cool_package/pull/2
+  ```
+
+  Re-publish after the author pushes new commits:
+
+  ```bash
+  club publish --from-git https://github.com/upstream/cool_package/pull/2 \
+    --force
+  ```
+
+  See [Pull requests](#pull-requests) for the versioning rules.
   </TabItem>
   <TabItem label="Monorepo (auto)">
   Publish every package in a Dart workspace monorepo:
@@ -347,8 +615,8 @@ subsequent invocations of the same repo.
 | `0` | Success. Clone was removed. |
 | `65` | Data error from the publish flow (validation failed, version conflict without `--force`, etc.). Clone is kept. |
 | `66` | No input (e.g. missing `pubspec.yaml` at the resolved directory). Clone is kept. |
-| `69` | Git failure (`git` not on PATH, unknown ref, network error, repo not accessible). Clone is kept if it was created. |
-| `78` | Config error (`--ref` without `--from-git`, `--from-git` combined with `--from-archive`, etc.). No clone happens. |
+| `69` | Git failure (`git` not on PATH, unknown ref, unknown pull request, network error, repo not accessible). Clone is kept if it was created. |
+| `78` | Config error (`--ref` without `--from-git`, `--ref` or `--version` with a PR URL, `--from-git` combined with `--from-archive`, a non-GitHub pull request URL, etc.). No clone happens. |
 
 When the clone is kept, the CLI prints the cache path and a hint that a
 re-run will reuse it.
@@ -371,6 +639,16 @@ re-run will reuse it.
   `uploadpack.allowAnySHA1InWant` to be enabled. GitHub, GitLab, and
   Gitea enable this by default; some self-hosted servers may need a
   config change. Branch/tag refs work everywhere.
+- **Pull request URLs are GitHub-only.** Other forges expose their own
+  PR refs, so they are still reachable through `--ref` (for example
+  `--ref refs/merge-requests/4/head` on GitLab), but without the
+  automatic `-pr<n>` version. See
+  [Pull requests](#pull-requests).
+- **A PR is published from its head, not its merge result.** Club
+  fetches `refs/pull/<n>/head`, which is what the author pushed. It
+  does not use GitHub's synthesized merge commit, which does not exist
+  when the PR has conflicts and would otherwise make the published
+  contents depend on the state of the base branch.
 
 ## Related
 
