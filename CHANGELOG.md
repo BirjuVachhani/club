@@ -1,3 +1,11 @@
+## 0.5.1
+
+### Fixed
+
+- `club publish` no longer fails resolution on a package whose archive carries an `example/` or other nested package.
+- Nested packages are excluded from the resolution copy, so their unresolved imports no longer count against the package being published.
+- Leak detection allows the Google API key in a generated Firebase client config (`firebase_options.dart`, `google-services.json`, `GoogleService-Info.plist`), which identifies a project rather than authenticating one. Other credentials in those files still fail.
+
 ## 0.5.0
 
 ### Added
