@@ -1,4 +1,4 @@
-## 0.5.0 (Unreleased)
+## 0.5.0
 
 ### Added
 
@@ -15,25 +15,22 @@
 - Cycle members are listed before the confirmation prompt and badged `⟳ cycle` in the publish stack.
 - Cycle members get their standalone resolution and `dart analyze` verified after the whole group is published.
 - A failed post-publish verification exits 65 and states that the versions are already on the server.
+- `scripts/uninstall.ps1` uninstalls on Windows, covering `club.exe`, the `club.cmd` shim, self-upgrade leftovers, the bundle directory, `%APPDATA%\club`, and the user PATH entry.
+- The site serves `/uninstall.ps1`, so Windows uninstall is a one-liner, and lists it on the privacy page.
 
 ### Changed
 
 - `--version` is now allowed with `--auto` and applies to every package in the closure, including the rewritten internal constraints.
 - `--version` is validated as semver before any cloning or resolution work happens.
-
-### Fixed
-
-- The CHANGELOG validator accepts the version declared in the pubspec, so a derived version from `--version` or a pull request no longer warns.
-- A dependency cycle no longer aborts `club publish --auto` with "Break the cycle by replacing one of the path dependencies".
-- A package that depends on itself now reports that directly instead of surfacing as a cycle.
-
-### Changed
-
 - The install one-liner now installs the newest stable release instead of the newest tag. Pass `--pre` for the old behaviour.
 - `install.sh` reports "Downgrading" when moving to an older version.
+- `uninstall.sh --purge` unregisters the pub token for every server in `credentials.json`, which previously survived uninstall in dart's own config.
 
 ### Fixed
 
+- A dependency cycle no longer aborts `club publish --auto` with "Break the cycle by replacing one of the path dependencies".
+- A package that depends on itself now reports that directly instead of surfacing as a cycle.
+- The CHANGELOG validator accepts the version declared in the pubspec, so a derived version from `--version` or a pull request no longer warns.
 - `install.ps1` can now replace a running `club.exe` instead of failing with a sharing violation.
 
 ## 0.4.1
