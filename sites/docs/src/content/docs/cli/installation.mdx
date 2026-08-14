@@ -162,12 +162,51 @@ the first time:
 
 ```bash
 brew tap birjuvachhani/club https://github.com/BirjuVachhani/club.git
+brew trust birjuvachhani/club
 brew install club
 ```
 
 The formula pulls the prebuilt binary for your platform (macOS
 arm64/x64, Linux arm64/x64) from the matching GitHub release and
 verifies its SHA-256.
+
+### Why `brew trust` is needed
+
+Homebrew 5.1.15 started requiring non-official taps to be trusted
+before it will load anything from them. `brew tap` still succeeds
+without it, so the failure surfaces one step later, at install time:
+
+```
+Error: Refusing to load formula birjuvachhani/club/club from untrusted tap birjuvachhani/club.
+Run `brew trust --formula birjuvachhani/club/club` or `brew trust birjuvachhani/club` to trust it.
+```
+
+Trusting the tap covers every formula in it, and it is a one-time step.
+Upgrades do not need it again.
+
+<Aside type="caution">
+  Run `brew trust` **after** `brew tap`, not before.
+
+  Because this repo is named `club` rather than `homebrew-club`, the tap
+  has a custom remote, and Homebrew records custom-remote taps by clone
+  URL instead of by `user/repo` name. If the tap is not there yet, `brew
+  trust birjuvachhani/club` has no remote to resolve and stores the bare
+  name instead, which never matches the tap you go on to add. That
+  leaves a trust entry that looks correct and does nothing.
+
+  To trust it in either order, name the URL explicitly:
+
+  ```bash
+  brew trust --tap https://github.com/BirjuVachhani/club.git
+  ```
+</Aside>
+
+Trusted entries live in `~/.homebrew/trust.json`, or in
+`$XDG_CONFIG_HOME/homebrew/trust.json` when that variable is set. Run
+`brew trust` with no arguments to list them.
+
+Older Homebrew versions have no `brew trust` command and need no such
+step. If yours predates it, skip straight to `brew install club`.
 
 Upgrade and uninstall with the usual `brew` commands:
 
@@ -459,8 +498,13 @@ only knows about install.sh layouts:
 
 ```bash
 brew uninstall club
-brew untap birjuvachhani/club
+brew untap birjuvachhani/club     # if you want to drop the tap too
+brew untrust birjuvachhani/club   # and its trust entry
 ```
+
+`brew untrust` matches the stored entry literally, so pass it the same
+form you trusted with. If you trusted the clone URL, untrust the clone
+URL. Run `brew trust` with no arguments to see what is actually stored.
 
 ### Manual
 
