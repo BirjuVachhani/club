@@ -88,7 +88,9 @@ To uninstall later:
 curl -fsSL https://club.birju.dev/uninstall.sh | bash
 ```
 
-Pass `--purge` to also remove stored credentials under `~/.config/club`. See the [uninstall section of the CLI guide](sites/docs/src/content/docs/cli/installation.mdx) for all options.
+On Windows, use `iwr -useb https://club.birju.dev/uninstall.ps1 | iex`.
+
+Pass `--purge` (`-Purge` on Windows) to also remove stored credentials under `~/.config/club` and unregister the token from `dart pub`. See the [uninstall section of the CLI guide](sites/docs/src/content/docs/cli/installation.mdx) for all options.
 
 ### 2. Login
 

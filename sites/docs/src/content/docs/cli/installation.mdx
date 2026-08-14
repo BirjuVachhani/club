@@ -10,20 +10,20 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 The `club` CLI is a single native binary built for every major
 platform. There are four ways to get it:
 
-1. **Install script** — one-liner that fetches the right archive for
+1. **Install script**: a one-liner that fetches the right archive for
    your OS + CPU, verifies the checksum, and drops the binary on your
    PATH. `install.sh` for Linux/macOS, `install.ps1` for Windows.
-2. **Homebrew** — on macOS (and Linux with Homebrew installed), tap
+2. **Homebrew**: on macOS (and Linux with Homebrew installed), tap
    this repo and `brew install club`. Upgrades and uninstall flow
    through `brew` like any other formula.
-3. **Manual download** — grab the archive from the
+3. **Manual download**: grab the archive from the
    [releases page](https://github.com/BirjuVachhani/club/releases) and
    extract it wherever you want. Use this in locked-down environments
    or when you want to pin a specific version by hand.
-4. **From source** — activate the CLI via `dart pub global activate`
+4. **From source**: activate the CLI via `dart pub global activate`
    from a cloned repo. Best for local development on the CLI itself.
 
-For CI/CD, see the [CI/CD Integration guide](/guides/ci-cd/) — there's
+For CI/CD, see the [CI/CD Integration guide](/guides/ci-cd/). There's
 a one-liner GitHub Action that installs the CLI and configures `dart pub`
 in a single step.
 
@@ -50,7 +50,7 @@ against the release's `SHA256SUMS.txt`, and installs the binary to
 |---|---|---|
 | `--version <x>` | `CLUB_VERSION` | Install a specific release (e.g. `0.1.0`) instead of the newest stable one. |
 | `--pre` | `CLUB_PRE` | Include pre-releases when resolving the newest version. |
-| `--install-dir <path>` | — | Install to a different directory. Default `~/.local/bin`. |
+| `--install-dir <path>` | n/a | Install to a different directory. Default `~/.local/bin`. |
 | `--repo <owner/name>` | `CLUB_REPO` | Pull from a fork or mirror. Default `BirjuVachhani/club`. |
 
 By default the script installs the newest **stable** release. Pass
@@ -107,7 +107,7 @@ from the release, verifies its SHA-256 against `SHA256SUMS.txt`, and
 copies `club.exe` into `%USERPROFILE%\.club\bin`.
 
 <Aside>
-  Same caveat as the Unix version — pipe-to-`iex` runs whatever the
+  Same caveat as the Unix version: pipe-to-`iex` runs whatever the
   endpoint returns. To inspect first:
   `iwr -useb https://club.birju.dev/install.ps1 -OutFile install.ps1; notepad install.ps1; .\install.ps1`.
 </Aside>
@@ -142,7 +142,7 @@ iwr -useb https://club.birju.dev/install.ps1 -OutFile install.ps1
 If the install directory isn't on `PATH` yet, the script prints the
 exact PowerShell line to add it persistently for your user. The
 default location, `%USERPROFILE%\.club\bin`, isn't on `PATH` out of
-the box — add it with:
+the box. Add it with:
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
@@ -179,8 +179,9 @@ brew untap birjuvachhani/club   # if you want to drop the tap too
 
 <Aside>
   Credentials written by `club login` live at `~/.config/club` and are
-  not touched by `brew uninstall`. Delete that directory by hand if
-  you want a clean slate.
+  not touched by `brew uninstall`, nor is the token registered with
+  `dart pub token add`. See [What `--purge`
+  covers](#what---purge-covers) for how to clear both.
 </Aside>
 
 ## Manual download
@@ -368,41 +369,92 @@ For manual installs, repeat the download step with the new version.
 
 ## Uninstalling
 
-Use the uninstall script that matches how you installed:
+Use the uninstall script that matches how you installed.
 
-```bash
-curl -fsSL https://club.birju.dev/uninstall.sh | bash
-```
+<Tabs>
+  <TabItem label="Linux / macOS">
+    ```bash
+    curl -fsSL https://club.birju.dev/uninstall.sh | bash
+    ```
 
-This removes the binary at `~/.local/bin/club` and, if present, the
-bundle directory at `~/.local/share/club`. Stored credentials at
-`~/.config/club` are kept by default — pass `--purge` to delete them too.
+    This removes the binary at `~/.local/bin/club` and, if present, the
+    bundle directory at `~/.local/share/club`. Stored credentials at
+    `~/.config/club` are kept by default. Pass `--purge` to delete them
+    too.
 
-### Options
+    | Flag | Description |
+    |---|---|
+    | `--purge` | Also delete `~/.config/club` and unregister club's `dart pub` tokens. |
+    | `--install-dir <path>` | Look for the binary here instead of `~/.local/bin`. Must match the value you passed to `install.sh`. |
+    | `--dry-run` | Print what would be removed without deleting anything. |
 
-| Flag | Description |
-|---|---|
-| `--purge` | Also delete `~/.config/club` (credentials + config). |
-| `--install-dir <path>` | Look for the binary here instead of `~/.local/bin`. Must match the value you passed to `install.sh`. |
-| `--dry-run` | Print what would be removed without deleting anything. |
+    ```bash
+    # Preview the removal
+    curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --dry-run
 
-Examples:
+    # Remove binary, credentials, and registered pub tokens
+    curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --purge
 
-```bash
-# Preview the removal
-curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --dry-run
+    # Uninstall from a custom location
+    curl -fsSL https://club.birju.dev/uninstall.sh \
+      | sudo bash -s -- --install-dir /usr/local/bin
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    iwr -useb https://club.birju.dev/uninstall.ps1 | iex
+    ```
 
-# Remove binary + credentials
-curl -fsSL https://club.birju.dev/uninstall.sh | bash -s -- --purge
+    This removes `club.exe` (and the `club.cmd` shim, if the bundle
+    layout was used) from `%USERPROFILE%\.club\bin`, along with the
+    sibling `club-bundle` directory. Credentials at `%APPDATA%\club`
+    are kept unless you pass `-Purge`.
 
-# Uninstall from a custom location
-curl -fsSL https://club.birju.dev/uninstall.sh \
-  | sudo bash -s -- --install-dir /usr/local/bin
-```
+    If you followed the installer's PATH instructions, the install
+    directory is also removed from your user PATH. Pass `-KeepPath` to
+    leave it alone.
+
+    | Parameter | Env var | Description |
+    |---|---|---|
+    | `-Purge` | `CLUB_PURGE` | Also delete `%APPDATA%\club` and unregister club's `dart pub` tokens. |
+    | `-InstallDir <path>` | `CLUB_INSTALL_DIR` | Look here instead of `%USERPROFILE%\.club\bin`. Must match what you passed to `install.ps1`. |
+    | `-DryRun` | `CLUB_DRY_RUN` | Print what would be removed without deleting anything. |
+    | `-KeepPath` | n/a | Leave the install directory in your user PATH. |
+
+    Parameters require direct invocation. When piping to `iex`, set the
+    matching env var first:
+
+    ```powershell
+    # Preview the removal
+    $env:CLUB_DRY_RUN = '1'
+    iwr -useb https://club.birju.dev/uninstall.ps1 | iex
+
+    # Or, with the script saved to disk:
+    iwr -useb https://club.birju.dev/uninstall.ps1 -OutFile uninstall.ps1
+    .\uninstall.ps1 -Purge
+    ```
+  </TabItem>
+</Tabs>
+
+### What `--purge` covers
+
+`club login` and `club setup` register your token with `dart pub token
+add`, which writes it into dart's own config rather than club's:
+
+- `~/.config/dart/pub-tokens.json` on Linux and macOS
+- `%APPDATA%\dart\pub-tokens.json` on Windows
+
+Deleting club's config directory would leave that token behind, still
+pointing at your server. `--purge` (`-Purge` on Windows) reads the
+servers out of `credentials.json` before deleting it and runs `dart pub
+token remove` for each one.
+
+If `dart` isn't on `PATH`, the script prints the exact commands to
+finish the job rather than failing.
 
 ### Homebrew
 
-If you installed via Homebrew, uninstall with brew instead — the script
+If you installed via Homebrew, uninstall with brew instead, since the script
 only knows about install.sh layouts:
 
 ```bash
@@ -414,8 +466,29 @@ brew untap birjuvachhani/club
 
 If you'd rather do it by hand:
 
-```bash
-rm -f ~/.local/bin/club
-rm -rf ~/.local/share/club   # only if the bundle layout was used
-rm -rf ~/.config/club        # credentials — only if you want a clean slate
-```
+<Tabs>
+  <TabItem label="Linux / macOS">
+    ```bash
+    rm -f ~/.local/bin/club
+    rm -rf ~/.local/share/club   # only if the bundle layout was used
+    rm -rf ~/.config/club        # credentials, only for a clean slate
+
+    # One per server you logged into
+    dart pub token remove https://pub.example.com
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    Remove-Item "$env:USERPROFILE\.club\bin\club.exe" -Force
+    Remove-Item "$env:USERPROFILE\.club\bin\club.cmd" -Force   # bundle layout only
+    Remove-Item "$env:USERPROFILE\.club\club-bundle" -Recurse -Force
+    Remove-Item "$env:APPDATA\club" -Recurse -Force            # credentials
+
+    # One per server you logged into
+    dart pub token remove https://pub.example.com
+    ```
+  </TabItem>
+</Tabs>
+
+To list the servers you logged into before deleting anything, run `club
+config show` or read the `servers` keys out of `credentials.json`.

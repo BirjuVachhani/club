@@ -12,6 +12,10 @@
     {
       "source": "/uninstall.sh",
       "destination": "https://raw.githubusercontent.com/BirjuVachhani/club/main/scripts/uninstall.sh"
+    },
+    {
+      "source": "/uninstall.ps1",
+      "destination": "https://raw.githubusercontent.com/BirjuVachhani/club/main/scripts/uninstall.ps1"
     }
   ],
   "headers": [
@@ -40,6 +44,15 @@
         { "key": "CDN-Cache-Control", "value": "no-store" },
         { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
         { "key": "Content-Type", "value": "text/x-shellscript; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/uninstall.ps1",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" },
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
       ]
     }
   ]
