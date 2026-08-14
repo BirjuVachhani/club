@@ -80,13 +80,20 @@ Future<IsolatedResolution> resolveInIsolation({
   }
 
   final stripped = stripWorkspaceMarkers(p.join(dir.path, 'pubspec.yaml'));
-  if (stripped) {
-    detail(
-      gray('unpacked to ${dir.path} (workspace markers dropped)'),
-    );
-  } else {
-    detail(gray('unpacked to ${dir.path}'));
-  }
+  final pruned = pruneNestedPackages(dir);
+  final notes = <String>[
+    if (stripped) 'workspace markers dropped',
+    if (pruned.isNotEmpty)
+      '${pruned.length} nested '
+          '${pruned.length == 1 ? 'package' : 'packages'} excluded '
+          '(${pruned.join(', ')})',
+  ];
+  detail(
+    gray(
+      'unpacked to ${dir.path}'
+      '${notes.isEmpty ? '' : ' (${notes.join('; ')})'}',
+    ),
+  );
 
   if (serverToken != null && _hasDepHostedOn(pubspec.parsed, serverUrl)) {
     await ensureDartPubToken(serverUrl, serverToken);
@@ -158,6 +165,58 @@ bool stripWorkspaceMarkers(String path) {
   }
   if (changed) file.writeAsStringSync(editor.toString());
   return changed;
+}
+
+/// Removes nested packages from the scratch copy at [dir], returning their
+/// paths relative to [dir], sorted.
+///
+/// A published archive routinely carries an `example/` package, and pub
+/// resolves *every* package it finds beneath the directory it runs in. A
+/// nested package cannot resolve from inside an archive:
+///
+///   - its `resolution: workspace` marker needs a workspace root, which is
+///     not in the archive (this fails before resolution even starts); and
+///   - its `path:` dependencies point at siblings that only exist in the
+///     developer's checkout.
+///
+/// Neither is part of what a consumer resolves when they depend on this
+/// package, so an unresolvable example must not fail the publish. Leaving one
+/// in place also makes `dart analyze` report every unresolved import in it as
+/// an error against the package being published.
+///
+/// Only the scratch copy is pruned. The archive that uploads is untouched, so
+/// consumers still receive the example.
+List<String> pruneNestedPackages(Directory dir) {
+  final pruned = <String>[];
+
+  void walk(Directory current) {
+    final List<FileSystemEntity> entries;
+    try {
+      entries = current.listSync(followLinks: false);
+    } on FileSystemException {
+      return; // Unreadable directory; nothing we can prune in it.
+    }
+    for (final entry in entries) {
+      if (entry is! Directory) continue;
+      if (p.basename(entry.path) == '.dart_tool') continue;
+
+      if (File(p.join(entry.path, 'pubspec.yaml')).existsSync()) {
+        pruned.add(p.relative(entry.path, from: dir.path));
+        try {
+          entry.deleteSync(recursive: true);
+        } on FileSystemException {
+          // Could not remove it; resolution may still fail, but continuing
+          // gives a real pub error rather than an error from us.
+        }
+        continue; // Never descend into what we just removed.
+      }
+      walk(entry);
+    }
+  }
+
+  walk(dir);
+  pruned.sort();
+  return pruned;
 }
 
 /// True when any dependency or dev_dependency is hosted on [serverUrl].

@@ -35,7 +35,15 @@ class StrictDependenciesValidator extends Validator {
 
       // Read from the resolved scratch copy when available — those are the
       // exact bytes in the archive, which is what consumers compile.
-      final source = File(p.join(context.sourceDir, rel)).readAsStringSync();
+      //
+      // A file can ship in the archive yet be absent here: nested packages
+      // (an `example/`, a test fixture package) are pruned from the resolved
+      // copy because they cannot resolve outside the developer's checkout.
+      // Their sources are not part of this package's compilation, so skip
+      // them rather than crashing on a missing file.
+      final file = File(p.join(context.sourceDir, rel));
+      if (!file.existsSync()) continue;
+      final source = file.readAsStringSync();
       for (final imported in _collectPackageImports(source)) {
         if (declaredDeps.contains(imported)) continue;
 
