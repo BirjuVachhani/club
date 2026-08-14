@@ -8,7 +8,14 @@
 /// External `path:` deps (paths to directories that are not part of the
 /// discovered set) are surfaced as [GraphError]s so the publish flow can
 /// abort instead of silently leaving them unrewritten.
+///
+/// The graph is allowed to contain cycles. Mutual dependencies between
+/// packages are legal on pub.dev and do occur in real monorepos, so
+/// [planPublishOrder] groups them into strongly-connected components rather
+/// than rejecting the workspace. Only a self-dependency is a hard error.
 library;
+
+import 'dart:math';
 
 import 'package:path/path.dart' as p;
 import 'package:pubspec_parse/pubspec_parse.dart';
@@ -163,6 +170,36 @@ void _scanSection({
   required List<DependencyEdge> edges,
   required List<GraphError> errors,
 }) {
+  /// Records an edge to [to], rejecting self-references.
+  ///
+  /// A package that depends on itself cannot be published under any ordering:
+  /// the constraint would have to be satisfied by the very version being
+  /// uploaded. Unlike a cycle between distinct packages (which publishes as a
+  /// group), there is no second upload that can close the loop.
+  void addEdge(String depName, String to, DeclarationShape shape) {
+    if (to == pkg.name) {
+      errors.add(
+        GraphError(
+          '${pkg.name}: ${section.key}.$depName makes the package depend on '
+          'itself.',
+          hint:
+              'A self-dependency can never resolve, because the constraint '
+              'would have to be satisfied by the version being published. '
+              'Remove the entry.',
+        ),
+      );
+      return;
+    }
+    edges.add(
+      DependencyEdge(
+        from: pkg.name,
+        to: to,
+        section: section,
+        declaredAs: shape,
+      ),
+    );
+  }
+
   for (final entry in deps.entries) {
     final depName = entry.key;
     final dep = entry.value;
@@ -184,14 +221,7 @@ void _scanSection({
         );
         continue;
       }
-      edges.add(
-        DependencyEdge(
-          from: pkg.name,
-          to: matchedName,
-          section: section,
-          declaredAs: DeclarationShape.pathDependency,
-        ),
-      );
+      addEdge(depName, matchedName, DeclarationShape.pathDependency);
       continue;
     }
 
@@ -199,16 +229,12 @@ void _scanSection({
       // Workspace shadowing: a hosted-by-name dep counts as internal when
       // its name matches another discovered package.
       if (packages.containsKey(depName)) {
-        final shape = dep.hosted == null
-            ? DeclarationShape.hostedByName
-            : DeclarationShape.explicitHosted;
-        edges.add(
-          DependencyEdge(
-            from: pkg.name,
-            to: depName,
-            section: section,
-            declaredAs: shape,
-          ),
+        addEdge(
+          depName,
+          depName,
+          dep.hosted == null
+              ? DeclarationShape.hostedByName
+              : DeclarationShape.explicitHosted,
         );
       }
       // Else: a regular external hosted dep — not our concern.
@@ -220,18 +246,56 @@ void _scanSection({
   }
 }
 
+/// The ordered publish closure for a set of targets, plus any cycle groups
+/// found inside it.
+class PublishPlan {
+  PublishPlan({required this.order, required this.cycles});
+
+  /// Topological publish order — dependencies first, dependents last. Iterate
+  /// it and publish in sequence.
+  ///
+  /// Packages inside a cycle group are adjacent in this list, but no ordering
+  /// among them can satisfy their constraints: see [cycles].
+  final List<String> order;
+
+  /// Groups of packages that mutually depend on each other, in publish order.
+  ///
+  /// Each group is a strongly-connected component with more than one member.
+  /// Every name here also appears in [order]. A group has to be published as a
+  /// unit: whichever member goes first names a sibling version that is not on
+  /// the server yet, so its standalone resolution only succeeds once the whole
+  /// group has landed.
+  final List<List<String>> cycles;
+
+  late final Map<String, List<String>> _byMember = {
+    for (final group in cycles)
+      for (final name in group) name: group,
+  };
+
+  /// The cycle group containing [name], or null when [name] publishes alone.
+  List<String>? cycleFor(String name) => _byMember[name];
+
+  /// Every package that belongs to some cycle group.
+  Set<String> get cycleMembers => _byMember.keys.toSet();
+
+  bool get hasCycles => cycles.isNotEmpty;
+}
+
 /// Compute the publish-order closure starting from [targets].
 ///
-/// Returns the topologically ordered list of package names that must be
-/// published (or rewritten) before the targets. The list is ordered with
-/// dependencies first, dependents last — i.e. you can iterate it and publish
-/// in order.
+/// Cycles are grouped rather than rejected. A mutual dependency between two
+/// packages is legal on pub.dev (and common: `firebase_ui_auth` and
+/// `firebase_ui_oauth` depend on each other in released versions), so club
+/// publishes such packages as a group instead of refusing the workspace. The
+/// caller is responsible for deferring each group member's standalone
+/// resolution check until every member is up — see
+/// `publish/cycle_verification.dart`.
 ///
-/// Throws [CycleError] if a cycle is reachable from the targets.
-List<String> publishOrder(DependencyGraph graph, List<String> targets) {
-  final reachable = <String>{};
-
+/// A package that depends on *itself* is rejected at graph-construction time
+/// instead, as a [GraphError]: no second upload can ever close that loop.
+PublishPlan planPublishOrder(DependencyGraph graph, List<String> targets) {
   // 1. Discover every package reachable from the targets via outgoing edges.
+  final reachable = <String>{};
   void visit(String name) {
     if (!reachable.add(name)) return;
     for (final e in graph.outgoing(name)) {
@@ -243,49 +307,103 @@ List<String> publishOrder(DependencyGraph graph, List<String> targets) {
     visit(t);
   }
 
-  // 2. Topo-sort the reachable subgraph using DFS post-order, with a
-  // path-stack to detect cycles.
-  final order = <String>[];
-  final state = <String, _Mark>{};
+  // 2. Collapse the reachable subgraph to a deduped, name-sorted adjacency
+  // map. Deduping matters because a package can depend on the same sibling
+  // from both `dependencies` and `dev_dependencies`; sorting keeps the output
+  // stable regardless of the order deps happen to appear in a pubspec.
+  final neighbors = <String, List<String>>{
+    for (final n in reachable)
+      n: (graph
+          .outgoing(n)
+          .map((e) => e.to)
+          .where(reachable.contains)
+          .toSet()
+          .toList()
+        ..sort()),
+  };
+
+  // 3. Tarjan's strongly-connected-components algorithm.
+  //
+  // Tarjan pops a component only once every component reachable from it has
+  // already been popped. Our edges run dependent -> dependency, so a package's
+  // dependencies are always emitted before it: the emission order *is* the
+  // publish order, with no separate topological sort needed.
+  var nextIndex = 0;
+  final index = <String, int>{};
+  final lowLink = <String, int>{};
+  final onStack = <String>{};
   final stack = <String>[];
+  final components = <List<String>>[];
 
-  void dfs(String name) {
-    final mark = state[name];
-    if (mark == _Mark.done) return;
-    if (mark == _Mark.active) {
-      final cycleStart = stack.indexOf(name);
-      throw CycleError(stack.sublist(cycleStart) + [name]);
+  void strongConnect(String v) {
+    index[v] = nextIndex;
+    lowLink[v] = nextIndex;
+    nextIndex++;
+    stack.add(v);
+    onStack.add(v);
+
+    for (final w in neighbors[v]!) {
+      if (!index.containsKey(w)) {
+        strongConnect(w);
+        lowLink[v] = min(lowLink[v]!, lowLink[w]!);
+      } else if (onStack.contains(w)) {
+        // Back-edge to a node still on the stack: part of our component.
+        lowLink[v] = min(lowLink[v]!, index[w]!);
+      }
+      // Else: w belongs to an already-emitted component; ignore it.
     }
-    state[name] = _Mark.active;
-    stack.add(name);
-    for (final e in graph.outgoing(name)) {
-      if (reachable.contains(e.to)) dfs(e.to);
+
+    if (lowLink[v] != index[v]) return;
+
+    // v roots a component: everything above it on the stack belongs to it.
+    final component = <String>[];
+    while (true) {
+      final w = stack.removeLast();
+      onStack.remove(w);
+      component.add(w);
+      if (w == v) break;
     }
-    stack.removeLast();
-    state[name] = _Mark.done;
-    order.add(name);
+    components.add(component);
   }
 
+  // Seed from the targets in the order given (so a single-target run keeps its
+  // familiar shape), then sweep anything reachable but not yet visited.
   for (final t in targets) {
-    dfs(t);
+    if (reachable.contains(t) && !index.containsKey(t)) strongConnect(t);
+  }
+  for (final n in reachable.toList()..sort()) {
+    if (!index.containsKey(n)) strongConnect(n);
   }
 
-  // Append any remaining reachable nodes that weren't picked up via the
-  // target DFS (defensive — shouldn't happen given step 1, but cheap).
-  for (final n in reachable) {
-    if (state[n] != _Mark.done) dfs(n);
+  // 4. Flatten components into a flat order, recording multi-member ones.
+  final order = <String>[];
+  final cycles = <List<String>>[];
+  for (final component in components) {
+    if (component.length == 1) {
+      order.add(component.single);
+      continue;
+    }
+
+    // Inside a cycle no order satisfies every constraint, so pick a stable
+    // one: fewest dependencies within the group first (the most leaf-like
+    // member, which keeps the unresolvable window as short as possible), then
+    // alphabetically.
+    final members = component.toSet();
+    final sorted = component.toList()
+      ..sort((a, b) {
+        final aDeps = neighbors[a]!.where(members.contains).length;
+        final bDeps = neighbors[b]!.where(members.contains).length;
+        return aDeps != bDeps ? aDeps.compareTo(bDeps) : a.compareTo(b);
+      });
+    order.addAll(sorted);
+    cycles.add(sorted);
   }
 
-  return order;
+  return PublishPlan(order: order, cycles: cycles);
 }
 
-enum _Mark { active, done }
-
-/// Raised when [publishOrder] detects a cycle. The [path] is the back-edge
-/// trace, including the repeated node at both ends.
-class CycleError implements Exception {
-  CycleError(this.path);
-  final List<String> path;
-  @override
-  String toString() => 'Dependency cycle: ${path.join(' -> ')}';
-}
+/// Human-readable rendering of one cycle group, e.g. `a ↔ b` for a mutual
+/// pair or `a → b → c → a` for a longer loop.
+String describeCycle(List<String> group) => group.length == 2
+    ? '${group[0]} ↔ ${group[1]}'
+    : '${group.join(' → ')} → ${group.first}';

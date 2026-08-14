@@ -40,6 +40,7 @@ class ValidationContext {
     this.fetchPublishedPubspec,
     this.workspaceRootDir,
     this.resolvedPackageDir,
+    this.resolutionDeferred = false,
   });
 
   final PackagePubspec pubspec;
@@ -79,6 +80,17 @@ class ValidationContext {
   /// ship, and it is the only tree guaranteed to have a
   /// `.dart_tool/package_config.json`. Use [sourceDir].
   final String? resolvedPackageDir;
+
+  /// True when this package belongs to a dependency cycle, so its standalone
+  /// resolution was deferred until every member of the group is published.
+  ///
+  /// Checks that need a *resolved* package cannot produce a trustworthy
+  /// answer in that window: the package's siblings are not on the server yet,
+  /// so there is no `.dart_tool/package_config.json` to resolve imports
+  /// against and no rewritten tree to analyse. Such validators skip
+  /// themselves here and run again in the post-publish verification pass,
+  /// where the cycle is closed. See `publish/cycle_verification.dart`.
+  final bool resolutionDeferred;
 
   /// Directory to read package sources from — the resolved scratch copy when
   /// available, the original package directory otherwise.

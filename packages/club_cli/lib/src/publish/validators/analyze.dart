@@ -15,6 +15,20 @@ class AnalyzeValidator extends Validator {
 
   @override
   Future<void> validate() async {
+    // A cycle member has no resolved tree to analyse yet: its siblings are not
+    // on the server, so there is no package_config to resolve imports against
+    // and the only readable copy is the source directory, whose `path:` deps
+    // draw an `invalid_dependency` warning that says nothing about what will
+    // actually ship. The auto-publish runner re-runs analyze against the
+    // resolved package once the group is complete.
+    if (context.resolutionDeferred) {
+      hint(
+        'Skipped — this package is in a dependency cycle. It is analyzed '
+        'after the whole group is published.',
+      );
+      return;
+    }
+
     // Enhanced mode upgrades analyze to `--fatal-warnings` and treats any
     // issues as errors (club-specific strictness). Baseline matches
     // dart pub publish: no flags, issues surface as warnings.

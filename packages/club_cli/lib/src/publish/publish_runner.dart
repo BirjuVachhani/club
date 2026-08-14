@@ -51,6 +51,7 @@ class PublishOptions {
     this.enhanced = false,
     this.pubspecOverride,
     this.pullRequest,
+    this.deferResolution = false,
   });
 
   /// Package directory (resolves to cwd if null/empty).
@@ -94,6 +95,18 @@ class PublishOptions {
   /// real release. See `pr_version.dart`. Ignored when [versionOverride] is
   /// set, which the command layer rejects up front.
   final int? pullRequest;
+
+  /// Skip the standalone dependency-resolution step for this package.
+  ///
+  /// Set by `club publish --auto` for members of a dependency cycle. Whichever
+  /// member uploads first depends on a sibling version that is not on the
+  /// server yet, so resolving it standalone is guaranteed to fail through no
+  /// fault of the package. The check is not dropped: the auto-publish runner
+  /// re-runs it for every deferred package once the whole group has landed.
+  /// See `cycle_verification.dart`.
+  ///
+  /// Only the resolution step is skipped. The validators still run.
+  final bool deferResolution;
 }
 
 /// The orchestrator. Construct once per `club publish` invocation.
@@ -305,7 +318,16 @@ class PublishRunner {
       // Club diverges from dart pub here. `dart pub publish` resolves the
       // workspace; we resolve the built archive on its own, the way a
       // consumer receives it. See isolated_resolution.dart for why.
-      if (!options.skipValidation && options.fromArchive == null) {
+      if (options.deferResolution) {
+        // A cycle member cannot resolve until its siblings are published.
+        // Validators below still run; they fall back to the source directory
+        // via ValidationContext.sourceDir.
+        heading('Resolving dependencies');
+        detail(
+          yellow('Deferred') +
+              gray(' (dependency cycle; verified once the group is up)'),
+        );
+      } else if (!options.skipValidation && options.fromArchive == null) {
         final resolution = await resolveInIsolation(
           archivePath: tarball.path,
           pubspec: pubspec,
@@ -330,6 +352,7 @@ class PublishRunner {
           enhanced: options.enhanced,
           workspaceRootDir: workspace.workspaceRootDir,
           resolvedPackageDir: resolvedDir?.path,
+          resolutionDeferred: options.deferResolution,
           fetchPublishedPubspec: (version) async {
             try {
               final info = await client.getVersion(pubspec.name, version);

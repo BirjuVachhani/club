@@ -43,7 +43,9 @@ TreeStyle? parseTreeStyle(String? raw) {
 /// [order] is the topological publish order — leaves first, dependents
 /// last. [sizes] is keyed by package name; when present the tree shows
 /// the compressed tarball size next to each node. [actions] supplies the
-/// per-package status badge.
+/// per-package status badge. [cycleMembers] names the packages that belong
+/// to a dependency cycle, which get a `⟳ cycle` badge so the group that has
+/// to publish together is visible in the stack.
 void renderDependencyTree({
   required DependencyGraph graph,
   required List<String> order,
@@ -51,6 +53,7 @@ void renderDependencyTree({
   required TreeStyle style,
   Map<String, PackageAction> actions = const {},
   Map<String, TarballSize> sizes = const {},
+  Set<String> cycleMembers = const {},
 }) {
   switch (style) {
     case TreeStyle.nested:
@@ -60,6 +63,7 @@ void renderDependencyTree({
         selectedTargets: selectedTargets,
         actions: actions,
         sizes: sizes,
+        cycleMembers: cycleMembers,
       );
     case TreeStyle.stacked:
       _renderStacked(
@@ -68,6 +72,7 @@ void renderDependencyTree({
         selectedTargets: selectedTargets,
         actions: actions,
         sizes: sizes,
+        cycleMembers: cycleMembers,
       );
   }
 }
@@ -82,6 +87,7 @@ void _renderStacked({
   required Set<String> selectedTargets,
   required Map<String, PackageAction> actions,
   required Map<String, TarballSize> sizes,
+  required Set<String> cycleMembers,
 }) {
   final inOrder = order.toSet();
 
@@ -129,8 +135,12 @@ void _renderStacked({
     final sizeStr = sizes.containsKey(name)
         ? gray('· ${formatBytes(sizes[name]!.bytes)}')
         : '';
+    final cycleStr = cycleMembers.contains(name) ? yellow('⟳ cycle') : '';
 
-    info('  ${cyan('▶')} $number $paddedName  $version  $status  $sizeStr');
+    final badges =
+        [sizeStr, cycleStr].where((s) => s.isNotEmpty).join('  ');
+
+    info('  ${cyan('▶')} $number $paddedName  $version  $status  $badges');
 
     final depsLine = _formatDependsOn(graph, name, inOrder);
     if (depsLine != null) {
@@ -194,6 +204,7 @@ void _renderNested({
   required Set<String> selectedTargets,
   required Map<String, PackageAction> actions,
   required Map<String, TarballSize> sizes,
+  required Set<String> cycleMembers,
 }) {
   final inOrder = order.toSet();
 
@@ -215,6 +226,10 @@ void _renderNested({
       if (graph.outgoing(n).every((e) => !inOrder.contains(e.to))) n,
   ]..sort();
 
+  // A closure that is entirely one cycle has no dependency-free package, so
+  // seed from the first package in publish order instead of drawing nothing.
+  if (roots.isEmpty && order.isNotEmpty) roots.add(order.first);
+
   final orderIndex = {for (var i = 0; i < order.length; i++) order[i]: i + 1};
   final rendered = <String>{};
 
@@ -226,6 +241,7 @@ void _renderNested({
       selectedTargets: selectedTargets,
       actions: actions,
       sizes: sizes,
+      cycleMembers: cycleMembers,
       orderIndex: orderIndex,
       rendered: rendered,
       prefix: '',
@@ -242,6 +258,7 @@ void _renderNestedNode(
   required Set<String> selectedTargets,
   required Map<String, PackageAction> actions,
   required Map<String, TarballSize> sizes,
+  required Set<String> cycleMembers,
   required Map<String, int> orderIndex,
   required Set<String> rendered,
   required String prefix,
@@ -258,11 +275,12 @@ void _renderNestedNode(
   final sizeStr = sizes.containsKey(name)
       ? gray('  · ${formatBytes(sizes[name]!.bytes)}')
       : '';
+  final cycleStr = cycleMembers.contains(name) ? yellow('  ⟳ cycle') : '';
   final alreadyShown = !rendered.add(name);
 
   final body =
       '$number ${selectedTargets.contains(name) ? bold(name) : name} '
-      '$version$marked   $status$sizeStr';
+      '$version$marked   $status$sizeStr$cycleStr';
   final line = isRoot
       ? '   $marker$body'
       : '   $prefix${gray(marker)}$body${alreadyShown ? gray('   ↑ shown above') : ''}';
@@ -283,6 +301,7 @@ void _renderNestedNode(
       selectedTargets: selectedTargets,
       actions: actions,
       sizes: sizes,
+      cycleMembers: cycleMembers,
       orderIndex: orderIndex,
       rendered: rendered,
       prefix: childPrefix,

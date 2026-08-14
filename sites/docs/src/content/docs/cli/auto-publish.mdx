@@ -464,6 +464,80 @@ That's the entire publish step. No `club login`, no `--force`, no
 | `--dry-run` | Optional | Plan + validators without uploading. Useful as a pre-merge gate. |
 | `--skip-validation` | Discouraged | Bypasses the per-package validators. Server still validates. |
 
+## Dependency cycles
+
+Two packages can depend on each other. It is legal on pub.dev and it happens
+in real monorepos: `firebase_ui_auth` and `firebase_ui_oauth` each declare the
+other as a dependency in their released versions. Pub's version solver has no
+acyclic requirement, so `--auto` publishes such packages as a group rather
+than refusing the workspace.
+
+Cycle members are flagged up front and badged in the publish stack:
+
+```text
+⚠ 1 dependency cycle in the closure:
+   firebase_ui_auth ↔ firebase_ui_oauth
+● Members publish as a group. The standalone resolution check is deferred
+  until every member is up, then verified.
+
+  ▶ [1] firebase_ui_shared  1.6.0  ✓ publish  · 7.7 KiB
+  ▶ [2] firebase_ui_auth    3.2.0  ✓ publish  · 275.0 KiB  ⟳ cycle
+  ▶ [3] firebase_ui_oauth   2.2.0  ✓ publish  · 182.0 KiB  ⟳ cycle
+```
+
+### Why resolution is deferred
+
+`--auto` normally resolves every package standalone before uploading it (see
+[In-memory rewrites](#in-memory-rewrites)), which is a stronger check than
+`dart pub publish` performs. Inside a cycle no publish order can satisfy that
+check: whichever member goes first names a sibling version that is not on the
+server yet.
+
+So the check is deferred rather than dropped. Cycle members show:
+
+```text
+Resolving dependencies ──────────────────────────────────────
+   Deferred (dependency cycle; verified once the group is up)
+```
+
+`dart analyze` is deferred for the same reason: mid-cycle there is no resolved
+package to analyse.
+
+Once every member has uploaded, the loop is closed and both checks run for
+real against the published bytes:
+
+```text
+Verifying deferred resolutions ──────────────────────────────
+   the cycle is closed; resolving each standalone now
+   ✓ all 2 cycle packages resolve standalone
+```
+
+If verification fails, the exit code is `65` and the report says plainly that
+the packages are already on the server. Uploads cannot be rolled back, so fix
+the constraints and publish a new version of the cycle:
+
+```text
+✗ 1 of 2 cycle packages do not resolve standalone: firebase_ui_auth.
+● These versions are already on the server and will stay there.
+   Fix the constraints and publish a new version of the cycle.
+```
+
+### Cycles mean lockstep versioning
+
+A cycle cannot be released one package at a time. Bumping one member forces a
+matching release of the other, because each names the other's new version.
+That is a property of the dependency graph, not of club.
+
+To break a cycle instead of living with it, move the shared contract that both
+sides reach for into a package they already both depend on, leaving the graph
+acyclic.
+
+:::note
+A package that depends on **itself** is still an error. No second upload can
+close that loop, since the constraint would have to be satisfied by the very
+version being uploaded.
+:::
+
 ## Failure handling
 
 If a per-package publish fails mid-chain, `--auto` aborts immediately
@@ -487,7 +561,7 @@ Re-running `--auto` is safe:
 | Code | Meaning |
 |------|---------|
 | `0` | Success — every package in the chain was published. |
-| `65` | Data error — unknown target, validation failed, external path dep, or a per-package upload failed. |
+| `65` | Data error — unknown target, validation failed, external path dep, self-dependency, a per-package upload failed, or a cycle member failed post-publish verification. |
 | `66` | No input — no publishable packages discovered. |
 | `78` | Config — server resolution failed, user aborted, conflict in non-interactive shell. |
 | Other | Forwarded from the per-package `PublishRunner` if it failed with a non-standard code. |
@@ -500,6 +574,7 @@ Re-running `--auto` is safe:
 | Path/workspace deps | Hard error (DependencyValidator) | Rewritten in-memory to hosted refs |
 | Source pubspec.yaml | Untouched | Untouched |
 | Topological order | N/A | Yes — leaves first |
+| Dependency cycles | Not detected (single package) | Published as a group, verified after |
 | Version conflict handling | `--force` is all-or-nothing | Per-package `overwrite` / `skip` / `abort` |
 | Confirmation prompts | One per run | One per run (covers the whole chain) |
 | Use case | Standalone packages | Monorepos, pub workspaces |

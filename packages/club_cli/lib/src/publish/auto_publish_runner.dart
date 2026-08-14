@@ -26,6 +26,7 @@ import '../prepare/tree_renderer.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/url.dart';
+import 'cycle_verification.dart';
 import 'pr_version.dart';
 import 'publish_runner.dart';
 
@@ -122,6 +123,15 @@ class AutoPublishRunner {
       return ExitCodes.success;
     }
 
+    // ── Cycle members ────────────────────────────────────────────────────
+    // Members of a dependency cycle cannot resolve standalone until every
+    // sibling is up, so their resolution check is deferred to a verification
+    // pass after the publish loop. See cycle_verification.dart.
+    final deferred = [
+      for (final name in publishOrder)
+        if (ws.cycleMembers.contains(name)) name,
+    ];
+
     // ── In-memory pubspec overrides ──────────────────────────────────────
     // For each plan with rewrites, build the rewritten pubspec.yaml
     // content and stash it keyed by package name. This map drives both the
@@ -164,6 +174,7 @@ class AutoPublishRunner {
         style: options.treeStyle,
         actions: ws.resolution.actions,
         sizes: sizeMap,
+        cycleMembers: ws.cycleMembers,
       );
       if (sizes.isNotEmpty) {
         final totalBytes = sizes.fold<int>(0, (sum, s) => sum + s.bytes);
@@ -219,6 +230,14 @@ class AutoPublishRunner {
     // ── Confirm ──────────────────────────────────────────────────────────
     if (!options.dryRun && !options.force && !isCI) {
       info('');
+      if (deferred.isNotEmpty) {
+        detail(
+          gray(
+            '${deferred.length} of these are in a dependency cycle and will '
+            'be verified after the group is up.',
+          ),
+        );
+      }
       try {
         final ok = await confirm(
           'Publish ${bold('${publishOrder.length}')} packages to '
@@ -246,6 +265,12 @@ class AutoPublishRunner {
         '${gray('Would publish')} ${publishOrder.length} '
             '${gray('packages with')} ${pubspecOverrides.length} '
             '${gray('in-memory pubspec rewrites')}',
+        if (deferred.isNotEmpty)
+          gray(
+            'Would defer resolution for ${deferred.length} cycle '
+            '${deferred.length == 1 ? 'member' : 'members'} '
+            '(${deferred.join(', ')}), then verify once the group is up',
+          ),
       ]);
       return ExitCodes.success;
     }
@@ -278,6 +303,7 @@ class AutoPublishRunner {
           pubspecOverride: pubspecOverrides[name],
           pullRequest: options.pullRequest,
           versionOverride: options.versionOverride,
+          deferResolution: deferred.contains(name),
         ),
       ).run();
 
@@ -299,6 +325,43 @@ class AutoPublishRunner {
       published.add(name);
     }
 
+    // ── Verify deferred resolutions ──────────────────────────────────────
+    // Every cycle member is on the server now, so the loop is closed and the
+    // standalone check that was skipped during publish can finally run for
+    // real. This is the guarantee `--auto` normally gives per package.
+    final failedVerification = <String>[];
+    if (deferred.isNotEmpty) {
+      info('');
+      heading('Verifying deferred resolutions');
+      detail(
+        gray(
+          'the cycle is closed; resolving '
+          '${deferred.length == 1 ? 'it' : 'each'} standalone now',
+        ),
+      );
+      final results = await verifyDeferredResolutions(
+        packageNames: deferred,
+        packages: ws.packages,
+        pubspecOverrides: pubspecOverrides,
+        serverUrl: ws.server.url,
+        serverToken: ws.server.token,
+        versionOverrides: {
+          for (final name in deferred)
+            name: ?ws.packages[name]?.versionOverride,
+        },
+      );
+      failedVerification.addAll(
+        [for (final r in results) if (!r.ok) r.packageName],
+      );
+      if (failedVerification.isEmpty) {
+        detail(
+          '${green('✓')} all ${results.length} cycle '
+          '${results.length == 1 ? 'package resolves' : 'packages resolve'} '
+          'standalone',
+        );
+      }
+    }
+
     // ── Summary ──────────────────────────────────────────────────────────
     info('');
     final overwriteCount = ws.resolution.actions.values
@@ -316,7 +379,28 @@ class AutoPublishRunner {
       if (skipCount > 0) gray('Skipped: $skipCount (already published)'),
       if (overwriteCount > 0)
         gray('Force-pushed: $overwriteCount over existing version'),
+      if (deferred.isNotEmpty && failedVerification.isEmpty)
+        gray(
+          'Cycle verified: ${deferred.length} '
+          '${deferred.length == 1 ? 'package' : 'packages'} resolve standalone',
+        ),
     ]);
+
+    // A failed verification cannot be undone by aborting — the uploads already
+    // happened — so report it after the summary and exit non-zero so CI fails.
+    if (failedVerification.isNotEmpty) {
+      info('');
+      error(
+        '${failedVerification.length} of ${deferred.length} cycle '
+        '${deferred.length == 1 ? 'package does' : 'packages do'} not resolve '
+        'standalone: ${failedVerification.join(', ')}.',
+      );
+      hint(
+        'These versions are already on the server and will stay there. '
+        'Fix the constraints and publish a new version of the cycle.',
+      );
+      return ExitCodes.data;
+    }
     return ExitCodes.success;
   }
 }

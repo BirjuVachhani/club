@@ -11,6 +11,10 @@
 - `--from-git <pr-url> --auto` suffixes a whole monorepo stack and points the rewritten internal constraints at the prereleases.
 - `--from-git` asks which version to publish as, pre-filled with the detected one, skipped by `--version`, `--force`, and CI.
 - A version entered at that step is used verbatim, so a PR can be published as any version rather than the derived prerelease.
+- `club publish --auto` publishes mutually dependent packages as a group instead of failing on the cycle.
+- Cycle members are listed before the confirmation prompt and badged `⟳ cycle` in the publish stack.
+- Cycle members get their standalone resolution and `dart analyze` verified after the whole group is published.
+- A failed post-publish verification exits 65 and states that the versions are already on the server.
 
 ### Changed
 
@@ -20,6 +24,8 @@
 ### Fixed
 
 - The CHANGELOG validator accepts the version declared in the pubspec, so a derived version from `--version` or a pull request no longer warns.
+- A dependency cycle no longer aborts `club publish --auto` with "Break the cycle by replacing one of the path dependencies".
+- A package that depends on itself now reports that directly instead of surfacing as a cycle.
 
 ### Changed
 

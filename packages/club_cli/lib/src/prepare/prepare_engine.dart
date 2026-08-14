@@ -82,6 +82,7 @@ class PreparedWorkspace {
     required this.server,
     required this.resolution,
     required this.plans,
+    required this.cycles,
   });
 
   final String rootDir;
@@ -93,6 +94,16 @@ class PreparedWorkspace {
 
   /// Topological publish order — leaves first, dependents last.
   final List<String> order;
+
+  /// Mutually-dependent package groups inside [order], in publish order.
+  ///
+  /// Empty for the common acyclic workspace. Members need their standalone
+  /// resolution check deferred until the whole group is published — see
+  /// `publish/cycle_verification.dart`.
+  final List<List<String>> cycles;
+
+  /// Every package in [order] that belongs to some group in [cycles].
+  Set<String> get cycleMembers => {for (final g in cycles) ...g};
 
   final ResolvedServer server;
   final ConflictResolution resolution;
@@ -190,16 +201,25 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
     throw PrepareEngineError(ExitCodes.data);
   }
 
-  final List<String> order;
-  try {
-    order = publishOrder(graph, targets);
-  } on CycleError catch (e) {
-    error(e.toString());
-    hint(
-      'Break the cycle by replacing one of the path dependencies with a '
-      'hosted reference.',
+  final plan = planPublishOrder(graph, targets);
+  final order = plan.order;
+
+  // Cycles are published as a group rather than rejected, but the user should
+  // know before confirming: within a group there is a window where the
+  // first-uploaded member's dependencies are not yet resolvable.
+  if (plan.hasCycles) {
+    info('');
+    warning(
+      '${plan.cycles.length} dependency '
+      '${plan.cycles.length == 1 ? 'cycle' : 'cycles'} in the closure:',
     );
-    throw PrepareEngineError(ExitCodes.data);
+    for (final group in plan.cycles) {
+      detail(bold(describeCycle(group)));
+    }
+    hint(
+      'Members publish as a group. The standalone resolution check is '
+      'deferred until every member is up, then verified.',
+    );
   }
 
   // ── Server resolution ───────────────────────────────────────────────────
@@ -282,6 +302,7 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
     server: server,
     resolution: resolution,
     plans: plans,
+    cycles: plan.cycles,
   );
 }
 
