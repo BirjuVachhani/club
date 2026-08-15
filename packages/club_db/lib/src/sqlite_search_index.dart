@@ -82,7 +82,7 @@ class SqliteSearchIndex implements SearchIndex {
       case SearchOrder.likes:
         orderBy = 'ORDER BY p.likes_count DESC';
       case SearchOrder.created:
-        orderBy = 'ORDER BY p.created_at ASC';
+        orderBy = 'ORDER BY p.created_at DESC';
     }
 
     // Discontinued packages are excluded from search results (per pub.dev
@@ -143,7 +143,7 @@ class SqliteSearchIndex implements SearchIndex {
       case SearchOrder.likes:
         orderBy = 'ORDER BY likes_count DESC';
       case SearchOrder.created:
-        orderBy = 'ORDER BY created_at ASC';
+        orderBy = 'ORDER BY created_at DESC';
     }
 
     const where = 'WHERE is_unlisted = 0 AND is_discontinued = 0';

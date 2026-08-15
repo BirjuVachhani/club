@@ -24,7 +24,24 @@ class IndexDocument {
 }
 
 /// Sort order for search results.
-enum SearchOrder { relevance, updated, likes, created }
+///
+/// Every order except [relevance] is newest/highest first: these back
+/// "Recently Updated", "Most Likes", and "Recently Added" surfaces, where the
+/// point is to show what just happened. In particular [created] means *most
+/// recently created first*, not oldest first.
+enum SearchOrder {
+  /// FTS rank. Falls back to [updated] when there is no query to rank against.
+  relevance,
+
+  /// Most recently published to, descending.
+  updated,
+
+  /// Most liked, descending.
+  likes,
+
+  /// Most recently added to the repository, descending.
+  created,
+}
 
 /// Input to a search query.
 class SearchQuery {
