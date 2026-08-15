@@ -211,7 +211,14 @@
             {/if}
           </td>
           <td class="col-actions">
-            <button class="danger" onclick={() => deletePackage(p.name)} title="Delete package">Delete</button>
+            <button
+              class="icon-btn"
+              onclick={() => deletePackage(p.name)}
+              title="Delete package"
+              aria-label="Delete package {p.name}"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            </button>
           </td>
         </tr>
         {#if expanded === p.name}
@@ -233,7 +240,14 @@
                         <td class="mono">{v.version}</td>
                         <td>{v.publishedAt ? new Date(v.publishedAt).toLocaleString() : '—'}</td>
                         <td class="col-actions">
-                          <button class="danger small" onclick={() => deleteVersion(p.name, v.version)}>Delete version</button>
+                          <button
+                            class="icon-btn small"
+                            onclick={() => deleteVersion(p.name, v.version)}
+                            title="Delete version"
+                            aria-label="Delete {p.name} {v.version}"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                          </button>
                         </td>
                       </tr>
                     {/each}
@@ -353,21 +367,38 @@
     background: var(--muted);
     color: var(--muted-foreground);
   }
-  .danger {
-    background: var(--destructive);
-    color: var(--destructive-foreground);
-    border: none;
-    padding: 0.3rem 0.65rem;
-    border-radius: 4px;
+  /* Destructive row actions are outlined and muted at rest so a table full
+     of them does not read as a wall of red, and only take on the
+     destructive colour once the pointer is on one. */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground);
     cursor: pointer;
-    font-size: 0.8125rem;
+    transition:
+      color 0.12s,
+      border-color 0.12s,
+      background 0.12s;
   }
-  .danger:hover {
-    filter: brightness(1.05);
+  .icon-btn:hover {
+    color: var(--destructive);
+    border-color: color-mix(in srgb, var(--destructive) 40%, transparent);
+    background: color-mix(in srgb, var(--destructive) 8%, transparent);
   }
-  .danger.small {
-    padding: 0.2rem 0.5rem;
-    font-size: 0.75rem;
+  .icon-btn:focus-visible {
+    outline: 2px solid var(--destructive);
+    outline-offset: 1px;
+  }
+  .icon-btn.small {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
   }
   tr.version-rows > td {
     background: color-mix(in srgb, var(--muted) 50%, var(--card));
