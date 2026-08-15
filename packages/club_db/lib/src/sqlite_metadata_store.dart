@@ -1438,6 +1438,100 @@ class SqliteMetadataStore implements MetadataStore {
     );
   }
 
+  /// Storage stats straight from SQLite's own page accounting.
+  ///
+  /// [DatabaseStats.totalBytes] is the logical page total (`page_count *
+  /// page_size`), which is not quite the on-disk footprint: it excludes the
+  /// `-wal` and `-shm` sidecars, which the admin stats endpoint measures
+  /// separately from the filesystem.
+  @override
+  Future<DatabaseStats> databaseStats({int topTables = 8}) async {
+    final pageCount = await _pragmaInt('page_count');
+    final pageSize = await _pragmaInt('page_size');
+    final freeCount = await _pragmaInt('freelist_count');
+
+    return DatabaseStats(
+      totalBytes: pageCount * pageSize,
+      reclaimableBytes: freeCount * pageSize,
+      tables: await _largestRelations(topTables),
+    );
+  }
+
+  /// Read a single-value `PRAGMA`. Returns 0 if SQLite reports nothing, which
+  /// keeps the size arithmetic total rather than throwing on an odd build.
+  Future<int> _pragmaInt(String pragma) async {
+    final rows = await _db.select('PRAGMA $pragma');
+    if (rows.isEmpty) return 0;
+    return rows.first.read<int>(pragma);
+  }
+
+  /// The [limit] largest relations by size, tables and indexes alike.
+  ///
+  /// Sizes come from the `dbstat` virtual table. It is compiled into the
+  /// `sqlite3` package's default build, but a host swapping in its own
+  /// libsqlite3 without `SQLITE_ENABLE_DBSTAT_VTAB` would fail here, so a
+  /// missing vtab degrades to an empty breakdown instead of taking the whole
+  /// stats panel down with it.
+  Future<List<DbTableStat>> _largestRelations(int limit) async {
+    final List<QueryRow> sizes;
+    try {
+      sizes = await _db.select(
+        '''SELECT name, SUM(pgsize) AS bytes
+           FROM dbstat
+           GROUP BY name
+           ORDER BY bytes DESC
+           LIMIT ?''',
+        [limit],
+      );
+    } on Exception {
+      return const [];
+    }
+
+    // One pass over the catalog beats a per-relation lookup. dbstat reports
+    // indexes and FTS shadow tables alongside ordinary tables, and only the
+    // indexes have nothing countable in them.
+    final indexes = {
+      for (final row in await _db.select(
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
+      ))
+        row.read<String>('name'),
+    };
+
+    final stats = <DbTableStat>[];
+    for (final row in sizes) {
+      final name = row.read<String>('name');
+      final isIndex = indexes.contains(name);
+      stats.add(
+        DbTableStat(
+          name: name,
+          bytes: row.read<int>('bytes'),
+          isIndex: isIndex,
+          // Everything else gets counted, including relations the catalog
+          // does not list (`sqlite_schema` is itself one), with [_rowCount]
+          // absorbing anything that turns out not to be countable.
+          rows: isIndex ? null : await _rowCount(name),
+        ),
+      );
+    }
+    return stats;
+  }
+
+  /// `COUNT(*)` for [table], or null if it is not countable.
+  ///
+  /// The identifier cannot be bound as a parameter, so it is quoted instead.
+  /// [table] always originates from SQLite's own catalog rather than from a
+  /// request, and the doubled-quote escape holds even for a name containing a
+  /// quote.
+  Future<int?> _rowCount(String table) async {
+    final quoted = '"${table.replaceAll('"', '""')}"';
+    try {
+      final rows = await _db.select('SELECT COUNT(*) AS n FROM $quoted');
+      return rows.first.read<int>('n');
+    } on Exception {
+      return null;
+    }
+  }
+
   // ── Transactions ───────────────────────────────────────────────────────────
 
   @override

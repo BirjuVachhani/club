@@ -32,6 +32,7 @@ export 'src/models/api/package_download_history.dart';
 export 'src/models/api/version_content.dart';
 export 'src/models/api/package_dartdoc_status.dart';
 export 'src/models/api/package_scoring_report.dart';
+export 'src/models/api/database_stats.dart';
 
 // Repository interfaces
 export 'src/repositories/metadata_store.dart';

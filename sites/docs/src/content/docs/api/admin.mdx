@@ -16,6 +16,8 @@ Authorization: Bearer club_pat_...
 
 Returns server uptime, resource counts (packages, versions, users), disk usage, and information about the configured storage backends.
 
+Also returns a `database` block with the size the database engine reports for itself, how much of that space is reclaimable by a `VACUUM`, and a breakdown of the largest tables and indexes. This is the engine's own accounting, so it differs slightly from the on-disk `disk.database` figure (which also covers SQLite's `-wal` and `-shm` sidecars). Backends that cannot report these numbers return `{"available": false}`.
+
 ---
 
 ## User Management

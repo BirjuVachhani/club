@@ -1,3 +1,4 @@
+import '../models/api/database_stats.dart';
 import '../models/api/package_download_history.dart';
 import '../models/api_token.dart';
 import '../models/audit_log.dart';
@@ -247,6 +248,14 @@ abstract interface class MetadataStore {
 
   /// Return total counts for packages, versions, and users.
   Future<({int packages, int versions, int users})> counts();
+
+  /// Storage stats reported by the database engine itself: total size,
+  /// reclaimable space, and the [topTables] largest relations.
+  ///
+  /// Returns null when the backend cannot report them, so callers degrade to
+  /// "unavailable" rather than failing. Prefer that over throwing: this feeds
+  /// an admin dashboard where every other panel should still render.
+  Future<DatabaseStats?> databaseStats({int topTables = 8});
 
   // ── Transactions ───────────────────────────────────────────
 

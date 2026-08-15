@@ -2,6 +2,13 @@
   import { api } from '$lib/api/client';
   import { updateStatus } from '$lib/stores/updateStatus';
 
+  interface DbTableStat {
+    name: string;
+    bytes: number;
+    isIndex: boolean;
+    rows: number | null;
+  }
+
   interface StatsResponse {
     uptime: {
       startedAt: string;
@@ -17,6 +24,14 @@
       docs: { bytes: number | null; available: boolean };
       database: { bytes: number | null; available: boolean };
       total: { bytes: number | null; available: boolean };
+    };
+    // Internal database accounting, as opposed to the on-disk `disk.database`
+    // figure. Absent on servers predating this field, hence optional.
+    database?: {
+      available: boolean;
+      totalBytes?: number;
+      reclaimableBytes?: number | null;
+      tables?: DbTableStat[];
     };
     backends: {
       db: string;
@@ -223,6 +238,58 @@
         </div>
       </div>
     </section>
+
+    <!-- Database -->
+    <section class="stats-section">
+      <h3>Database</h3>
+      <div class="card-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Size</div>
+          {#if stats.database?.available}
+            <div class="stat-value">{formatBytes(stats.database.totalBytes)}</div>
+            <div class="stat-detail">Reported by {backendLabel(stats.backends.db)}</div>
+          {:else}
+            <div class="stat-value na">N/A</div>
+            <div class="stat-detail">Using {backendLabel(stats.backends.db)}</div>
+          {/if}
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Reclaimable</div>
+          {#if stats.database?.available && stats.database.reclaimableBytes != null}
+            <div class="stat-value">{formatBytes(stats.database.reclaimableBytes)}</div>
+            <div class="stat-detail">Freed by a VACUUM</div>
+          {:else}
+            <div class="stat-value na">N/A</div>
+          {/if}
+        </div>
+      </div>
+
+      {#if stats.database?.tables?.length}
+        <div class="table-wrap">
+          <table class="relations">
+            <thead>
+              <tr>
+                <th>Largest Tables</th>
+                <th class="num">Size</th>
+                <th class="num">Rows</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each stats.database.tables as t (t.name)}
+                <tr>
+                  <td class="name">
+                    {t.name}
+                    {#if t.isIndex}<span class="kind">index</span>{/if}
+                  </td>
+                  <td class="num">{formatBytes(t.bytes)}</td>
+                  <td class="num">{t.rows != null ? t.rows.toLocaleString() : '-'}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </section>
   {/if}
 </div>
 
@@ -322,6 +389,60 @@
     font-size: 12px;
     color: var(--muted-foreground);
     margin-top: 4px;
+  }
+
+  /* Long relation names scroll inside the card rather than widening the
+     page, which the fixed admin shell would otherwise clip. */
+  .table-wrap {
+    margin-top: 12px;
+    overflow-x: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .relations {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .relations th,
+  .relations td {
+    padding: 10px 20px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .relations th {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .relations tbody tr + tr td {
+    border-top: 1px solid var(--border);
+  }
+
+  .relations .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .relations .name {
+    font-family: var(--pub-code-font-family);
+    color: var(--foreground);
+  }
+
+  .relations .kind {
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-family: inherit;
+    font-size: 11px;
   }
 
   .loading {

@@ -157,6 +157,11 @@ class AdminApi {
     // Total = sum of all available local sizes
     final totalBytes = (tarballBytes ?? 0) + (docsBytes ?? 0) + (dbBytes ?? 0);
 
+    // Internal database accounting, as opposed to the on-disk figures above.
+    // Null on any backend that cannot report it, which surfaces as
+    // `available: false` rather than failing the whole panel.
+    final dbStats = await metadataStore.databaseStats();
+
     return _jsonResponse({
       'uptime': {
         'startedAt': startedAt.toIso8601String(),
@@ -184,6 +189,10 @@ class AdminApi {
           'bytes': totalBytes,
           'available': blobIsLocal || docsBytes != null || dbBytes != null,
         },
+      },
+      'database': {
+        'available': dbStats != null,
+        if (dbStats != null) ...dbStats.toJson(),
       },
       'backends': {
         'db': config.dbBackend.name,
