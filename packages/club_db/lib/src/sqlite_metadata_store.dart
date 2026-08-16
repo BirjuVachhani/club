@@ -529,14 +529,26 @@ class SqliteMetadataStore implements MetadataStore {
   }
 
   @override
-  Future<List<DependentPath>> findPublicDependents(String package) async {
+  Future<List<DependentPath>> findPublicDependents(String package) =>
+      findPublicDependentsOfAny({package});
+
+  @override
+  Future<List<DependentPath>> findPublicDependentsOfAny(
+    Set<String> packages,
+  ) async {
+    if (packages.isEmpty) return const [];
+
     // Reverse breadth-first search, recording one predecessor per package
     // so a concrete example chain can be reconstructed. One path per
     // dependent is enough to explain the breakage; enumerating all of them
     // is exponential in a dense graph and no more persuasive.
+    //
+    // Seeded with every root at once rather than run once per root: a
+    // dependent reachable from two roots is reported once, and the walk
+    // stays a single pass over the reverse edges.
     final cameFrom = <String, String>{};
-    final visited = <String>{package};
-    final frontier = <String>[package];
+    final visited = <String>{...packages};
+    final frontier = <String>[...packages];
 
     while (frontier.isNotEmpty) {
       final batch = frontier.toList();
@@ -561,7 +573,7 @@ class SqliteMetadataStore implements MetadataStore {
       }
     }
 
-    visited.remove(package);
+    visited.removeAll(packages);
     if (visited.isEmpty) return const [];
 
     // Of everything that depends on it, only the public ones are a

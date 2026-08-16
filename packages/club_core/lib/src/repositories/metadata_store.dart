@@ -180,6 +180,22 @@ abstract interface class MetadataStore {
   /// breaks nothing.
   Future<List<DependentPath>> findPublicDependents(String package);
 
+  /// [findPublicDependents] for a whole set at once: public packages that
+  /// transitively depend on **any** member of [packages].
+  ///
+  /// Members of [packages] are excluded from the result. They are being
+  /// made unreachable together, so one depending on another is not
+  /// breakage, and reporting it would read as a warning about a change the
+  /// operator already chose.
+  ///
+  /// A visibility flip applies to a whole selected set, so the guard has to
+  /// analyse that set. Calling the single-package version once per member
+  /// would both cost N reverse walks and miss nothing only by accident:
+  /// this runs one walk seeded with every root, so a dependent reachable
+  /// from a non-root member is found with a path that explains which member
+  /// it hangs off.
+  Future<List<DependentPath>> findPublicDependentsOfAny(Set<String> packages);
+
   /// Recompute `public_resolvable` for [versions], or for every version of
   /// [packages] when no explicit version list is given.
   ///

@@ -356,18 +356,24 @@ class VisibilityService {
     Package pkg,
     Set<String>? selected,
   ) async {
-    // The hazard nobody asks about: making this private breaks every
-    // public package that depends on it. Surfaced with a concrete path
-    // each, because "3 packages will break" is not actionable but
-    // "app -> core_ui -> icons" is.
-    final dependents = await _store.findPublicDependents(pkg.name);
-
     // Offer the cascade the operator probably wants: this package plus
     // everything it pulled public in the first place, minus anything a
     // package outside the cascade still needs.
     final candidates = await _store.localDependencyClosure({pkg.name});
     final chosen = selected ?? {pkg.name};
     final effective = {...chosen.intersection(candidates), pkg.name};
+
+    // The hazard nobody asks about: making this private breaks every
+    // public package that depends on it. Surfaced with a concrete path
+    // each, because "3 packages will break" is not actionable but
+    // "app -> core_ui -> icons" is.
+    //
+    // Analysed over the whole selection, not just the target. `apply`
+    // flips every selected name, so asking only about the target would
+    // let a cascade take down a public package that depends on a
+    // *dependency* being dragged private, without that package ever
+    // appearing in this dialog.
+    final dependents = await _store.findPublicDependentsOfAny(effective);
 
     final closure = await _buildNodes(candidates, pkg.name);
 
@@ -501,7 +507,10 @@ class VisibilityService {
 
     if (!target.isPublic) {
       // Dependents that the cascade does not already cover are the ones
-      // that actually break.
+      // that actually break. `_previewPrivate` already excludes selected
+      // packages from the list; the filter stays as the belt to that
+      // braces, since the cost of the two disagreeing is a public package
+      // going dark with no warning.
       final collateral = preview.publicDependents
           .where((d) => !preview.selected.contains(d.package))
           .toList();

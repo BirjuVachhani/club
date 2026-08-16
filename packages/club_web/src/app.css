@@ -37,6 +37,9 @@
   --ring: rgba(255, 79, 24, 0.28);
   --success: #16a34a;
   --warning: #d97706;
+  --scrollbar-thumb: #c8ccd4;
+  --scrollbar-thumb-hover: #a3a9b5;
+  --scrollbar-track: transparent;
 
   --pub-default-text-color: var(--foreground);
   --pub-heading-text-color: var(--foreground);
@@ -106,6 +109,9 @@
   --ring: rgba(255, 79, 24, 0.24);
   --success: #22C55E;
   --warning: #F59E0B;
+  --scrollbar-thumb: #3a3a3a;
+  --scrollbar-thumb-hover: #4f4f4f;
+  --scrollbar-track: transparent;
 
   --pub-default-text-color: var(--foreground);
   --pub-heading-text-color: var(--foreground);
@@ -199,6 +205,75 @@ body,
 html,
 body {
   overflow-x: hidden;
+}
+
+/* Reserve the vertical scrollbar's space permanently.
+
+   Opening a dialog calls `lockScroll()`, which sets `overflow: hidden`
+   on the scroll container. Without a reserved gutter that removes the
+   scrollbar, the viewport widens by its width, and every centred
+   element behind the backdrop jumps sideways. `scrollbar-gutter` keeps
+   the gutter allocated even under `overflow: hidden`, so nothing
+   moves. It applies to `html` because `overflow-x: hidden` above has
+   already made `html` the scroll container.
+
+   Costs nothing where scrollbars are overlays (macOS default, all
+   touch devices): the gutter is zero-width there, because there is no
+   classic scrollbar to reserve space for. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Theme every scrollbar the app doesn't explicitly opt out of.
+
+   `scrollbar-width` and `scrollbar-color` are inherited, so setting
+   them once on the root reaches every scroll container, including ones
+   inside components that never thought about it. That inheritance is
+   also why this belongs on `:root` and not on `*`: a universal
+   selector would re-declare the value on every element and defeat the
+   opt-outs below by matching them just as specifically.
+
+   Components that want something different (hidden strips, hover-reveal
+   code blocks, the tab rail) override with a class selector, which
+   out-specifies this. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* WebKit/Blink fallback for engines without the standard properties.
+
+   Guarded, because Chrome ignores `::-webkit-scrollbar` rules entirely
+   on any element where `scrollbar-color` is set: unguarded, these
+   would be dead rules on Chrome and confusing to debug. The guard also
+   keeps this away from macOS overlay scrollbars, where declaring an
+   explicit `width` would convert them into permanent space-taking
+   classic scrollbars and undo the OS preference. */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 body {

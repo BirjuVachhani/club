@@ -64,6 +64,11 @@ export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@localhost}"
 # ≥ 8 chars — setup wizard (used by dummy seed) rejects shorter passwords.
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 export LOG_LEVEL="${LOG_LEVEL:-debug}"
+# Half of the public-packages master switch. The other half is the
+# `public_packages_enabled` server setting, flipped under Admin > Settings.
+# On by default here so the visibility UI is reachable locally; the server
+# still exposes nothing until the dashboard toggle is on too.
+export PUBLIC_PACKAGES_ENABLED="${PUBLIC_PACKAGES_ENABLED:-true}"
 
 # Cleanup on exit
 cleanup() {

@@ -501,6 +501,83 @@ void main() {
           preview.publicDependents.firstWhere((d) => d.package == 'app');
       expect(app.path, ['app', 'core_ui', 'icons']);
     });
+
+    test('previewing warns about dependents of the cascade, not just the '
+        'target', () async {
+      final (:store, :service) = await _setup();
+      await _pkg(store, 'core_ui');
+      await _pkg(store, 'app', deps: ['core_ui']);
+      await _pkg(store, 'widget', deps: ['core_ui']);
+      await service.apply(
+        package: 'app',
+        target: PackageVisibility.public,
+        closure: {'app', 'core_ui'},
+        actorUserId: 'u1',
+      );
+      await service.apply(
+        package: 'widget',
+        target: PackageVisibility.public,
+        closure: {'widget', 'core_ui'},
+        actorUserId: 'u1',
+      );
+
+      // Nothing depends on `app`, so analysing the target alone finds no
+      // breakage. `core_ui` is dragged private with it, and `widget`
+      // needs `core_ui`.
+      final preview = await service.preview(
+        package: 'app',
+        target: PackageVisibility.private,
+        selected: {'app', 'core_ui'},
+      );
+
+      final widget = preview.publicDependents.singleWhere(
+        (d) => d.package == 'widget',
+      );
+      expect(widget.path, ['widget', 'core_ui']);
+      // The packages being flipped together are not breakage.
+      expect(
+        preview.publicDependents.map((d) => d.package),
+        isNot(anyElement(isIn(['app', 'core_ui']))),
+      );
+    });
+
+    test('refuses a cascade that breaks a dependent of a selected '
+        'dependency', () async {
+      final (:store, :service) = await _setup();
+      await _pkg(store, 'core_ui');
+      await _pkg(store, 'app', deps: ['core_ui']);
+      await _pkg(store, 'widget', deps: ['core_ui']);
+      await service.apply(
+        package: 'app',
+        target: PackageVisibility.public,
+        closure: {'app', 'core_ui'},
+        actorUserId: 'u1',
+      );
+      await service.apply(
+        package: 'widget',
+        target: PackageVisibility.public,
+        closure: {'widget', 'core_ui'},
+        actorUserId: 'u1',
+      );
+
+      await expectLater(
+        service.apply(
+          package: 'app',
+          target: PackageVisibility.private,
+          closure: {'app', 'core_ui'},
+          actorUserId: 'u1',
+        ),
+        throwsA(
+          isA<ConflictException>().having(
+            (e) => e.message,
+            'message',
+            contains('widget -> core_ui'),
+          ),
+        ),
+      );
+      expect((await store.lookupPackage('core_ui'))!.isPublic, isTrue);
+      expect((await store.lookupPackage('app'))!.isPublic, isTrue);
+    });
   });
 
   group('breakageFromRemoving', () {
