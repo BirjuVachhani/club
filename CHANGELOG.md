@@ -1,3 +1,20 @@
+## 0.6.1
+
+### Changed
+
+- The dependency closure review is a dialog instead of an inline panel, and the Visibility section reads as its own section with a real call to action.
+- Scrollbars are themed to match the site in both light and dark mode.
+
+### Fixed
+
+- Making a package private now checks public dependents of every package in the cascade, not just the target.
+- The web UI only claims to accept breakage it actually showed, so the server can still refuse dependents that appeared after the review.
+- A failed closure re-analysis blocks the confirm button instead of leaving it live over stale numbers.
+- The closure counts skip packages that are missing or already at the target visibility.
+- A preview response that outlives its dialog can no longer overwrite the state of another package.
+- Opening a dialog no longer shifts the page sideways.
+- Focus rings on inputs inside a dialog are no longer clipped.
+
 ## 0.6.0
 
 ### Added
