@@ -1,3 +1,36 @@
+## 0.6.0
+
+### Added
+
+- Packages can be marked public, so `dart pub get` resolves them without a token and visitors can browse them without an account.
+- Public access is gated twice, by `PUBLIC_PACKAGES_ENABLED` in the environment and an admin toggle under Admin > Public packages. Turning either off makes every public package require credentials again on the next request.
+- Marking a package public walks its transitive club-hosted dependency graph and flips the whole closure in one confirmed action.
+- The closure spans every version rather than only the latest, because `pub` aborts on a 401 instead of backtracking.
+- Only `dependencies` join the closure. Dev dependencies and overrides are listed separately and never force a package public.
+- A dependency without an explicit `hosted:` URL for this server is flagged ambiguous and never auto-included.
+- Making a package private, or deleting it, runs a reverse dependency check and refuses until the caller includes the dependents or accepts the breakage.
+- The anonymous version list omits versions whose club-hosted dependencies are not all public. Their manifests and tarballs stay readable, so a pinned lockfile fails with `pub`'s own credentials message rather than a 404.
+- `robots.txt`, reflecting whether anonymous browsing is enabled.
+- The admin stats page reports database size, reclaimable space, and the largest tables and indexes.
+- Schema v3 adds package visibility, per-version public resolvability, and a dependency edge index. Existing databases migrate on boot.
+
+### Changed
+
+- Unlisted packages are excluded from keyword search, browse, and autocomplete for every caller, signed in or anonymous.
+- Uploader email addresses are redacted from list-info and discover responses for anonymous callers.
+- Collection reads require a `VisibilityScope`, so a missing filter is a compile error rather than a silent leak.
+- Force republish (`?force=true`) is refused on a public package, since rewriting published bytes breaks archive immutability.
+- `versions` and `archives` are rejected as package names, as they collide with fixed route segments.
+- Package delete actions in the admin table are outlined icon buttons rather than filled red ones.
+- `docs/CONFIGURATION.md` rewritten against the code.
+
+### Fixed
+
+- Recently Added on the home page lists the newest packages first.
+- Screenshots, README assets, and dartdoc for auth-gated packages are no longer served with `Cache-Control: public`, which let a shared cache re-serve private package content.
+- An `AuthException` thrown from a handler keeps its `WWW-Authenticate` header, so `dart pub publish` prompts for credentials instead of failing opaquely.
+- A malformed path parameter returns a clean 404 instead of escaping as a 500.
+
 ## 0.5.1
 
 ### Fixed
