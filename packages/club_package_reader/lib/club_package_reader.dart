@@ -24,7 +24,7 @@ import 'src/pubspec_content_override.dart';
 import 'src/tar_utils.dart';
 import 'src/yaml_utils.dart';
 
-export 'src/policy.dart' show ReaderPolicy;
+export 'src/policy.dart' show ReaderPolicy, normaliseHostedOrigin;
 
 final _logger = Logger('club_package_reader');
 

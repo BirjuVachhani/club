@@ -15,6 +15,13 @@ Package _$PackageFromJson(Map<String, dynamic> json) => Package(
   isDiscontinued: json['isDiscontinued'] as bool? ?? false,
   replacedBy: json['replacedBy'] as String?,
   isUnlisted: json['isUnlisted'] as bool? ?? false,
+  visibility:
+      $enumDecodeNullable(_$PackageVisibilityEnumMap, json['visibility']) ??
+      PackageVisibility.private,
+  visibilityChangedAt: json['visibilityChangedAt'] == null
+      ? null
+      : DateTime.parse(json['visibilityChangedAt'] as String),
+  visibilityChangedBy: json['visibilityChangedBy'] as String?,
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
 );
@@ -28,6 +35,14 @@ Map<String, dynamic> _$PackageToJson(Package instance) => <String, dynamic>{
   'isDiscontinued': instance.isDiscontinued,
   'replacedBy': instance.replacedBy,
   'isUnlisted': instance.isUnlisted,
+  'visibility': _$PackageVisibilityEnumMap[instance.visibility]!,
+  'visibilityChangedAt': instance.visibilityChangedAt?.toIso8601String(),
+  'visibilityChangedBy': instance.visibilityChangedBy,
   'createdAt': instance.createdAt.toIso8601String(),
   'updatedAt': instance.updatedAt.toIso8601String(),
+};
+
+const _$PackageVisibilityEnumMap = {
+  PackageVisibility.private: 'private',
+  PackageVisibility.public: 'public',
 };

@@ -21,6 +21,7 @@ import 'package:yaml/yaml.dart';
 
 import 'api/setup_api.dart';
 import 'config/app_config.dart';
+import 'dependency_index_backfill.dart';
 import 'middleware/rate_limit.dart';
 import 'router.dart';
 import 'scheduler/scheduler.dart';
@@ -246,6 +247,15 @@ Future<BootstrapResult> bootstrap(
     ],
   );
 
+  // The origin every `hosted:` dependency is compared against to decide
+  // whether it points back at this server. Normalised once here so publish
+  // indexing and the backfill agree; null when SERVER_URL is unset or
+  // unparseable, which makes every dependency non-local and therefore
+  // under-collects the visibility closure rather than over-exposing.
+  final selfOrigin = config.serverUrl == null
+      ? null
+      : normaliseDependencyOrigin(config.serverUrl!.toString());
+
   final publishService = PublishService(
     store: metadataStore,
     blobStore: blobStore,
@@ -255,6 +265,35 @@ Future<BootstrapResult> bootstrap(
     maxUploadBytes: config.maxUploadBytes,
     extractArchive: (file) => _extractArchive(file, policy: readerPolicy),
     onVersionPublished: (pkg, version) => scoringService.enqueue(pkg, version),
+    selfOrigin: selfOrigin,
+  );
+
+  // Index dependencies for versions published before the index existed.
+  // Deliberately not awaited into the boot critical path: it is an O(n)
+  // JSON decode over every version, and blocking startup on it would turn
+  // a large registry's upgrade into visible downtime. Nothing that depends
+  // on the index is reachable until an operator turns public packages on,
+  // and an incomplete index only ever under-reports dependencies, which
+  // makes the closure smaller rather than exposing anything.
+  unawaited(
+    backfillDependencyIndex(
+      store: metadataStore,
+      settings: settingsStore,
+      selfOrigin: selfOrigin,
+    ).catchError((Object e, StackTrace st) {
+      _bootstrapLogger.severe('Dependency index backfill failed.', e, st);
+      return null;
+    }),
+  );
+
+  // Owns every write to `packages.visibility`. The environment half of
+  // the master switch is baked in here; the settings half is read per
+  // request so turning it off takes effect immediately.
+  final visibilityService = VisibilityService(
+    store: metadataStore,
+    settings: settingsStore,
+    generateId: () => _uuid.v4(),
+    envEnabled: config.publicPackagesEnabled,
   );
 
   final downloadService = DownloadService(store: metadataStore);
@@ -288,6 +327,14 @@ Future<BootstrapResult> bootstrap(
     metadataStore: metadataStore,
     signupEnabled: config.signupEnabled,
     trustProxy: config.trustProxy,
+    // Both conditions, deliberately. The master switch alone is not
+    // enough: a server that enabled the feature but has published
+    // nothing publicly should still greet visitors with a login page
+    // rather than an empty storefront.
+    publicBrowsingEnabled: () async {
+      if (!await visibilityService.isEnabled()) return false;
+      return metadataStore.hasAnyPublicPackage();
+    },
   );
 
   final users = await metadataStore.listUsers(limit: 1);
@@ -336,6 +383,7 @@ Future<BootstrapResult> bootstrap(
     startedAt: effectiveStartedAt,
     rateLimiters: rateLimiters,
     updateChecker: updateChecker,
+    visibilityService: visibilityService,
     internalScoringToken: internalScoringToken,
   );
 

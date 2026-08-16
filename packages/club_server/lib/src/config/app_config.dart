@@ -94,6 +94,7 @@ class AppConfig {
     this.dartdocBackend = DartdocBackend.filesystem,
     this.dartdocCacheMaxMemoryMb = 64,
     this.signupEnabled = false,
+    this.publicPackagesEnabled = false,
     this.trustProxy = false,
     this.allowedOrigins = const [],
     this.enforceRetractionWindow = true,
@@ -152,6 +153,22 @@ class AppConfig {
   /// Enable the `/signup` page and endpoint. Off by default (closed
   /// registry). Controlled by `SIGNUP_ENABLED=true`.
   final bool signupEnabled;
+
+  /// Permit packages to be marked public and served without credentials.
+  /// Off by default. Controlled by `PUBLIC_PACKAGES_ENABLED=true`.
+  ///
+  /// This is only half the gate: a server admin must also turn the
+  /// dashboard setting on. Two halves because they answer to different
+  /// people. The environment variable belongs to whoever controls the
+  /// deployment, the setting to whoever controls the dashboard, and
+  /// requiring both means an existing private registry cannot acquire an
+  /// anonymous surface from a single click, an upgrade, or a compromised
+  /// admin session alone.
+  ///
+  /// Setting this to false is a kill switch: every public package
+  /// requires credentials again immediately, with no per-package state
+  /// change to undo afterwards.
+  final bool publicPackagesEnabled;
 
   /// Trust `X-Forwarded-Proto` / `X-Forwarded-For` from the request.
   /// See [EnvKeys.trustProxy] for the reasoning — only enable when the
@@ -282,6 +299,11 @@ class AppConfig {
         64,
       ),
       signupEnabled: boolean(EnvKeys.signupEnabled, 'signup_enabled', false),
+      publicPackagesEnabled: boolean(
+        EnvKeys.publicPackagesEnabled,
+        'public_packages_enabled',
+        false,
+      ),
       trustProxy: boolean(EnvKeys.trustProxy, 'trust_proxy', false),
       allowedOrigins: () {
         final raw = str(EnvKeys.allowedOrigins, 'allowed_origins', '');

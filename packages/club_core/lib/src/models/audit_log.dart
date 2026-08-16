@@ -70,6 +70,20 @@ abstract final class AuditKind {
   static const uploaderRemoved = 'package.uploader_removed';
   static const publisherChanged = 'package.publisher_changed';
   static const packageDeleted = 'package.deleted';
+
+  /// Visibility transitions. Non-negotiable to record: making a package
+  /// public is an irreversible disclosure, and "who exposed our source,
+  /// and what else went with it" has to be answerable afterwards. The
+  /// payload carries the full closure that was flipped in the same
+  /// action, not just the package named in the request.
+  static const packageMadePublic = 'package.made_public';
+  static const packageMadePrivate = 'package.made_private';
+
+  /// A version was published into a public package while declaring a
+  /// club-hosted dependency that is not public, so it is absent from the
+  /// anonymous version list.
+  static const versionNotPubliclyResolvable =
+      'package.version_not_publicly_resolvable';
   static const publisherCreated = 'publisher.created';
   static const publisherVerified = 'publisher.verified';
   static const publisherUpdated = 'publisher.updated';

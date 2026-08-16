@@ -129,18 +129,32 @@ const List<String> schema = [
   ''',
 
   // ── Packages ────────────────────────────────────────────────
+  // `visibility` is access control, and is orthogonal to `is_unlisted` /
+  // `is_discontinued`, which are pub.dev-style listing hints. A package is
+  // reachable without credentials only when `visibility = 'public'`;
+  // `is_unlisted` then further decides whether it shows up in browse.
+  //
+  // TEXT rather than an `is_public` boolean so a future 'pending' state
+  // (two-person approval before a package goes out to the internet) does
+  // not need another migration. The enum is enforced in Dart by
+  // `PackageVisibility` as well as by the CHECK here, because a DB that
+  // arrived via ALTER TABLE has no CHECK — see the v2 → v3 migration.
   '''
   CREATE TABLE IF NOT EXISTS packages (
-    name              TEXT PRIMARY KEY NOT NULL,
-    publisher_id      TEXT REFERENCES publishers(id) ON DELETE SET NULL,
-    latest_version    TEXT,
-    latest_prerelease TEXT,
-    likes_count       INTEGER NOT NULL DEFAULT 0,
-    is_discontinued   INTEGER NOT NULL DEFAULT 0,
-    replaced_by       TEXT,
-    is_unlisted       INTEGER NOT NULL DEFAULT 0,
-    created_at        INTEGER NOT NULL,
-    updated_at        INTEGER NOT NULL
+    name                  TEXT PRIMARY KEY NOT NULL,
+    publisher_id          TEXT REFERENCES publishers(id) ON DELETE SET NULL,
+    latest_version        TEXT,
+    latest_prerelease     TEXT,
+    likes_count           INTEGER NOT NULL DEFAULT 0,
+    is_discontinued       INTEGER NOT NULL DEFAULT 0,
+    replaced_by           TEXT,
+    is_unlisted           INTEGER NOT NULL DEFAULT 0,
+    visibility            TEXT NOT NULL DEFAULT 'private'
+                            CHECK (visibility IN ('private','public')),
+    visibility_changed_at INTEGER,
+    visibility_changed_by TEXT REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at            INTEGER NOT NULL,
+    updated_at            INTEGER NOT NULL
   )
   ''',
 
@@ -149,6 +163,20 @@ const List<String> schema = [
   //   '["sdk:dart","sdk:flutter","platform:android"]'
   // `example_path` / `example_content` mirror the pub.dev convention —
   // see pub_package_reader/file_names.dart for the priority order.
+  //
+  // `public_resolvable` is a derived cache, not an independent setting:
+  // 1 when the owning package is public AND every club-hosted entry in
+  // this version's `dependencies` belongs to a public package. It gates
+  // only the anonymous *version list*, because that is the input to a
+  // fresh `pub` solve — a solver that never sees the version never probes
+  // it and never hits a 401 on the private dependency. The version's
+  // manifest and tarball stay readable for a public package, so a
+  // lockfile pinned to a hidden version still fetches and then fails on
+  // the actual private dependency, which is a far more interpretable
+  // error than a 404 on the version itself.
+  //
+  // Recomputed by VisibilityService on every visibility flip and on
+  // publish; never written by hand.
   '''
   CREATE TABLE IF NOT EXISTS package_versions (
     package_name       TEXT NOT NULL REFERENCES packages(name) ON DELETE CASCADE,
@@ -174,7 +202,54 @@ const List<String> schema = [
     flutter_sdk_min    TEXT,
     flutter_sdk_max    TEXT,
     published_at       INTEGER NOT NULL,
+    public_resolvable  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (package_name, version)
+  )
+  ''',
+
+  // ── Package Version Dependencies ────────────────────────────
+  // A flattened index of each version's declared dependencies, derived
+  // from `package_versions.pubspec_json` at publish time. The pubspec
+  // remains the source of truth; this table exists purely so the graph is
+  // queryable.
+  //
+  // Why a table instead of `json_extract` over pubspec_json: the forward
+  // walk ("what does A need") is tolerable either way, but the reverse
+  // walk ("which public packages break if B goes private") has no index
+  // to stand on and degrades to a full scan with a JSON parse per row.
+  // That query sits on the interactive visibility-flip path and on the
+  // publish path, so it needs `idx_pvd_dep_name`.
+  //
+  // `source` records how the dependency was declared, which is what
+  // decides whether it participates in the visibility closure:
+  //   hosted   explicit `hosted:` block; `is_local` when its origin
+  //            matches this server, in which case it IS in the closure
+  //   bare     plain `foo: ^1.0.0`. Publish validation reads this as
+  //            pub.dev, but `dart pub` resolves it against the consumer's
+  //            PUB_HOSTED_URL, so when a local package shares the name it
+  //            is genuinely ambiguous — flagged, never auto-included
+  //   sdk/path/git  never in the closure
+  //
+  // `is_local` and `is_ambiguous` are derived from SERVER_URL and from
+  // which names exist locally, so they go stale if SERVER_URL changes or
+  // if a bare dep's name is published here later. Both are repaired by
+  // the same rescan that builds the index.
+  '''
+  CREATE TABLE IF NOT EXISTS package_version_dependencies (
+    package_name    TEXT NOT NULL,
+    version         TEXT NOT NULL,
+    dep_name        TEXT NOT NULL,
+    kind            TEXT NOT NULL
+                      CHECK (kind IN ('direct','dev','override')),
+    source          TEXT NOT NULL
+                      CHECK (source IN ('hosted','bare','sdk','path','git')),
+    hosted_origin   TEXT,
+    is_local        INTEGER NOT NULL DEFAULT 0,
+    is_ambiguous    INTEGER NOT NULL DEFAULT 0,
+    constraint_text TEXT,
+    PRIMARY KEY (package_name, version, dep_name, kind),
+    FOREIGN KEY (package_name, version)
+      REFERENCES package_versions(package_name, version) ON DELETE CASCADE
   )
   ''',
 
@@ -318,6 +393,14 @@ const List<String> schema = [
   'CREATE INDEX IF NOT EXISTS idx_user_invites_token_hash ON user_invites(token_hash)',
   'CREATE INDEX IF NOT EXISTS idx_packages_publisher_id ON packages(publisher_id)',
   'CREATE INDEX IF NOT EXISTS idx_packages_updated_at ON packages(updated_at DESC)',
+  // Anonymous browse is `WHERE visibility='public' AND is_unlisted=0 AND
+  // is_discontinued=0`, run on every unauthenticated page view.
+  'CREATE INDEX IF NOT EXISTS idx_packages_visibility ON packages(visibility)',
+  // The reverse-dependency query: "which versions declare a dependency on
+  // <name> that resolves to this server". Without this the private-flip
+  // guard is a full table scan.
+  'CREATE INDEX IF NOT EXISTS idx_pvd_dep_name ON package_version_dependencies(dep_name, is_local)',
+  'CREATE INDEX IF NOT EXISTS idx_pvd_package ON package_version_dependencies(package_name, version)',
   'CREATE INDEX IF NOT EXISTS idx_package_versions_package_name ON package_versions(package_name)',
   'CREATE INDEX IF NOT EXISTS idx_package_versions_published_at ON package_versions(published_at DESC)',
   'CREATE INDEX IF NOT EXISTS idx_package_likes_package_name ON package_likes(package_name)',

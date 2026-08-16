@@ -11,6 +11,7 @@
   import VerifiedBadge from "$lib/components/VerifiedBadge.svelte";
   import ScreenshotGallery from "$lib/components/ScreenshotGallery.svelte";
   import ScoresTab from "./_ScoresTab.svelte";
+  import VisibilityPanel from "./_VisibilityPanel.svelte";
   import { api } from "$lib/api/client";
   import { confirmDialog } from "$lib/stores/confirm";
   import { page } from "$app/state";
@@ -1263,6 +1264,8 @@
               {#if adminLoading}
                 <p class="empty-tab">Loading...</p>
               {:else}
+                <VisibilityPanel packageName={pkg.name} />
+
                 <section class="admin-section">
                   <h3>Package options</h3>
 

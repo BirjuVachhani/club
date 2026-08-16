@@ -20,6 +20,7 @@ for teams and organizations that need private package hosting.
 - [11. Storage Backends](#11-storage-backends)
 - [12. Configuration](#12-configuration)
 - [13. Future / V2 Features](#13-future--v2-features)
+- [14. Public Packages](#14-public-packages)
 
 ---
 
@@ -78,7 +79,10 @@ Implements the [Dart Pub Repository Specification v2](https://github.com/dart-la
 
 ## 2. Authentication & Authorization
 
-All access requires authentication. There is no anonymous/public access.
+Private by default: every endpoint requires authentication unless the
+operator has explicitly enabled public packages (see
+[Public Packages](#14-public-packages)) and a package has been marked
+public.
 
 ### User Accounts
 
@@ -181,16 +185,26 @@ Dart shelf server. No Node.js at runtime. Uses pub.dev's CSS/design system.
 
 - Full-text search across package name, description, and README excerpt
 - SQLite FTS5 backend (default) with Unicode tokenizer
-- Prefix search support (e.g., `htt` matches `http`)
 - Sort by: relevance, recently updated, likes, created date
-- Filter by: SDK, platform, tags
 - Package name autocomplete endpoint
 - Pagination with total hit count
-- Search query syntax:
-  - `sdk:dart`, `sdk:flutter` — SDK filter
-  - `platform:android`, `platform:ios`, `platform:web`, etc. — platform filter
-  - `is:discontinued`, `is:unlisted` — status filter
-  - Free text — full-text search
+- SDK and platform filtering in the web UI, applied client-side from the
+  derived tags on each result
+
+**What search never returns**, on any surface (keyword search, browse,
+autocomplete), for every caller:
+
+- Discontinued packages
+- Unlisted packages: findable by URL only
+- Private packages, when the caller is anonymous
+
+The first two are listing hints and apply to signed-in users as well. The
+third is access control. All three are applied by one shared predicate, so
+the keyword and browse paths cannot disagree about them.
+
+> The query-syntax operators `sdk:`, `platform:`, and `is:` are not
+> implemented server-side. `SearchQuery.tags` exists on the model but no
+> backend consumes it; the web UI filters the returned results instead.
 
 ### Search Index
 
@@ -241,7 +255,11 @@ Simplified publisher model (no domain verification).
 ### Package Options
 
 - **Discontinue** a package (with optional "replaced by" pointer)
-- **Unlist** a package (hidden from search, still downloadable)
+- **Unlist** a package: findable by URL only. Excluded from keyword
+  search, browse listings, and name autocomplete, for signed-in users and
+  anonymous visitors alike. Still fully downloadable and resolvable by
+  anyone who knows the name, and still listed on My Packages and its
+  publisher's page.
 - **Retract** a specific version
 
 ### Uploader Management
@@ -507,3 +525,102 @@ These features are **not included in v1** but the architecture supports them:
 - **Multi-tenancy** — isolated registries per team/project
 - **Replication** — mirror packages between club instances
 - **Redis cache** — in-memory cache layer for high-traffic deployments
+
+---
+
+## 14. Public Packages
+
+Individual packages can be opted into anonymous access, so `dart pub get`
+resolves them without a token and visitors can browse them without an
+account. Off by default, and every package is private until someone
+deliberately changes it.
+
+### Two gates, on purpose
+
+A package is reachable anonymously only when **all** of these hold:
+
+1. `PUBLIC_PACKAGES_ENABLED=true` in the server environment.
+2. The dashboard toggle under Admin > Public packages is on.
+3. The package itself is marked public.
+
+The first two answer to different people: the environment variable belongs
+to whoever controls the deployment, the toggle to whoever controls the
+dashboard. Requiring both means an existing private registry cannot
+acquire an anonymous surface from a single click, an upgrade, or a
+compromised admin session alone.
+
+Turning either off makes every public package require credentials again on
+the next request, with no per-package state to undo. That is the kill
+switch. It does not recall anything already downloaded.
+
+### The dependency closure
+
+A public package whose club-hosted dependency stayed private cannot be
+resolved by anyone without a token, so marking a package public walks its
+transitive dependency tree first and shows what must go with it.
+
+- Only `dependencies` participate. A package's `dev_dependencies` are never
+  resolved by its consumers, so a private club-hosted dev dependency breaks
+  nothing downstream. They are listed separately and left unselected.
+  `dependency_overrides` are honoured only for the root package of a solve
+  and are ignored entirely.
+- The closure is the union over **all** versions, not just the latest.
+  `pub` aborts on a 401 rather than backtracking, so one private dependency
+  on one old version can poison resolution for a consumer pinned to the
+  newest.
+- Only dependencies declared with an explicit `hosted:` URL pointing at
+  this server count. A bare `foo: ^1.0.0` that happens to share a name with
+  a local package is flagged as ambiguous and never auto-included: an
+  anonymous consumer resolves it from pub.dev regardless, so exposing the
+  local package would buy nothing.
+
+### Versions that cannot resolve
+
+Making a package public makes every version's bytes public. The anonymous
+**version list** additionally omits versions whose club-hosted dependencies
+are not all public, because that list is the input to a fresh `pub` solve
+and a solver that never sees a version never fails on it.
+
+Their manifests and tarballs stay readable, so a lockfile pinned to a
+hidden version still fetches and then fails on the actual private
+dependency, with `pub`'s own "requires authentication" message rather than
+a confusing 404.
+
+### Going back to private
+
+The dangerous direction. Making a package private, or deleting it, breaks
+every public package that depends on it. Both paths run a reverse
+dependency check first and refuse until the caller either includes the
+dependents in the change or explicitly accepts the breakage. The
+confirmation shows a concrete chain per affected package
+(`app -> core_ui -> icons`) so the causation is visible.
+
+### What anonymous visitors can and cannot see
+
+| Visible | Hidden |
+|---|---|
+| Package page, README, CHANGELOG, example | Uploader email addresses |
+| Version list, manifests, tarballs | Package activity log |
+| Scores and generated API docs | Download counts |
+| Publisher name and badge | Publisher member lists |
+| Like counts | Who liked what |
+| Search and browse, filtered to public and listed packages | Any private package, in any listing |
+
+### Other interactions
+
+- **Publishing** a version into a public package that adds a private
+  club-hosted dependency succeeds, but the version is absent from the
+  anonymous version list. The publish response says so, an audit record is
+  written, and the package page shows it.
+- **Force republish** (`?force=true`) is refused on a public package.
+  Rewriting the bytes of an already-published version breaks archive
+  immutability for anyone who recorded its hash.
+- **Unlisted** is orthogonal and composes cleanly: `visibility` decides
+  who may read a package, `is_unlisted` decides whether it is advertised.
+  Public plus unlisted resolves for `dart pub get` without a token but
+  never appears in search, browse, or autocomplete.
+- **Retraction** does not reduce exposure. Retracted versions remain listed
+  and downloadable.
+- Every visibility change is recorded in the audit log with the full set of
+  packages it moved, so "who exposed our source, and what went with it" is
+  answerable afterwards.

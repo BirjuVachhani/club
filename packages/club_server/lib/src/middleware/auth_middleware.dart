@@ -4,7 +4,9 @@ import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../auth/cookies.dart';
+import '../http/auth_challenge.dart';
 import '../scoring/internal_scoring_token.dart';
+import 'public_package_access.dart';
 
 /// Key used to store [AuthenticatedUser] in the request context.
 const String authContextKey = 'club.auth';
@@ -18,6 +20,25 @@ AuthenticatedUser requireAuthUser(Request request) {
   final user = getAuthUser(request);
   if (user == null) throw AuthException.missingToken();
   return user;
+}
+
+/// The visibility scope this request may read collections under.
+///
+/// The one place a scope is derived from a request. Handlers call this
+/// rather than constructing a scope themselves, so "what may an
+/// unauthenticated caller see" has exactly one answer and one place to
+/// change it.
+///
+/// Anonymous when no credential resolved. Note this is intentionally
+/// independent of whether public packages are enabled server-wide: when
+/// the master switch is off no package is public, so an anonymous scope
+/// matches nothing and the collection comes back empty on its own. The
+/// gate and the filter agree without having to be kept in sync.
+VisibilityScope visibilityScopeFor(Request request) {
+  final user = getAuthUser(request);
+  return user == null
+      ? VisibilityScope.anonymous
+      : VisibilityScope.authenticated(user.userId);
 }
 
 /// Ensure the authenticated user holds at least [minRole]. Throws
@@ -60,6 +81,7 @@ Middleware authMiddleware(
   Set<String> publicExactPaths = const {},
   Set<String> publicPathPrefixes = const {},
   InternalScoringToken? internalScoringToken,
+  PublicPackageAccess? publicPackageAccess,
 }) {
   return (Handler innerHandler) {
     return (Request request) async {
@@ -198,6 +220,21 @@ Middleware authMiddleware(
       // generic "missing" response so unauthenticated clients get a
       // WWW-Authenticate header they can react to.
       if (user == null) {
+        // Last chance before denying: this may be a read of a package
+        // marked public. Checked here, after credential resolution and
+        // after the CSRF check above, so that the one gate still owns the
+        // decision and a signed-in user browsing a public package still
+        // gets their identity attached below.
+        //
+        // Deliberately *after* the cookie/bearer error branches would be
+        // wrong: a visitor with a stale session cookie reading a public
+        // package should get the package, not a 401 about their expired
+        // cookie. So it goes first.
+        if (publicPackageAccess != null &&
+            await publicPackageAccess.allows(request)) {
+          return innerHandler(request);
+        }
+
         if (cookieError != null) return _authError(cookieError);
         if (bearerError != null) return _authError(bearerError);
         return Response(
@@ -206,8 +243,7 @@ Middleware authMiddleware(
               '{"error":{"code":"MissingAuthentication","message":"Authentication required."}}',
           headers: {
             'content-type': 'application/json',
-            'www-authenticate':
-                'Bearer realm="pub", message="Authentication required."',
+            'www-authenticate': bearerChallenge('Authentication required.'),
           },
         );
       }
@@ -236,7 +272,7 @@ Response _authError(AuthException e) {
     body: '{"error":{"code":"${e.code}","message":"${e.message}"}}',
     headers: {
       'content-type': 'application/json',
-      'www-authenticate': 'Bearer realm="pub", message="${e.message}"',
+      'www-authenticate': bearerChallenge(e.message),
     },
   );
 }

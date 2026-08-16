@@ -32,6 +32,7 @@ class PackageVersion extends Equatable {
     this.flutterSdkMin,
     this.flutterSdkMax,
     this.tags = const [],
+    this.publicResolvable = false,
     required this.publishedAt,
   });
 
@@ -75,6 +76,21 @@ class PackageVersion extends Equatable {
 
   /// Derived SDK and platform tags (e.g. `sdk:dart`, `platform:android`).
   final List<String> tags;
+
+  /// Whether an anonymous client may see this version in the version list.
+  ///
+  /// True when the owning package is public *and* every club-hosted entry
+  /// in this version's `dependencies` belongs to a public package. Derived
+  /// and maintained by `VisibilityService`; never set directly.
+  ///
+  /// It gates the version *list* only, because that list is the input to a
+  /// fresh `pub` solve: a solver that never sees the version never probes
+  /// it and never hits a 401 on the private dependency. The version's
+  /// manifest and tarball stay readable for a public package, so a
+  /// lockfile pinned to a hidden version still fetches and then fails on
+  /// the real dependency, which is a far more interpretable error than a
+  /// 404 on the version itself.
+  final bool publicResolvable;
 
   final DateTime publishedAt;
 

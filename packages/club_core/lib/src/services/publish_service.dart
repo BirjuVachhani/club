@@ -10,11 +10,14 @@ import '../models/package_screenshot.dart';
 import '../models/package_version.dart';
 import '../models/search.dart';
 import '../models/upload_session.dart';
+import '../models/version_dependency.dart';
 import '../repositories/blob_store.dart';
 import '../repositories/metadata_store.dart';
+import '../repositories/visibility_scope.dart';
 import '../repositories/search_index.dart';
 import '../validation/package_name_validator.dart';
 import '../validation/version_validator.dart';
+import 'dependency_extraction.dart';
 import 'readme_asset_rewriter.dart';
 import 'tag_derivation.dart';
 
@@ -119,6 +122,7 @@ class PublishService {
     required this.tempDir,
     required this.extractArchive,
     this.onVersionPublished,
+    this.selfOrigin,
     this.maxUploadBytes = 100 * 1024 * 1024,
     this.uploadSessionTtl = const Duration(minutes: 10),
     this.maxPendingUploads = 3,
@@ -144,6 +148,16 @@ class PublishService {
   /// to the scoring implementation.
   final Future<void> Function(String packageName, String version)?
   onVersionPublished;
+
+  /// This server's own origin, already normalised by
+  /// [normaliseDependencyOrigin]. Used to decide which `hosted:`
+  /// dependencies point back here and therefore participate in the
+  /// public-visibility closure.
+  ///
+  /// Nullable so tests and any embedder that has not configured a server
+  /// URL still work: a null origin means no dependency is ever classified
+  /// as club-hosted, which under-collects rather than over-exposing.
+  final String? selfOrigin;
 
   /// Step 1: Create an upload session and return upload info.
   /// [baseUrl] is the public-facing server URL resolved from the request.
@@ -232,7 +246,7 @@ class PublishService {
       // Validate package name
       final nameError = PackageNameValidator.validate(name);
       if (nameError != null) {
-        throw PackageRejectedException.invalidName(name);
+        throw PackageRejectedException.invalidName(name, nameError);
       }
 
       // Validate version
@@ -258,6 +272,29 @@ class PublishService {
         }
         if (!force) {
           throw PackageRejectedException.versionExists(name, version);
+        }
+
+        // Force-overwriting a version of a *public* package is refused.
+        //
+        // Force rewrites the bytes stored under a version that already
+        // shipped. On a private registry that is a controlled operator
+        // action: everyone who could have fetched it is someone you can
+        // tell. Once the package is public, an anonymous consumer's
+        // `pubspec.lock` records the old `archive_sha256`, and changing
+        // the content under a published version is the supply-chain
+        // problem immutable version numbers exist to prevent.
+        //
+        // Deliberately checked even for admins. There is no legitimate
+        // "I know what I'm doing" case: publish a new version instead.
+        final owner = await _store.lookupPackage(name);
+        if (owner != null && owner.isPublic) {
+          throw PackageRejectedException(
+            'Cannot force-overwrite version $version of $name: the package '
+            'is public, and republishing different bytes under a version '
+            'that anonymous consumers may already have locked breaks '
+            'archive immutability. Publish a new version instead, or make '
+            'the package private first.',
+          );
         }
         // Fall through: force-mode overwrite proceeds below.
       }
@@ -323,8 +360,32 @@ class PublishService {
           await tx.createVersion(versionCompanion);
         }
 
+        // Index this version's dependency edges. The pubspec stays the
+        // source of truth; these rows exist so the visibility closure can
+        // be walked in both directions without a full-table JSON scan.
+        //
+        // Inside the version write's own transaction so the edges can
+        // never disagree with the pubspec they were derived from. On a
+        // forced republish the pubspec may differ, and
+        // replaceVersionDependencies deletes before inserting.
+        await tx.replaceVersionDependencies(
+          name,
+          version,
+          await _extractDependencyEdges(tx, pubspec),
+        );
+
+        // If the package is public, this version may or may not be
+        // anonymously resolvable depending on whether the club-hosted
+        // dependencies it just declared are public too. Recompute now so
+        // the anonymous version list is correct the instant the publish
+        // returns, rather than at some later flip.
+        await tx.recomputePublicResolvable({name});
+
         // Recompute latest versions
-        final allVersions = await tx.listVersions(name);
+        final allVersions = await tx.listVersions(
+          name,
+          scope: VisibilityScope.trustedInternal,
+        );
         final nonRetracted = allVersions
             .where((v) => !v.isRetracted)
             .map((v) => v.version)
@@ -469,9 +530,17 @@ class PublishService {
       // whether the overwrite path actually executed end-to-end. A plain
       // "Successfully uploaded" here would be indistinguishable from a
       // first-time publish and hide any plumbing regression.
-      return isRepublish
+      final base = isRepublish
           ? 'Re-published $name version $version (forced overwrite).'
           : 'Successfully uploaded $name version $version.';
+
+      // If this version landed in a public package but cannot resolve
+      // without credentials, say so here. `dart pub publish` prints this
+      // string and there is no other channel back to the publisher, so a
+      // silent success would leave them believing anonymous consumers can
+      // get the version they just shipped.
+      final warning = await _publicResolvabilityWarning(name, version);
+      return warning == null ? base : '$base\n\n$warning';
     } catch (e) {
       await _store.updateUploadSessionState(uploadId, UploadState.failed);
       // Try to clean up temp file
@@ -515,6 +584,98 @@ class PublishService {
         sha256: sha256.convert(s.bytes).toString(),
         mimeType: s.mimeType,
       );
+
+  /// Warn when a version was published into a public package but declares
+  /// a club-hosted dependency that is still private.
+  ///
+  /// The version is stored and downloadable; it is simply absent from the
+  /// anonymous version list, so a fresh `pub` solve for an anonymous
+  /// consumer will not select it. That is the fail-soft choice, and it is
+  /// deliberate: rejecting the publish would break CI over a dependency
+  /// the publisher may not own or control. But fail-soft only works if it
+  /// is loud, hence this message, the audit record beside it, and the
+  /// banner the web UI renders from the same flag.
+  Future<String?> _publicResolvabilityWarning(
+    String name,
+    String version,
+  ) async {
+    final pkg = await _store.lookupPackage(name);
+    if (pkg == null || !pkg.isPublic) return null;
+
+    final stored = await _store.lookupVersion(name, version);
+    if (stored == null) return null;
+
+    final blockers = <String>[];
+    for (final dep in await _store.listVersionDependencies(name, version)) {
+      if (!dep.participatesInClosure) continue;
+      final target = await _store.lookupPackage(dep.name);
+      if (target == null || !target.isPublic) blockers.add(dep.name);
+    }
+    if (blockers.isEmpty) return null;
+    blockers.sort();
+
+    await _store.appendAuditLog(
+      AuditLogCompanion(
+        id: generateId(),
+        kind: AuditKind.versionNotPubliclyResolvable,
+        packageName: name,
+        version: version,
+        summary:
+            '$name $version is not publicly resolvable: '
+            '${blockers.join(', ')} ${blockers.length == 1 ? 'is' : 'are'} '
+            'private.',
+        dataJson: jsonEncode({'blockedBy': blockers}),
+      ),
+    );
+
+    return 'WARNING: $name is public, but version $version depends on '
+        '${blockers.join(', ')}, which ${blockers.length == 1 ? 'is' : 'are'} '
+        'still private. This version is hidden from anonymous clients and '
+        'will not be selected by `dart pub get` without credentials. Make '
+        '${blockers.length == 1 ? 'it' : 'them'} public, or expect '
+        'anonymous consumers to stay on the previous version.';
+  }
+
+  /// Build this version's dependency edges from its pubspec.
+  ///
+  /// [extractDependencies] is synchronous and pure, but classifying a bare
+  /// dependency as ambiguous needs to know whether a package of that name
+  /// exists on this server. So the names are collected first, resolved in
+  /// one pass, and handed to the extractor as a set membership test.
+  ///
+  /// Note the asymmetry that is deliberate: a locally-existing name only
+  /// ever *flags* a bare dependency, it never promotes one to club-hosted.
+  /// See `VersionDependency.isAmbiguous`.
+  Future<List<VersionDependency>> _extractDependencyEdges(
+    MetadataStore tx,
+    Map<String, dynamic> pubspec,
+  ) async {
+    final candidateNames = <String>{};
+    for (final section in const [
+      'dependencies',
+      'dev_dependencies',
+      'dependency_overrides',
+    ]) {
+      final raw = pubspec[section];
+      if (raw is! Map) continue;
+      for (final key in raw.keys) {
+        if (key is String && key.isNotEmpty) candidateNames.add(key);
+      }
+    }
+
+    final localNames = <String>{};
+    for (final candidate in candidateNames) {
+      if (await tx.lookupPackage(candidate) != null) {
+        localNames.add(candidate);
+      }
+    }
+
+    return extractDependencies(
+      pubspec,
+      selfOrigin: selfOrigin,
+      isLocallyHosted: localNames.contains,
+    );
+  }
 
   Future<void> _checkPublishAuth(String name, String userId) async {
     final user = await _store.lookupUserById(userId);

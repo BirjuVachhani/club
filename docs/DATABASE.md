@@ -160,7 +160,7 @@ One row per package.
 | `likes_count` | INTEGER | NOT NULL, DEFAULT 0 | Denormalized like count |
 | `is_discontinued` | BOOLEAN | NOT NULL, DEFAULT 0 | Marked as discontinued |
 | `replaced_by` | TEXT | NULL | Replacement package name |
-| `is_unlisted` | BOOLEAN | NOT NULL, DEFAULT 0 | Hidden from search |
+| `is_unlisted` | BOOLEAN | NOT NULL, DEFAULT 0 | Findable by URL only: excluded from search, browse, and autocomplete |
 | `created_at` | INTEGER | NOT NULL | Unix ms |
 | `updated_at` | INTEGER | NOT NULL | Unix ms |
 

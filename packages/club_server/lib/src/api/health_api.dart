@@ -31,7 +31,7 @@ class HealthApi {
     // Check metadata store
     try {
       final sw = Stopwatch()..start();
-      await metadataStore.listPackages(limit: 1);
+      await metadataStore.listPackages(limit: 1, scope: VisibilityScope.trustedInternal);
       sw.stop();
       checks['metadata_store'] = {
         'status': 'ok',

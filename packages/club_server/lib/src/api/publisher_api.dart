@@ -55,6 +55,7 @@ class PublisherApi {
       limit: 50,
       pageToken: page,
       includeUnlisted: includeUnlisted,
+      scope: visibilityScopeFor(request),
     );
 
     // Enrich with pubspec-derived fields so the shared PackageCard

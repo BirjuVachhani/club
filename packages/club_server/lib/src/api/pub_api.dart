@@ -90,9 +90,13 @@ class PubApi {
   }
 
   Future<Response> _listVersions(Request request, String package) async {
+    // The pub-spec version list is the input to a `pub` version solve,
+    // so it is scoped to the caller: an anonymous client sees only the
+    // versions that can actually resolve without credentials.
     final data = await packageService.listVersions(
       package,
       baseUrl: _baseUrl(request),
+      scope: visibilityScopeFor(request),
     );
     return _jsonResponse(data.toJson());
   }
@@ -298,10 +302,15 @@ class PubApi {
       stream,
       headers: {
         'content-type': meta.mimeType,
-        // Screenshots are immutable per-version — safe to cache hard. A
-        // re-published (forced) version overwrites the bytes but clients
-        // rarely hold a version's URL across a forced re-publish.
-        'cache-control': 'public, max-age=31536000, immutable',
+        // Immutable per-version, so cache hard — but `private`, not
+        // `public`. This route is auth-gated: `public` tells every shared
+        // cache between here and the browser (CDN, corporate proxy) that it
+        // may store the bytes and hand them to an unauthenticated third
+        // party. Only the requesting browser may keep a copy.
+        //
+        // When per-package visibility lands this becomes conditional:
+        // `public` for packages marked public, `private` otherwise.
+        'cache-control': 'private, max-age=31536000, immutable',
         if (info != null) 'content-length': info.sizeBytes.toString(),
       },
     );
@@ -344,10 +353,10 @@ class PubApi {
       stream,
       headers: {
         'content-type': mime,
-        // Same immutability rationale as screenshots — once published, a
-        // version's README assets don't change (force-republish writes
-        // fresh assets but clients rarely cache across that).
-        'cache-control': 'public, max-age=31536000, immutable',
+        // Same rationale as screenshots: immutable per-version, but
+        // `private` because the route is auth-gated and a shared cache must
+        // not re-serve a private package's assets to anyone else.
+        'cache-control': 'private, max-age=31536000, immutable',
         'content-length': info.sizeBytes.toString(),
       },
     );

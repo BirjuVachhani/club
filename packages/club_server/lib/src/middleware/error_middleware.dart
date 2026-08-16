@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../http/auth_challenge.dart';
+
 /// Middleware that catches [ClubException] subclasses and renders them
 /// as pub spec v2 error JSON responses.
 Middleware errorMiddleware() {
@@ -37,7 +39,18 @@ Middleware errorMiddleware() {
           body: jsonEncode({
             'error': {'code': e.code, 'message': e.message},
           }),
-          headers: {'content-type': 'application/json'},
+          headers: {
+            'content-type': 'application/json',
+            // A handler that throws AuthException must produce the same
+            // challenge authMiddleware would have. Without it `dart pub`
+            // treats the 401 as a hard failure instead of prompting for
+            // credentials — which is exactly the path `dart pub publish`
+            // takes, since the publish endpoints call `requireAuthUser`
+            // rather than being denied by the middleware.
+            if (e is AuthException) 'www-authenticate': bearerChallenge(
+              e.message,
+            ),
+          },
         );
       } catch (e, stack) {
         // ignore: avoid_print

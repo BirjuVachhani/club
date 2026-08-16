@@ -10,6 +10,7 @@ import '../models/publisher.dart';
 import '../models/publisher_member.dart';
 import '../models/publisher_verification.dart';
 import '../repositories/metadata_store.dart';
+import '../repositories/visibility_scope.dart';
 
 /// Abstract DNS TXT resolver the verification flow calls out to. Lives
 /// in core (not server) so the service can be unit-tested with a fake
@@ -439,6 +440,7 @@ class PublisherService {
     // the paged endpoint with a tiny limit to keep this cheap.
     final page = await _store.listPackagesForPublisher(
       publisherId,
+      scope: VisibilityScope.trustedInternal,
       limit: 1,
     );
     if (page.items.isNotEmpty) {

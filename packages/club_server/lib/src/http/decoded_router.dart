@@ -77,7 +77,14 @@ class DecodedRouter {
     if (v is! String) return v;
     try {
       return Uri.decodeComponent(v);
-    } on FormatException {
+    } catch (_) {
+      // Malformed encoding is left untouched so the handler can return a
+      // clean 404 rather than a 500.
+      //
+      // Catches broadly on purpose: `Uri.decodeComponent` throws
+      // ArgumentError for a bad escape such as `%zz`, not FormatException.
+      // The narrower `on FormatException` this used to have never fired,
+      // so a malformed path parameter escaped as an unhandled error.
       return v;
     }
   }

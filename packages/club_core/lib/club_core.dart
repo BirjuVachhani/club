@@ -7,8 +7,10 @@ export 'src/models/user_role.dart';
 export 'src/models/user_invite.dart';
 export 'src/models/api_token.dart';
 export 'src/models/package.dart';
+export 'src/models/package_visibility.dart';
 export 'src/models/package_version.dart';
 export 'src/models/package_screenshot.dart';
+export 'src/models/version_dependency.dart';
 export 'src/models/publisher.dart';
 export 'src/models/publisher_member.dart';
 export 'src/models/publisher_verification.dart';
@@ -39,6 +41,7 @@ export 'src/repositories/metadata_store.dart';
 export 'src/repositories/blob_store.dart';
 export 'src/repositories/search_index.dart';
 export 'src/repositories/settings_store.dart';
+export 'src/repositories/visibility_scope.dart';
 
 // Services
 export 'src/services/auth_service.dart';
@@ -49,6 +52,8 @@ export 'src/services/publisher_service.dart';
 export 'src/services/likes_service.dart';
 export 'src/services/download_service.dart';
 export 'src/services/tag_derivation.dart';
+export 'src/services/dependency_extraction.dart';
+export 'src/services/visibility_service.dart';
 
 // Authorization
 export 'src/authz/permissions.dart';

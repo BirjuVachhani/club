@@ -46,6 +46,7 @@ PackageVersion _$PackageVersionFromJson(Map<String, dynamic> json) =>
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const [],
+      publicResolvable: json['publicResolvable'] as bool? ?? false,
       publishedAt: DateTime.parse(json['publishedAt'] as String),
     );
 
@@ -73,5 +74,6 @@ Map<String, dynamic> _$PackageVersionToJson(PackageVersion instance) =>
       'flutterSdkMin': instance.flutterSdkMin,
       'flutterSdkMax': instance.flutterSdkMax,
       'tags': instance.tags,
+      'publicResolvable': instance.publicResolvable,
       'publishedAt': instance.publishedAt.toIso8601String(),
     };

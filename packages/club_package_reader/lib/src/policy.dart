@@ -107,10 +107,10 @@ class ReaderPolicy {
   /// Returns true when [url] matches any entry in [allowedHostedUrls] after
   /// origin-only normalisation (scheme + host + non-default port).
   bool isHostedUrlAllowed(String url) {
-    final normalised = _normaliseOrigin(url);
+    final normalised = normaliseHostedOrigin(url);
     if (normalised == null) return false;
     for (final allowed in allowedHostedUrls) {
-      if (_normaliseOrigin(allowed) == normalised) return true;
+      if (normaliseHostedOrigin(allowed) == normalised) return true;
     }
     return false;
   }
@@ -159,7 +159,22 @@ const _defaultPubDevHosts = <String>[
 /// Origin-normalise [url] to `scheme://host[:port]`, lowercasing scheme + host
 /// and dropping default ports / trailing slashes / paths. Returns null if
 /// [url] can't be parsed as an absolute http/https URL.
-String? _normaliseOrigin(String url) {
+///
+/// Public because "is this `hosted:` dependency pointing at *this* server?"
+/// is asked in two places with different consequences: here, where the answer
+/// gates whether a package may be published at all, and in the server's
+/// dependency indexing, where it decides whether a dependency participates in
+/// the public-visibility closure. Those two must agree exactly. A second
+/// implementation that normalised, say, the trailing slash but not the
+/// default port would let a dependency pass publish validation as
+/// "hosted here" while the closure walk classified it as external, which is
+/// precisely the shape of a visibility bypass.
+///
+/// Note this is *more* forgiving than `dart pub`, which does not normalise
+/// beyond stripping a trailing slash. A `hosted:` URL that differs only by
+/// case or default port matches here but will not match the token store on
+/// the client side. See `InternalScoringToken.pubTokensJson`.
+String? normaliseHostedOrigin(String url) {
   Uri u;
   try {
     u = Uri.parse(url.trim());

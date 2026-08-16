@@ -100,11 +100,18 @@ class PackageRejectedException extends ClubException {
         'Version \'$version\' of package \'$name\' already exists.',
       );
 
-  factory PackageRejectedException.invalidName(String name) =>
+  /// [reason] should be the message from `PackageNameValidator.validate`,
+  /// which already explains which rule was broken. It is optional so older
+  /// callers keep the generic character-shape explanation, but pass it when
+  /// you have it: the validator rejects for several distinct reasons
+  /// (length, shape, Dart reserved word, route-segment collision) and the
+  /// generic text is actively misleading for all but the first.
+  factory PackageRejectedException.invalidName(String name, [String? reason]) =>
       PackageRejectedException(
-        '\'$name\' is not a valid package name. '
-        'Package names must be lowercase, start with a letter, '
-        'and contain only letters, numbers, and underscores.',
+        reason ??
+            '\'$name\' is not a valid package name. '
+                'Package names must be lowercase, start with a letter, '
+                'and contain only letters, numbers, and underscores.',
       );
 
   factory PackageRejectedException.invalidVersion(String version) =>

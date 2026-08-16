@@ -12,13 +12,22 @@ import '../middleware/request_url.dart';
 /// and the batched `/api/discover` endpoint, so list pages can get this
 /// data without an N+1 of follow-up fetches.
 ///
+/// That sharing is exactly why [scope] is required. The uploader block
+/// carries email addresses, and `/api/discover` embeds this payload for
+/// every hit on a search results page. One missed redaction here would
+/// hand an anonymous visitor the email address of every uploader of every
+/// package matching a search term, in a single response. Under
+/// [VisibilityScope.anonymous] the uploader block is reduced to display
+/// names.
+///
 /// Returns `null` when the package does not exist.
 Future<Map<String, dynamic>?> buildListInfo(
   MetadataStore metadataStore,
   PackageService packageService,
   Request request,
-  String package,
-) async {
+  String package, {
+  required VisibilityScope scope,
+}) async {
   final pkg = await metadataStore.lookupPackage(package);
   if (pkg == null) return null;
 
@@ -43,7 +52,11 @@ Future<Map<String, dynamic>?> buildListInfo(
     final user = await metadataStore.lookupUserById(id);
     if (user != null) {
       uploaders.add({
-        'email': user.email,
+        // Display name is attribution, which a public package page wants.
+        // The email address is contact information the uploader never
+        // agreed to publish, so it is omitted rather than obfuscated:
+        // a masked address is still an address.
+        if (!scope.publicOnly) 'email': user.email,
         'displayName': user.displayName,
       });
     }

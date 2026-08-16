@@ -14,6 +14,7 @@
     { href: '/admin/packages', label: 'Packages' },
     { href: '/admin/publishers', label: 'Publishers' },
     { href: '/admin/settings/sdk', label: 'Scoring' },
+    { href: '/admin/settings/visibility', label: 'Public packages' },
     { href: '/admin/settings/legal', label: 'Legal' },
     { href: '/admin/settings/ownership', label: 'Ownership' },
   ];

@@ -46,7 +46,10 @@ Future<List<String>> _order(
   SearchOrder order, {
   String? query,
 }) async {
-  final result = await index.search(SearchQuery(query: query, order: order));
+  final result = await index.search(
+    SearchQuery(query: query, order: order),
+    scope: VisibilityScope.trustedInternal,
+  );
   return result.hits.map((h) => h.package).toList();
 }
 

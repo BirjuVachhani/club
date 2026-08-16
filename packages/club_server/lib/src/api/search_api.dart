@@ -4,6 +4,7 @@ import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../http/decoded_router.dart';
+import '../middleware/auth_middleware.dart';
 import '../middleware/request_url.dart';
 import 'list_info.dart';
 
@@ -49,6 +50,7 @@ class SearchApi {
         offset: (page - 1) * _pageSize,
         limit: _pageSize,
       ),
+      scope: visibilityScopeFor(request),
     );
 
     return Response.ok(
@@ -75,6 +77,7 @@ class SearchApi {
     final page = int.tryParse(request.url.queryParameters['page'] ?? '1') ?? 1;
     final sortStr = request.url.queryParameters['sort'] ?? 'relevance';
 
+    final scope = visibilityScopeFor(request);
     final result = await searchIndex.search(
       SearchQuery(
         query: q,
@@ -82,6 +85,7 @@ class SearchApi {
         offset: (page - 1) * _pageSize,
         limit: _pageSize,
       ),
+      scope: scope,
     );
 
     final baseUrl = resolveBaseUrl(request);
@@ -91,6 +95,7 @@ class SearchApi {
           final data = await packageService.listVersions(
             h.package,
             baseUrl: baseUrl,
+            scope: scope,
           );
           final score = await packageService.getScore(h.package);
           final listInfo = await buildListInfo(
@@ -98,6 +103,7 @@ class SearchApi {
             packageService,
             request,
             h.package,
+            scope: scope,
           );
           return {
             'package': h.package,
@@ -125,8 +131,22 @@ class SearchApi {
     );
   }
 
+  /// Every discoverable package name on the server, for autocomplete.
+  ///
+  /// This is an enumeration API by design, which makes the scope the only
+  /// thing standing between an anonymous caller and a full catalogue of
+  /// private package names. `GET /api/packages?compact=1` shares this
+  /// handler, so both are covered by the one filter.
+  ///
+  /// Unlisted packages are excluded: they are meant to be reachable by URL
+  /// only, and an autocomplete that suggests the name defeats that. They
+  /// remain fully usable by anyone who knows the name.
   Future<Response> _completionData(Request request) async {
-    final packages = await metadataStore.listPackages(limit: 10000);
+    final packages = await metadataStore.listPackages(
+      limit: 10000,
+      scope: visibilityScopeFor(request),
+      includeUnlisted: false,
+    );
     return Response.ok(
       jsonEncode({
         'packages': packages.items.map((p) => p.name).toList(),
@@ -143,9 +163,13 @@ class SearchApi {
       return _completionData(request);
     }
 
+    // A browse listing, so it follows the same discovery rules as search:
+    // unlisted packages are reachable by URL, not by enumeration.
     final packages = await metadataStore.listPackages(
       limit: 100,
       pageToken: page,
+      scope: visibilityScopeFor(request),
+      includeUnlisted: false,
     );
     return Response.ok(
       jsonEncode({

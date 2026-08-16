@@ -27,6 +27,7 @@ class AdminApi {
     required this.config,
     required this.startedAt,
     required this.updateChecker,
+    required this.visibilityService,
   });
 
   final AuthService authService;
@@ -43,6 +44,33 @@ class AdminApi {
   /// Update-availability snapshot. Backed by an in-memory cache that
   /// the scheduler refreshes hourly; the request path is a cheap read.
   final UpdateChecker updateChecker;
+
+  final VisibilityService visibilityService;
+
+  /// Refuse a removal that would break public packages unless the caller
+  /// passed `?acceptBreakage=true`. Mirrors the guard in
+  /// `PackageAdminApi`; both delete paths need it, and a deleted
+  /// dependency cannot be restored the way a visibility flip can.
+  Future<void> _guardBreakage(
+    Request request,
+    String package, {
+    required String action,
+  }) async {
+    if (request.url.queryParameters['acceptBreakage'] == 'true') return;
+
+    final dependents = await visibilityService.breakageFromRemoving(package);
+    if (dependents.isEmpty) return;
+
+    final summary = dependents
+        .take(5)
+        .map((d) => d.pathDescription)
+        .join('; ');
+    throw ConflictException(
+      '$action breaks ${dependents.length} public package(s) that depend '
+      'on it: $summary${dependents.length > 5 ? '; ...' : ''}. '
+      'Re-send with ?acceptBreakage=true to proceed anyway.',
+    );
+  }
 
   DecodedRouter get router {
     final router = DecodedRouter();
@@ -62,9 +90,171 @@ class AdminApi {
       _deleteVersion,
     );
 
+    router.get(
+      '/api/admin/packages/<package>/dependency-closure',
+      _getDependencyClosure,
+    );
+
+    router.get('/api/admin/public-packages', _getPublicPackagesSettings);
+    router.put('/api/admin/public-packages', _setPublicPackagesSettings);
+
     router.get('/api/admin/integrity', _getIntegrity);
     router.get('/api/admin/update-status', _getUpdateStatus);
     return router;
+  }
+
+  // ── Public packages master switch ───────────────────────────
+
+  Future<Response> _getPublicPackagesSettings(Request request) async {
+    requireRole(request, UserRole.admin);
+
+    final counts = await metadataStore.listPackages(limit: 1, scope: VisibilityScope.trustedInternal);
+    return _jsonResponse({
+      // False here means the deployment forbids it outright and the
+      // dashboard toggle cannot help. The UI needs the distinction to
+      // explain why the control is disabled.
+      'permittedByEnvironment': visibilityService.isPermittedByEnvironment,
+      'enabled': await visibilityService.isEnabled(),
+      'requiresServerAdmin': await visibilityService.requiresServerAdmin(),
+      'totalPackages': counts.totalCount,
+      'publicPackages': await _countPublicPackages(),
+    });
+  }
+
+  Future<Response> _setPublicPackagesSettings(Request request) async {
+    final actor = requireRole(request, UserRole.admin);
+
+    final body =
+        jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+
+    final enabled = body['enabled'];
+    if (enabled is bool) {
+      if (enabled && !visibilityService.isPermittedByEnvironment) {
+        throw const ForbiddenException(
+          'Public packages are disabled for this deployment. Set '
+          'PUBLIC_PACKAGES_ENABLED=true in the server environment first.',
+        );
+      }
+      await visibilityService.setEnabled(enabled);
+      await _audit(
+        kind: enabled
+            ? AuditKind.packageMadePublic
+            : AuditKind.packageMadePrivate,
+        actorId: actor.userId,
+        summary: enabled
+            ? 'Public packages enabled server-wide by ${actor.email}.'
+            : 'Public packages disabled server-wide by ${actor.email}. '
+                  'Every public package now requires credentials.',
+      );
+    }
+
+    final requiresAdmin = body['requiresServerAdmin'];
+    if (requiresAdmin is bool) {
+      await visibilityService.setRequiresServerAdmin(requiresAdmin);
+    }
+
+    return _getPublicPackagesSettings(request);
+  }
+
+  Future<int> _countPublicPackages() async {
+    // No dedicated count method on the store, and adding one for a single
+    // admin page is not worth the interface surface. The page size cap
+    // matches the other admin listings.
+    var count = 0;
+    String? token;
+    do {
+      final page = await metadataStore.listPackages(
+        limit: 500,
+        pageToken: token,
+        scope: VisibilityScope.trustedInternal,
+      );
+      count += page.items.where((p) => p.isPublic).length;
+      token = page.nextPageToken;
+    } while (token != null);
+    return count;
+  }
+
+  // ── Dependency closure (admin inspection) ───────────────────
+
+  /// Show what making [package] public would require, and what making it
+  /// private would break.
+  ///
+  /// Read-only and admin-only. It exists so the dependency index can be
+  /// checked against reality on a real registry *before* any of it is
+  /// wired to an actual visibility change, and it stays afterwards as the
+  /// way to explain a surprising closure without reading the database by
+  /// hand.
+  Future<Response> _getDependencyClosure(
+    Request request,
+    String package,
+  ) async {
+    requireRole(request, UserRole.admin);
+
+    final pkg = await metadataStore.lookupPackage(package);
+    if (pkg == null) throw NotFoundException.package(package);
+
+    final includeDev =
+        request.url.queryParameters['includeDev'] == 'true';
+
+    final closure = await metadataStore.localDependencyClosure(
+      {package},
+      includeDev: includeDev,
+    );
+    final dependents = await metadataStore.localDependentsClosure({package});
+    final publicDependents = await metadataStore.findPublicDependents(
+      package,
+    );
+
+    // Report each closure member's current visibility so the difference
+    // between "already public" and "would have to be made public" is
+    // visible without a second round of queries.
+    final members = <Map<String, Object?>>[];
+    for (final name in closure.toList()..sort()) {
+      final member = await metadataStore.lookupPackage(name);
+      members.add({
+        'package': name,
+        'visibility': (member?.visibility ?? PackageVisibility.private)
+            .wireName,
+        'exists': member != null,
+        'isTarget': name == package,
+      });
+    }
+
+    // Bare dependencies whose name also exists here. Making these public
+    // buys nothing (an anonymous consumer resolves pub.dev regardless),
+    // so they are reported separately rather than folded into the closure.
+    final ambiguous = <Map<String, Object?>>[];
+    for (final version in await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal)) {
+      for (final dep in await metadataStore.listVersionDependencies(
+        package,
+        version.version,
+      )) {
+        if (!dep.isAmbiguous) continue;
+        ambiguous.add({
+          'package': dep.name,
+          'version': version.version,
+          'constraint': dep.constraintText,
+        });
+      }
+    }
+
+    return Response.ok(
+      jsonEncode({
+        'package': package,
+        'visibility': pkg.visibility.wireName,
+        'includeDev': includeDev,
+        'requires': members,
+        'dependents': (dependents.toList()..sort())
+            .where((n) => n != package)
+            .toList(),
+        'publicDependents': [
+          for (final d in publicDependents)
+            {'package': d.package, 'path': d.path},
+        ],
+        'ambiguousBareDependencies': ambiguous,
+      }),
+      headers: {'content-type': 'application/json'},
+    );
   }
 
   // ── Update availability ─────────────────────────────────────
@@ -103,9 +293,10 @@ class AdminApi {
       final page = await metadataStore.listPackages(
         limit: 100,
         pageToken: pageToken,
+        scope: VisibilityScope.trustedInternal,
       );
       for (final pkg in page.items) {
-        final versions = await metadataStore.listVersions(pkg.name);
+        final versions = await metadataStore.listVersions(pkg.name, scope: VisibilityScope.trustedInternal);
         // Probe existence in parallel per-package. `exists` is cheap on a
         // local filesystem but can be an HTTP HEAD per call on S3/GCS —
         // fanning out keeps the handler from serialising hundreds of
@@ -568,15 +759,18 @@ class AdminApi {
     final query = request.url.queryParameters['q'];
     final page = request.url.queryParameters['page'];
 
+    // Admin package moderation must show private packages: hiding them
+    // from the operator is the opposite of what this page is for.
     final result = await metadataStore.listPackages(
       limit: 50,
       pageToken: page,
       query: query,
+      scope: VisibilityScope.trustedInternal,
     );
 
     final rows = <Map<String, dynamic>>[];
     for (final p in result.items) {
-      final versions = await metadataStore.listVersions(p.name);
+      final versions = await metadataStore.listVersions(p.name, scope: VisibilityScope.trustedInternal);
       final totalBytes = versions.fold<int>(
         0,
         (sum, v) => sum + v.archiveSizeBytes,
@@ -604,13 +798,26 @@ class AdminApi {
   Future<Response> _deletePackage(Request request, String package) async {
     final actor = requireRole(request, UserRole.admin);
 
-    final versions = await metadataStore.listVersions(package);
+    // Same breakage check as the package-owner delete path. Being a
+    // server admin means you are allowed to break public packages, not
+    // that you should do it without being told.
+    await _guardBreakage(request, package, action: 'Deleting $package');
+
+    final versions = await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal);
     for (final v in versions) {
       await blobStore.delete(package, v.version);
     }
 
     await metadataStore.deletePackage(package);
     await searchIndex.removePackage(package);
+
+    // Dependents' `public_resolvable` flags are now stale: they point at a
+    // package row that no longer exists. The recompute treats a missing
+    // dependency as blocking, so this demotes them correctly instead of
+    // leaving them advertised to anonymous clients.
+    await metadataStore.recomputePublicResolvable(
+      await metadataStore.packagesDependingOn({package}),
+    );
 
     await _audit(
       kind: AuditKind.packageDeleted,
@@ -628,6 +835,33 @@ class AdminApi {
     String version,
   ) async {
     final actor = requireRole(request, UserRole.admin);
+
+    // Deleting the last version that anonymous clients can resolve leaves
+    // a public package that still exists but cannot be used, and breaks
+    // every public dependent. Guarded like a package delete.
+    //
+    // Narrower cases (removing one of several versions, where a
+    // dependent's constraint may or may not still be satisfiable) are not
+    // guarded here: answering that needs real constraint solving, which
+    // the visibility preview does. This covers the case where breakage is
+    // certain rather than possible.
+    final owner = await metadataStore.lookupPackage(package);
+    if (owner != null && owner.isPublic) {
+      final remaining = await metadataStore.listVersions(
+        package,
+        scope: VisibilityScope.trustedInternal,
+      );
+      final survivingResolvable = remaining
+          .where((v) => v.version != version && v.publicResolvable)
+          .isNotEmpty;
+      if (!survivingResolvable) {
+        await _guardBreakage(
+          request,
+          package,
+          action: 'Deleting the last publicly resolvable version of $package',
+        );
+      }
+    }
 
     await blobStore.delete(package, version);
     await metadataStore.deleteVersion(package, version);

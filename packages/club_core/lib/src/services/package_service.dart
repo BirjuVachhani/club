@@ -9,6 +9,7 @@ import '../models/package.dart';
 import '../models/package_score.dart';
 import '../models/package_version.dart';
 import '../repositories/metadata_store.dart';
+import '../repositories/visibility_scope.dart';
 import '../validation/version_validator.dart';
 import 'download_service.dart';
 import 'tag_derivation.dart';
@@ -45,11 +46,27 @@ class PackageService {
   ///
   /// [baseUrl] is the public-facing server URL, resolved per-request
   /// from headers (X-Forwarded-Host, Host) or config override.
-  Future<PackageData> listVersions(String name, {required Uri baseUrl}) async {
+  ///
+  /// [scope] decides which versions are listed. Under
+  /// [VisibilityScope.anonymous] the list is restricted to versions that
+  /// resolve without credentials, and `latest` / `latestPrerelease` are
+  /// recomputed from that restricted set rather than read off the package
+  /// row. Reporting a `latest` that is absent from `versions` would be a
+  /// malformed pub-spec response, and pointing an anonymous client at a
+  /// version it cannot resolve is the failure this whole mechanism
+  /// exists to avoid.
+  Future<PackageData> listVersions(
+    String name, {
+    required Uri baseUrl,
+    required VisibilityScope scope,
+  }) async {
     final pkg = await _store.lookupPackage(name);
     if (pkg == null) throw NotFoundException.package(name);
 
-    final versions = await _store.listVersions(name);
+    final versions = await _store.listVersions(name, scope: scope);
+    // Empty means either the package has no versions at all, or every
+    // version it has is unresolvable for this caller. Both are a 404 from
+    // the caller's point of view: there is nothing here they can use.
     if (versions.isEmpty) throw NotFoundException.package(name);
 
     final versionInfos = versions
@@ -63,24 +80,36 @@ class PackageService {
     // it's the single source of truth. Fall back to latestPrerelease (for
     // packages that only have prereleases) and finally the most recently
     // published row if neither is set.
-    VersionInfo latest;
+    //
+    // The package row's pointers describe the *whole* version set, so they
+    // can name a version this caller cannot see. When that happens the
+    // pointers are recomputed from the visible set with the same semver
+    // ordering rather than falling back to "most recently published":
+    // `latest` must be a member of `versions` to be a well-formed pub-spec
+    // response, and it must be the highest stable one to be useful.
+    final visible = [for (final v in versions) v.version];
     final preferred = pkg.latestVersion ?? pkg.latestPrerelease;
-    if (preferred != null) {
-      latest = versionInfos.firstWhere(
-        (v) => v.version == preferred,
-        // versions is ORDER BY published_at DESC, so .first is the most
-        // recent upload — a reasonable fallback if the package row is
-        // somehow stale.
-        orElse: () => versionInfos.first,
-      );
-    } else {
-      latest = versionInfos.first;
-    }
+    final preferredIsVisible =
+        preferred != null && visible.contains(preferred);
+
+    final effectiveLatest = preferredIsVisible
+        ? preferred
+        : (VersionValidator.latestStable(visible) ??
+              VersionValidator.latestAny(visible));
+
+    final latest = versionInfos.firstWhere(
+      (v) => v.version == effectiveLatest,
+      orElse: () => versionInfos.first,
+    );
 
     // Only populated when a prerelease strictly beats the latest stable
     // (the Package row's `latestPrerelease` column is maintained via
     // `VersionValidator.latestStable`/`latestAny`, both of which use
     // pub_semver's `>` operator, and is set to null when the stable is ahead).
+    //
+    // Nulled rather than kept when the named prerelease is not visible to
+    // this caller: pointing at a version absent from `versions` is worse
+    // than omitting the field.
     VersionInfo? latestPrerelease;
     if (pkg.latestPrerelease != null) {
       for (final v in versionInfos) {
@@ -238,7 +267,12 @@ class PackageService {
       // Recompute latest_version / latest_prerelease excluding retracted
       // versions so downstream consumers (pub_api latest content, scoring,
       // list APIs, web UI) never surface a retracted version as "latest".
-      final allVersions = await tx.listVersions(name);
+      final allVersions = await tx.listVersions(
+        name,
+        // Write path: the recompute must consider every version,
+        // including ones no anonymous caller may list.
+        scope: VisibilityScope.trustedInternal,
+      );
       final nonRetracted = allVersions
           .where((v) => !v.isRetracted)
           .map((v) => v.version)

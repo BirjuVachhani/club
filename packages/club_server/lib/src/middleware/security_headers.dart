@@ -71,6 +71,7 @@ Middleware securityHeadersMiddleware() {
   return (Handler inner) {
     return (Request request) async {
       final response = await inner(request);
+      final path = '/${request.url.path}';
       final isDocs = request.url.path.startsWith('documentation/');
       // IMPORTANT: do NOT spread `...response.headers` here. That getter
       // returns a singleValues view that joins multi-value headers with
@@ -79,6 +80,23 @@ Middleware securityHeadersMiddleware() {
       // logout, and session revoke into one invalid comma-joined header.
       // `change()` already merges these keys into the existing headers
       // without disturbing the rest.
+      // Default cache policy for anything club serves out of its own
+      // handlers. Club is a private registry: without an explicit
+      // directive, an intermediary is free to apply heuristic caching
+      // (RFC 9111 §4.2.2) to a 200 with a Last-Modified, and re-serve one
+      // user's private package data to the next requester.
+      //
+      // Only applied when the handler did not set its own value, so
+      // deliberate policies (immutable per-version assets, dartdoc's short
+      // TTL, OAuth's no-store) win. Scoped to the same route families
+      // authMiddleware gates: the SPA shell and its fingerprinted assets
+      // are not secret and must stay cacheable.
+      final needsDefaultCacheControl =
+          response.headers['cache-control'] == null &&
+          (path.startsWith('/api/') ||
+              path.startsWith('/oauth/') ||
+              isDocs);
+
       return response.change(
         headers: {
           'content-security-policy': isDocs ? dartdocCsp : csp,
@@ -89,6 +107,12 @@ Middleware securityHeadersMiddleware() {
           // (browsers ignore it when received insecurely) and saves a
           // config knob. 63072000 = 2 years.
           'strict-transport-security': 'max-age=63072000; includeSubDomains',
+          if (needsDefaultCacheControl)
+            'cache-control': isDocs
+                // Matches the blob dartdoc handler's own value so the
+                // filesystem backend behaves identically.
+                ? 'private, max-age=300'
+                : 'private, no-store',
         },
       );
     };

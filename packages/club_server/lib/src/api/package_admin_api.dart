@@ -13,11 +13,42 @@ class PackageAdminApi {
     required this.packageService,
     required this.metadataStore,
     required this.blobStore,
+    required this.visibilityService,
   });
 
   final PackageService packageService;
   final MetadataStore metadataStore;
   final BlobStore blobStore;
+  final VisibilityService visibilityService;
+
+  /// Refuse a removal that would break public packages, unless the caller
+  /// has explicitly accepted it via `?acceptBreakage=true`.
+  ///
+  /// A public package whose dependency disappears stops resolving for
+  /// every anonymous consumer, and unlike a visibility flip there is
+  /// nothing to switch back. The error names the chains so the person
+  /// deciding can see which packages they are about to break and how the
+  /// breakage reaches them.
+  Future<void> _guardBreakage(
+    Request request,
+    String package, {
+    required String action,
+  }) async {
+    if (request.url.queryParameters['acceptBreakage'] == 'true') return;
+
+    final dependents = await visibilityService.breakageFromRemoving(package);
+    if (dependents.isEmpty) return;
+
+    final summary = dependents
+        .take(5)
+        .map((d) => d.pathDescription)
+        .join('; ');
+    throw ConflictException(
+      '$action breaks ${dependents.length} public package(s) that depend '
+      'on it: $summary${dependents.length > 5 ? '; ...' : ''}. '
+      'Re-send with ?acceptBreakage=true to proceed anyway.',
+    );
+  }
 
   DecodedRouter get router {
     final router = DecodedRouter();
@@ -55,6 +86,7 @@ class PackageAdminApi {
       packageService,
       request,
       package,
+      scope: visibilityScopeFor(request),
     );
     if (info == null) throw NotFoundException.package(package);
     return _json(info);
@@ -341,11 +373,26 @@ class PackageAdminApi {
     final canAdmin = await packageService.isPackageAdmin(package, user.userId);
     if (!canAdmin) throw ForbiddenException.notUploader(package);
 
-    final versions = await metadataStore.listVersions(package);
+    // Deleting a package that public packages depend on is the same
+    // breakage as making it private, with no undo at all. Same check,
+    // and the caller has to say explicitly that they accept it.
+    await _guardBreakage(
+      request,
+      package,
+      action: 'Deleting $package',
+    );
+
+    final versions = await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal);
     for (final v in versions) {
       await blobStore.delete(package, v.version);
     }
     await metadataStore.deletePackage(package);
+
+    // Same staleness fix as the admin delete path: dependents now point at
+    // a row that is gone, and the recompute treats that as blocking.
+    await metadataStore.recomputePublicResolvable(
+      await metadataStore.packagesDependingOn({package}),
+    );
 
     await metadataStore.appendAuditLog(
       AuditLogCompanion(

@@ -39,12 +39,18 @@ class SqliteMetadataStore implements MetadataStore {
   @override
   Future<Package> createPackage(PackageCompanion companion) async {
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    // Visibility is deliberately not accepted here. A package is born
+    // private, always: `PublishService.finalize` creates new packages with
+    // a bare companion, and letting that path choose a visibility would
+    // mean a publish could put source on the internet with no closure
+    // analysis, no confirmation, and no audit record. Going public is
+    // `VisibilityService`'s job and nothing else's.
     await _db.execute(
       '''INSERT INTO packages
          (name, publisher_id, latest_version, latest_prerelease,
           likes_count, is_discontinued, replaced_by, is_unlisted,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          visibility, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         companion.name,
         companion.publisherId,
@@ -54,6 +60,7 @@ class SqliteMetadataStore implements MetadataStore {
         _boolToInt(companion.isDiscontinued ?? false),
         companion.replacedBy,
         _boolToInt(companion.isUnlisted ?? false),
+        PackageVisibility.private.wireName,
         now,
         now,
       ],
@@ -67,11 +74,17 @@ class SqliteMetadataStore implements MetadataStore {
     if (existing == null) throw NotFoundException.package(name);
 
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    // Visibility null-coalesces like every other field, so a companion
+    // that does not mention it leaves the package where it was. That is
+    // what makes republish safe: `finalize` updates latest_version with a
+    // companion that says nothing about visibility, and a public package
+    // stays public rather than being silently reset.
     await _db.execute(
       '''UPDATE packages SET
            publisher_id = ?, latest_version = ?, latest_prerelease = ?,
            likes_count = ?, is_discontinued = ?, replaced_by = ?,
-           is_unlisted = ?, updated_at = ?
+           is_unlisted = ?, visibility = ?, visibility_changed_at = ?,
+           visibility_changed_by = ?, updated_at = ?
          WHERE name = ?''',
       [
         companion.publisherId ?? existing.publisherId,
@@ -81,6 +94,11 @@ class SqliteMetadataStore implements MetadataStore {
         _boolToInt(companion.isDiscontinued ?? existing.isDiscontinued),
         companion.replacedBy ?? existing.replacedBy,
         _boolToInt(companion.isUnlisted ?? existing.isUnlisted),
+        (companion.visibility ?? existing.visibility).wireName,
+        _dateTimeToNullableInt(
+          companion.visibilityChangedAt ?? existing.visibilityChangedAt,
+        ),
+        companion.visibilityChangedBy ?? existing.visibilityChangedBy,
         now,
         name,
       ],
@@ -95,13 +113,27 @@ class SqliteMetadataStore implements MetadataStore {
 
   @override
   Future<Page<Package>> listPackages({
+    required VisibilityScope scope,
     int limit = 50,
     String? pageToken,
     String? query,
+    bool includeUnlisted = true,
   }) async {
     final offset = int.tryParse(pageToken ?? '') ?? 0;
     final where = <String>[];
     final args = <Object?>[];
+    if (!includeUnlisted) {
+      where.add('is_unlisted = 0');
+    }
+    // The visibility predicate goes in first so it is also picked up by
+    // the COUNT(*) below, which reuses this arg list minus the trailing
+    // limit/offset pair. A filter applied to only one of the two would
+    // leak the private package count through `totalCount` even while the
+    // page itself looked clean.
+    if (scope.publicOnly) {
+      where.add('visibility = ?');
+      args.add(PackageVisibility.public.wireName);
+    }
     if (query != null && query.trim().isNotEmpty) {
       where.add('name LIKE ?');
       args.add('%${query.trim()}%');
@@ -126,6 +158,15 @@ class SqliteMetadataStore implements MetadataStore {
       nextPageToken: hasMore ? '${offset + limit}' : null,
       totalCount: total,
     );
+  }
+
+  @override
+  Future<bool> hasAnyPublicPackage() async {
+    final rows = await _db.select(
+      'SELECT 1 FROM packages WHERE visibility = ? LIMIT 1',
+      [PackageVisibility.public.wireName],
+    );
+    return rows.isNotEmpty;
   }
 
   @override
@@ -177,24 +218,31 @@ class SqliteMetadataStore implements MetadataStore {
   @override
   Future<Page<Package>> listPackagesForPublisher(
     String publisherId, {
+    required VisibilityScope scope,
     int limit = 50,
     String? pageToken,
     bool includeUnlisted = true,
   }) async {
     final offset = int.tryParse(pageToken ?? '') ?? 0;
     final unlistedFilter = includeUnlisted ? '' : 'AND is_unlisted = 0';
+    final visibilityFilter = scope.publicOnly ? 'AND visibility = ?' : '';
+    final visibilityArgs = scope.publicOnly
+        ? [PackageVisibility.public.wireName]
+        : const <Object?>[];
+
     final rows = await _db.select(
       '''SELECT * FROM packages
-         WHERE publisher_id = ? $unlistedFilter
+         WHERE publisher_id = ? $unlistedFilter $visibilityFilter
          ORDER BY updated_at DESC LIMIT ? OFFSET ?''',
-      [publisherId, limit + 1, offset],
+      [publisherId, ...visibilityArgs, limit + 1, offset],
     );
     final hasMore = rows.length > limit;
     final items = rows.take(limit).map(_rowToPackage).toList();
 
     final totalRows = await _db.select(
-      'SELECT COUNT(*) AS n FROM packages WHERE publisher_id = ? $unlistedFilter',
-      [publisherId],
+      'SELECT COUNT(*) AS n FROM packages '
+      'WHERE publisher_id = ? $unlistedFilter $visibilityFilter',
+      [publisherId, ...visibilityArgs],
     );
     final total = totalRows.first.read<int>('n');
 
@@ -333,7 +381,10 @@ class SqliteMetadataStore implements MetadataStore {
       // PublishService.finalize, but writes via raw SQL so NULL is
       // preserved when no versions remain (updatePackage's
       // null-coalesce fallback would otherwise keep the stale pointer).
-      final remaining = (await listVersions(package))
+      final remaining = (await listVersions(
+        package,
+        scope: VisibilityScope.trustedInternal,
+      ))
           .where((v) => !v.isRetracted)
           .map((v) => v.version)
           .toList();
@@ -353,10 +404,276 @@ class SqliteMetadataStore implements MetadataStore {
     });
   }
 
+  // ── Version Dependencies ──────────────────────────────────────────────────
+
   @override
-  Future<List<PackageVersion>> listVersions(String package) async {
+  Future<void> replaceVersionDependencies(
+    String package,
+    String version,
+    List<VersionDependency> dependencies,
+  ) async {
+    // No transaction here on purpose. `MetadataStore.transaction` hands
+    // back this same store rather than a scoped connection, so opening one
+    // would nest the caller's transaction. Callers (publish, backfill)
+    // already run inside one.
+    await _db.execute(
+      'DELETE FROM package_version_dependencies '
+      'WHERE package_name = ? AND version = ?',
+      [package, version],
+    );
+
+    for (final dep in dependencies) {
+      await _db.execute(
+        '''INSERT OR REPLACE INTO package_version_dependencies
+             (package_name, version, dep_name, kind, source, hosted_origin,
+              is_local, is_ambiguous, constraint_text)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        [
+          package,
+          version,
+          dep.name,
+          dep.kind.wireName,
+          dep.source.wireName,
+          dep.hostedOrigin,
+          _boolToInt(dep.isLocal),
+          _boolToInt(dep.isAmbiguous),
+          dep.constraintText,
+        ],
+      );
+    }
+  }
+
+  @override
+  Future<List<VersionDependency>> listVersionDependencies(
+    String package,
+    String version,
+  ) async {
     final rows = await _db.select(
-      'SELECT * FROM package_versions WHERE package_name = ? ORDER BY published_at DESC',
+      'SELECT * FROM package_version_dependencies '
+      'WHERE package_name = ? AND version = ? ORDER BY kind, dep_name',
+      [package, version],
+    );
+    return rows.map(_rowToVersionDependency).toList();
+  }
+
+  @override
+  Future<Set<String>> localDependencyClosure(
+    Set<String> roots, {
+    bool includeDev = false,
+  }) async {
+    // Breadth-first over package *names*. Keying the visited set on the
+    // name rather than on (name, version) is what makes this terminate:
+    // `pub` permits cycles between packages, and the name set is finite
+    // while the version pairs are not usefully bounded.
+    //
+    // The frontier is expanded from every version of each package, not
+    // just the latest. A consumer's constraint may select any version, and
+    // `pub` aborts on a 401 rather than backtracking, so a closure built
+    // from the newest version alone would still break resolution as soon
+    // as the solver probed an older one.
+    final kinds = includeDev
+        ? [DependencyKind.direct.wireName, DependencyKind.dev.wireName]
+        : [DependencyKind.direct.wireName];
+
+    final visited = <String>{...roots};
+    final frontier = <String>[...roots];
+
+    while (frontier.isNotEmpty) {
+      final batch = frontier.toList();
+      frontier.clear();
+
+      final placeholders = List.filled(batch.length, '?').join(',');
+      final kindPlaceholders = List.filled(kinds.length, '?').join(',');
+      final rows = await _db.select(
+        'SELECT DISTINCT dep_name FROM package_version_dependencies '
+        'WHERE package_name IN ($placeholders) '
+        '  AND kind IN ($kindPlaceholders) '
+        '  AND is_local = 1',
+        [...batch, ...kinds],
+      );
+
+      for (final row in rows) {
+        final dep = row.read<String>('dep_name');
+        if (visited.add(dep)) frontier.add(dep);
+      }
+    }
+
+    return visited;
+  }
+
+  @override
+  Future<Set<String>> localDependentsClosure(Set<String> roots) async {
+    final visited = <String>{...roots};
+    final frontier = <String>[...roots];
+
+    while (frontier.isNotEmpty) {
+      final batch = frontier.toList();
+      frontier.clear();
+
+      final placeholders = List.filled(batch.length, '?').join(',');
+      final rows = await _db.select(
+        'SELECT DISTINCT package_name FROM package_version_dependencies '
+        'WHERE dep_name IN ($placeholders) '
+        '  AND kind = ? '
+        '  AND is_local = 1',
+        [...batch, DependencyKind.direct.wireName],
+      );
+
+      for (final row in rows) {
+        final pkg = row.read<String>('package_name');
+        if (visited.add(pkg)) frontier.add(pkg);
+      }
+    }
+
+    return visited;
+  }
+
+  @override
+  Future<List<DependentPath>> findPublicDependents(String package) async {
+    // Reverse breadth-first search, recording one predecessor per package
+    // so a concrete example chain can be reconstructed. One path per
+    // dependent is enough to explain the breakage; enumerating all of them
+    // is exponential in a dense graph and no more persuasive.
+    final cameFrom = <String, String>{};
+    final visited = <String>{package};
+    final frontier = <String>[package];
+
+    while (frontier.isNotEmpty) {
+      final batch = frontier.toList();
+      frontier.clear();
+
+      final placeholders = List.filled(batch.length, '?').join(',');
+      final rows = await _db.select(
+        'SELECT DISTINCT d.package_name, d.dep_name '
+        'FROM package_version_dependencies d '
+        'WHERE d.dep_name IN ($placeholders) '
+        '  AND d.kind = ? '
+        '  AND d.is_local = 1',
+        [...batch, DependencyKind.direct.wireName],
+      );
+
+      for (final row in rows) {
+        final dependent = row.read<String>('package_name');
+        if (visited.add(dependent)) {
+          cameFrom[dependent] = row.read<String>('dep_name');
+          frontier.add(dependent);
+        }
+      }
+    }
+
+    visited.remove(package);
+    if (visited.isEmpty) return const [];
+
+    // Of everything that depends on it, only the public ones are a
+    // problem: a private dependent was already unreachable anonymously.
+    final placeholders = List.filled(visited.length, '?').join(',');
+    final publicRows = await _db.select(
+      'SELECT name FROM packages '
+      'WHERE name IN ($placeholders) AND visibility = ?',
+      [...visited, PackageVisibility.public.wireName],
+    );
+
+    final result = <DependentPath>[];
+    for (final row in publicRows) {
+      final dependent = row.read<String>('name');
+      final path = <String>[dependent];
+      var cursor = dependent;
+      // Bounded by `visited`, and every step moves to a package inserted
+      // strictly earlier in the BFS, so this cannot loop.
+      while (cameFrom[cursor] != null && path.length <= visited.length + 1) {
+        cursor = cameFrom[cursor]!;
+        path.add(cursor);
+      }
+      result.add(DependentPath(package: dependent, path: path));
+    }
+
+    result.sort((a, b) => a.package.compareTo(b.package));
+    return result;
+  }
+
+  @override
+  Future<Set<String>> packagesDependingOn(Set<String> names) async {
+    if (names.isEmpty) return {};
+    final placeholders = List.filled(names.length, '?').join(',');
+    final rows = await _db.select(
+      'SELECT DISTINCT package_name FROM package_version_dependencies '
+      'WHERE dep_name IN ($placeholders) AND kind = ? AND is_local = 1',
+      [...names, DependencyKind.direct.wireName],
+    );
+    return rows.map((r) => r.read<String>('package_name')).toSet();
+  }
+
+  @override
+  Future<int> recomputePublicResolvable(Set<String> packages) async {
+    if (packages.isEmpty) return 0;
+    final placeholders = List.filled(packages.length, '?').join(',');
+
+    // A version is resolvable when its own package is public AND it has no
+    // direct club-hosted dependency on a package that is not public.
+    //
+    // The NOT EXISTS deliberately treats a dependency with no matching
+    // `packages` row as unresolvable: an edge pointing at a package that
+    // no longer exists cannot resolve for anyone, and defaulting it to
+    // "fine" would advertise a version that always 404s.
+    final result = await _db.select(
+      '''
+      SELECT pv.package_name, pv.version, pv.public_resolvable AS was,
+             CASE
+               WHEN p.visibility != ? THEN 0
+               WHEN EXISTS (
+                 SELECT 1
+                 FROM package_version_dependencies d
+                 LEFT JOIN packages dp ON dp.name = d.dep_name
+                 WHERE d.package_name = pv.package_name
+                   AND d.version = pv.version
+                   AND d.kind = ?
+                   AND d.is_local = 1
+                   AND (dp.name IS NULL OR dp.visibility != ?)
+               ) THEN 0
+               ELSE 1
+             END AS now
+      FROM package_versions pv
+      JOIN packages p ON p.name = pv.package_name
+      WHERE pv.package_name IN ($placeholders)
+      ''',
+      [
+        PackageVisibility.public.wireName,
+        DependencyKind.direct.wireName,
+        PackageVisibility.public.wireName,
+        ...packages,
+      ],
+    );
+
+    var changed = 0;
+    for (final row in result) {
+      final was = row.read<int>('was');
+      final now = row.read<int>('now');
+      if (was == now) continue;
+      await _db.execute(
+        'UPDATE package_versions SET public_resolvable = ? '
+        'WHERE package_name = ? AND version = ?',
+        [now, row.read<String>('package_name'), row.read<String>('version')],
+      );
+      changed++;
+    }
+    return changed;
+  }
+
+  @override
+  Future<List<PackageVersion>> listVersions(
+    String package, {
+    required VisibilityScope scope,
+  }) async {
+    // Anonymous callers see only versions that can actually resolve
+    // without credentials. This list is the input to a `pub` version
+    // solve, and pub aborts on a 401 rather than backtracking, so
+    // advertising a version whose club-hosted dependency is private would
+    // poison the whole resolution rather than merely fail that one
+    // candidate.
+    final filter = scope.publicOnly ? 'AND public_resolvable = 1' : '';
+    final rows = await _db.select(
+      'SELECT * FROM package_versions WHERE package_name = ? $filter '
+      'ORDER BY published_at DESC',
       [package],
     );
     return rows.map(_rowToVersion).toList();
@@ -1553,13 +1870,44 @@ class SqliteMetadataStore implements MetadataStore {
       isDiscontinued: _intToBool(row.read<int>('is_discontinued')),
       replacedBy: row.readNullable<String>('replaced_by'),
       isUnlisted: _intToBool(row.read<int>('is_unlisted')),
+      // `parse` fails closed to private on an unrecognised value. A
+      // database upgraded via ALTER TABLE has no CHECK constraint, so this
+      // is the enforcement point on that path.
+      visibility: PackageVisibility.parse(
+        row.readNullable<String>('visibility'),
+      ),
+      visibilityChangedAt: _nullableIntToDateTime(
+        row.readNullable<int>('visibility_changed_at'),
+      ),
+      visibilityChangedBy: row.readNullable<String>('visibility_changed_by'),
       createdAt: _intToDateTime(row.read<int>('created_at')),
       updatedAt: _intToDateTime(row.read<int>('updated_at')),
     );
   }
 
+  static VersionDependency _rowToVersionDependency(QueryRow row) {
+    return VersionDependency(
+      name: row.read<String>('dep_name'),
+      // A row whose kind or source is unrecognised should not silently
+      // become a `direct` / `hosted` edge — that is the combination that
+      // participates in the closure. Fall back to the inert values so a
+      // corrupt row cannot force a package public.
+      kind:
+          DependencyKind.tryParse(row.read<String>('kind')) ??
+          DependencyKind.override,
+      source:
+          DependencySource.tryParse(row.read<String>('source')) ??
+          DependencySource.bare,
+      hostedOrigin: row.readNullable<String>('hosted_origin'),
+      isLocal: _intToBool(row.read<int>('is_local')),
+      isAmbiguous: _intToBool(row.read<int>('is_ambiguous')),
+      constraintText: row.readNullable<String>('constraint_text'),
+    );
+  }
+
   static PackageVersion _rowToVersion(QueryRow row) {
     return PackageVersion(
+      publicResolvable: _intToBool(row.read<int>('public_resolvable')),
       packageName: row.read<String>('package_name'),
       version: row.read<String>('version'),
       pubspecJson: row.read<String>('pubspec_json'),
@@ -1731,6 +2079,9 @@ class SqliteMetadataStore implements MetadataStore {
 
   static DateTime? _nullableIntToDateTime(int? ms) =>
       ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+
+  static int? _dateTimeToNullableInt(DateTime? dt) =>
+      dt?.toUtc().millisecondsSinceEpoch;
 
   static List<String> _jsonToStringList(String json) {
     final decoded = jsonDecode(json);

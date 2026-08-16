@@ -584,6 +584,94 @@ Requires: current package uploader AND publisher admin.
 
 ---
 
+## Package Visibility API
+
+Controls whether a package is readable without credentials. See
+[FEATURES.md](FEATURES.md#14-public-packages) for the model.
+
+### Get Visibility
+
+```
+GET /api/packages/<package>/visibility
+```
+
+Returns the current state plus whether this caller could change it, so the
+UI can distinguish "you may not" from "the server has it switched off".
+
+```json
+{
+  "package": "my_pkg",
+  "visibility": "private",
+  "changedAt": null,
+  "changedBy": null,
+  "publicPackagesEnabled": true,
+  "permittedByEnvironment": true,
+  "canManage": true
+}
+```
+
+### Preview a Visibility Change
+
+```
+POST /api/packages/<package>/visibility/preview
+{ "visibility": "public", "closure": ["my_pkg", "core_ui"] }
+```
+
+Side-effect free. `closure` is the caller's current selection; omit it to
+get the full default closure. Returns:
+
+| Field | Meaning |
+|---|---|
+| `closure` | Every package the change could touch, target first, each with its current visibility, version count, total archive bytes, and which closure members require it |
+| `selected` | The subset that would actually be flipped |
+| `devOnly` | Packages reachable only through `dev_dependencies`. Informational: consumers never resolve them |
+| `ambiguousBareDependencies` | Bare dependencies sharing a name with a local package. Anonymous consumers resolve these from pub.dev regardless |
+| `unresolvableVersions` | Versions that would be omitted from the anonymous version list under this selection, with the dependencies blocking each |
+| `publicDependents` | For `visibility: private`, the public packages that would break, each with an example dependency chain |
+| `blockedReason` | Non-null when the change cannot be applied at all |
+
+### Apply a Visibility Change
+
+```
+PUT /api/packages/<package>/visibility
+{
+  "visibility": "public",
+  "closure": ["my_pkg", "core_ui"],
+  "confirm": "my_pkg",
+  "acceptBreakage": false
+}
+```
+
+`confirm` must echo the package name. Omit `closure` to flip the full
+default closure. `acceptBreakage` is required when going private would
+break public dependents not included in `closure`; without it the request
+returns `409 Conflict` naming the chains.
+
+Requires package admin (uploader or publisher admin), or a server admin
+when `public_visibility_requires_admin` is set. Returns `403` when public
+packages are not enabled on the server.
+
+### Server-wide Settings (admin)
+
+```
+GET  /api/admin/public-packages
+PUT  /api/admin/public-packages
+{ "enabled": true, "requiresServerAdmin": false }
+```
+
+`enabled` cannot be set to `true` unless `PUBLIC_PACKAGES_ENABLED=true` in
+the server environment.
+
+### Dependency Closure Inspection (admin)
+
+```
+GET /api/admin/packages/<package>/dependency-closure?includeDev=false
+```
+
+Read-only view of what a package requires and what depends on it.
+
+---
+
 ## Publisher API
 
 ### Create Publisher

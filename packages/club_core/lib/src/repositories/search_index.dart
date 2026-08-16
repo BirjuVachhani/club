@@ -1,4 +1,5 @@
 import '../models/search.dart';
+import 'visibility_scope.dart';
 
 /// Abstract interface for package search.
 ///
@@ -17,7 +18,13 @@ abstract interface class SearchIndex {
   Future<void> removePackage(String package);
 
   /// Execute a search query.
-  Future<SearchResult> search(SearchQuery query);
+  /// [scope] is required: search is the widest collection read in the
+  /// server, and a missed filter here leaks the existence, name, and
+  /// description of every private package at once.
+  Future<SearchResult> search(
+    SearchQuery query, {
+    required VisibilityScope scope,
+  });
 
   /// Completely rebuild the index from scratch.
   Future<void> reindex(Stream<IndexDocument> documents);

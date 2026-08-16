@@ -17,7 +17,9 @@ import 'api/legal_api.dart';
 import 'api/oauth_api.dart';
 import 'api/likes_api.dart';
 import 'api/package_admin_api.dart';
+import 'api/visibility_api.dart';
 import 'api/pub_api.dart';
+import 'api/robots_api.dart';
 import 'api/publisher_api.dart';
 import 'api/scoring_api.dart';
 import 'api/sdk_api.dart';
@@ -33,6 +35,8 @@ import 'middleware/auth_middleware.dart';
 import 'middleware/error_middleware.dart';
 import 'middleware/logging_middleware.dart';
 import 'middleware/origin_guard.dart';
+import 'http/path_safety.dart';
+import 'middleware/public_package_access.dart';
 import 'middleware/public_routes.dart';
 import 'middleware/rate_limit.dart';
 import 'middleware/security_headers.dart';
@@ -63,6 +67,7 @@ Handler buildHandler({
   required DateTime startedAt,
   required RateLimiters rateLimiters,
   required UpdateChecker updateChecker,
+  required VisibilityService visibilityService,
   InternalScoringToken? internalScoringToken,
 }) {
   // Rate limiters are constructed in bootstrap and passed in here so
@@ -100,6 +105,12 @@ Handler buildHandler({
     packageService: packageService,
     metadataStore: metadataStore,
     blobStore: blobStore,
+    visibilityService: visibilityService,
+  );
+  final visibilityApi = VisibilityApi(
+    visibilityService: visibilityService,
+    packageService: packageService,
+    metadataStore: metadataStore,
   );
   final searchApi = SearchApi(
     searchIndex: searchIndex,
@@ -121,6 +132,7 @@ Handler buildHandler({
     config: config,
     startedAt: startedAt,
     updateChecker: updateChecker,
+    visibilityService: visibilityService,
   );
   final healthApi = HealthApi(
     metadataStore: metadataStore,
@@ -128,6 +140,12 @@ Handler buildHandler({
     searchIndex: searchIndex,
   );
   final versionApi = VersionApi();
+  final robotsApi = RobotsApi(
+    publicBrowsingEnabled: () async {
+      if (!await visibilityService.isEnabled()) return false;
+      return metadataStore.hasAnyPublicPackage();
+    },
+  );
   final legalApi = LegalApi(settingsStore: settingsStore);
   final scoringApi = ScoringApi(
     scoringService: scoringService,
@@ -149,11 +167,15 @@ Handler buildHandler({
   final cascade = Cascade()
       .add(healthApi.router.call)
       .add(versionApi.router.call)
+      .add(robotsApi.router.call)
       .add(legalApi.router.call)
       .add(setupApi.router.call)
       .add(pubApi.router.call)
       .add(authApi.router.call)
       .add(oauthApi.router.call)
+      // Ahead of packageAdminApi so `/api/packages/<pkg>/visibility` is
+      // matched by the visibility router rather than falling through.
+      .add(visibilityApi.router.call)
       .add(packageAdminApi.router.call)
       .add(searchApi.router.call)
       .add(likesApi.router.call)
@@ -187,6 +209,12 @@ Handler buildHandler({
     apiHandler = (Request request) async {
       final match = matchDartdoc.firstMatch(request.url.path);
       if (match != null) {
+        // Defence in depth alongside the visibility gate: refuse a
+        // remainder that could decode into a separator downstream, so the
+        // package captured here is always the package actually served.
+        if (hasEncodedTraversal(request.url.path)) {
+          return Response.notFound('Not Found');
+        }
         return blobHandler(
           request,
           match.group(1)!,
@@ -207,6 +235,15 @@ Handler buildHandler({
       apiHandler = (Request request) async {
         final match = matchDartdoc.firstMatch(request.url.path);
         if (match != null) {
+          // `shelf_static` decodes each segment while resolving against
+          // its root, so an encoded separator in the remainder walks out
+          // of the package directory. `Uri.parse` collapses `../` and
+          // `%2e%2e/` on the way in but leaves `..%2f` intact, so this is
+          // the check that stops it. Without it, an anonymous request to
+          // a public package's docs could read a private package's.
+          if (hasEncodedTraversal(request.url.path)) {
+            return Response.notFound('Not Found');
+          }
           final pkg = match.group(1)!;
           final version = match.group(2)!;
           final rest = match.group(3) ?? '/';
@@ -319,6 +356,14 @@ Handler buildHandler({
           publicExactPaths: publicExactPaths,
           publicPathPrefixes: publicPathPrefixes,
           internalScoringToken: internalScoringToken,
+          // Per-package anonymous reads. Unlike the two static sets
+          // above, this one consults the database, so it lives in its
+          // own class with its own route-shape allowlist and snapshot
+          // test. See public_package_access.dart.
+          publicPackageAccess: PublicPackageAccess(
+            store: metadataStore,
+            isEnabled: visibilityService.isEnabled,
+          ),
         ),
       )
       .addHandler(apiHandler);

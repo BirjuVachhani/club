@@ -5,10 +5,26 @@
 /// - Must start with a letter
 /// - 1-64 characters
 /// - Cannot be a Dart reserved word
+/// - Cannot collide with a fixed segment of club's own route space
 abstract final class PackageNameValidator {
   static final _validPattern = RegExp(r'^[a-z][a-z0-9_]*$');
 
   static const _maxLength = 64;
+
+  /// Names that occupy the `<package>` slot in club's URL space but are
+  /// really fixed route segments.
+  ///
+  /// `/api/packages/versions/new`, `/api/packages/versions/upload`, and
+  /// `/api/packages/versions/newUploadFinish` are the publish flow, and
+  /// `/api/archives/<pkg>-<v>.tar.gz` is the download route. Nothing stops
+  /// `shelf_router` from matching the publish routes first, so a package
+  /// named `versions` is not *reachable* today — but any code that reasons
+  /// about a request by extracting "the first segment after
+  /// `/api/packages/`" would conclude that `GET /api/packages/versions/new`
+  /// is a read of a package called `versions`. Reserving the names removes
+  /// the ambiguity at the source instead of asking every such caller to
+  /// remember it.
+  static const _reservedRouteSegments = {'versions', 'archives'};
 
   static const _reservedWords = {
     'assert', 'break', 'case', 'catch', 'class', 'const', 'continue',
@@ -37,6 +53,10 @@ abstract final class PackageNameValidator {
     }
     if (_reservedWords.contains(name)) {
       return '\'$name\' is a reserved word and cannot be used as a package name.';
+    }
+    if (_reservedRouteSegments.contains(name)) {
+      return '\'$name\' is reserved by this server and cannot be used as a '
+          'package name.';
     }
     return null;
   }

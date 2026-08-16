@@ -52,9 +52,15 @@ const _mimeTypes = <String, String>{
 /// fat file.
 const _cacheSizeThreshold = 1024 * 1024;
 
-/// Public cache-control for dartdoc responses. Short TTL so a re-score
-/// propagates within a few minutes without any manual purge.
-const _cacheControl = 'public, max-age=300';
+/// Cache-control for dartdoc responses. Short TTL so a re-score propagates
+/// within a few minutes without any manual purge.
+///
+/// `private`, not `public`: `/documentation/**` is auth-gated precisely
+/// because dartdoc exposes a private package's API surface, doc comments,
+/// and source view. Marking it publicly cacheable invites any shared cache
+/// on the path to hand that to an unauthenticated client. Becomes
+/// conditional on package visibility once that lands.
+const _cacheControl = 'private, max-age=300';
 
 /// Build a handler that serves `/documentation/<pkg>/<version>/<rest>`
 /// out of the BlobStore. [pkg], [version], [rest] come pre-parsed

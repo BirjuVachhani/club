@@ -24,7 +24,13 @@ class SetupApi {
     required this.metadataStore,
     this.signupEnabled = false,
     this.trustProxy = false,
-  }) : _setupCode = _generateCode();
+    Future<bool> Function()? publicBrowsingEnabled,
+  }) : publicBrowsingEnabled = publicBrowsingEnabled ?? _neverPublic,
+       _setupCode = _generateCode();
+
+  /// Default for embedders that do not wire visibility: no public
+  /// browsing. Fails closed, like every other default here.
+  static Future<bool> _neverPublic() async => false;
 
   final AuthService authService;
   final MetadataStore metadataStore;
@@ -35,6 +41,18 @@ class SetupApi {
 
   /// Mirrors [AppConfig.trustProxy] for client-IP pinning during setup.
   final bool trustProxy;
+
+  /// Resolves whether an unauthenticated visitor should be shown a
+  /// browsable site rather than a login wall.
+  ///
+  /// Surfaced through `/api/setup/status` rather than a new endpoint
+  /// because the SPA's root layout already fetches this on every cold
+  /// load: it is the "how should I boot" call, and adding a field costs
+  /// no extra round trip. True only when the operator has enabled public
+  /// packages *and* at least one package is actually public, so a server
+  /// with the feature switched on but nothing shared still shows the
+  /// login page instead of an empty storefront.
+  final Future<bool> Function() publicBrowsingEnabled;
 
   /// The one-time setup code, generated at startup and printed to logs.
   final String _setupCode;
@@ -69,6 +87,7 @@ class SetupApi {
       jsonEncode({
         'needsSetup': await _needsSetup(),
         'signupEnabled': signupEnabled,
+        'publicBrowsing': await publicBrowsingEnabled(),
       }),
       headers: {'content-type': 'application/json'},
     );

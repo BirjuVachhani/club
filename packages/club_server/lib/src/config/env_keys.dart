@@ -45,6 +45,11 @@ abstract final class EnvKeys {
   /// the `member` role. Default: false (closed / private registry mode).
   static const signupEnabled = 'SIGNUP_ENABLED';
 
+  /// Permit packages to be marked public and served without credentials.
+  /// Off by default; a server admin must also enable the dashboard
+  /// setting. See [AppConfig.publicPackagesEnabled].
+  static const publicPackagesEnabled = 'PUBLIC_PACKAGES_ENABLED';
+
   /// When true, the server trusts `X-Forwarded-Proto` and `X-Forwarded-For`
   /// headers for scheme detection (cookie `Secure` flag) and client-IP
   /// audit logging. Only set when the server runs behind a reverse proxy

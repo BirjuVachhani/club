@@ -21,7 +21,11 @@ final _log = Logger('ClubMigrations');
 /// that capture the login-time geolocation snapshot. `2` adds the
 /// `pana_tags` column to `package_scores` for caching pana's tag set
 /// (`is:wasm-ready`, `is:plugin`, etc.) outside the full report blob.
-const int schemaVersion = 2;
+/// `3` adds per-package visibility (`packages.visibility` and its audit
+/// columns), the derived `package_versions.public_resolvable` flag, and
+/// the `package_version_dependencies` edge index that the visibility
+/// closure walks.
+const int schemaVersion = 3;
 
 /// A versioned SQL migration from [fromVersion] to [toVersion].
 ///
@@ -73,6 +77,56 @@ const List<SchemaMigration> migrations = [
     toVersion: 2,
     statements: [
       'ALTER TABLE package_scores ADD COLUMN pana_tags TEXT',
+    ],
+  ),
+  // v2 → v3: per-package visibility plus the dependency edge index the
+  // visibility closure walks.
+  //
+  // Every existing package lands on `'private'`, which is exactly the
+  // behaviour it had before this column existed, so the upgrade is a
+  // no-op until an operator turns the feature on and flips something.
+  // Likewise `public_resolvable` defaults to 0: nothing is anonymously
+  // listable until VisibilityService computes it.
+  //
+  // Two constraints that the canonical schema.dart carries are absent
+  // here, because SQLite's `ALTER TABLE ADD COLUMN` accepts neither a
+  // CHECK nor a REFERENCES clause:
+  //   - `CHECK (visibility IN ('private','public'))`
+  //   - `visibility_changed_by REFERENCES users(user_id)`
+  // A migrated database therefore trusts Dart (`PackageVisibility`) to
+  // keep the enum honest, while a fresh install gets both. Closing the
+  // gap needs SQLite's 12-step table rebuild, which is not worth the
+  // risk for a soft reference: `package_versions.publisher_id` is
+  // already a soft reference for the same reason.
+  SchemaMigration(
+    fromVersion: 2,
+    toVersion: 3,
+    statements: [
+      "ALTER TABLE packages ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private'",
+      'ALTER TABLE packages ADD COLUMN visibility_changed_at INTEGER',
+      'ALTER TABLE packages ADD COLUMN visibility_changed_by TEXT',
+      'ALTER TABLE package_versions ADD COLUMN public_resolvable INTEGER NOT NULL DEFAULT 0',
+      '''
+      CREATE TABLE IF NOT EXISTS package_version_dependencies (
+        package_name    TEXT NOT NULL,
+        version         TEXT NOT NULL,
+        dep_name        TEXT NOT NULL,
+        kind            TEXT NOT NULL
+                          CHECK (kind IN ('direct','dev','override')),
+        source          TEXT NOT NULL
+                          CHECK (source IN ('hosted','bare','sdk','path','git')),
+        hosted_origin   TEXT,
+        is_local        INTEGER NOT NULL DEFAULT 0,
+        is_ambiguous    INTEGER NOT NULL DEFAULT 0,
+        constraint_text TEXT,
+        PRIMARY KEY (package_name, version, dep_name, kind),
+        FOREIGN KEY (package_name, version)
+          REFERENCES package_versions(package_name, version) ON DELETE CASCADE
+      )
+      ''',
+      'CREATE INDEX IF NOT EXISTS idx_packages_visibility ON packages(visibility)',
+      'CREATE INDEX IF NOT EXISTS idx_pvd_dep_name ON package_version_dependencies(dep_name, is_local)',
+      'CREATE INDEX IF NOT EXISTS idx_pvd_package ON package_version_dependencies(package_name, version)',
     ],
   ),
 ];

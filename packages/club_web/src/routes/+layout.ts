@@ -30,10 +30,23 @@ const PUBLIC_PATH_PREFIXES = [
  */
 const SIGNED_OUT_ONLY_PREFIXES = ['/login', '/signup'];
 
-export const load: LayoutLoad = async ({ url, fetch }) => {
-  if (!browser) return { signupEnabled: false };
+/**
+ * Routes an anonymous visitor may reach *when the server has public
+ * packages*. Unlike PUBLIC_PATH_PREFIXES these are conditional: on a
+ * private registry they stay behind the login wall exactly as before.
+ *
+ * This list only decides whether the SPA renders the page. It grants no
+ * data access of its own — every fetch these pages make still goes
+ * through the server's own gate, and a private package returns 401 no
+ * matter which route the browser is on. Getting this list wrong shows
+ * an empty page, not someone else's source.
+ */
+const PUBLIC_BROWSING_PREFIXES = ['/packages', '/publishers'];
 
-  const isPublicPath = PUBLIC_PATH_PREFIXES.some((p) =>
+export const load: LayoutLoad = async ({ url, fetch }) => {
+  if (!browser) return { signupEnabled: false, publicBrowsing: false };
+
+  const isAuthPath = PUBLIC_PATH_PREFIXES.some((p) =>
     url.pathname.startsWith(p)
   );
   const isSetupPath = url.pathname.startsWith('/setup');
@@ -48,10 +61,14 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
   ]);
 
   let signupEnabled = false;
+  let publicBrowsing = false;
   if (setupRes?.ok) {
     const data = await setupRes.json().catch(() => null);
     if (data) {
       signupEnabled = !!data.signupEnabled;
+      // Defaults to false, so an older server that doesn't send the
+      // field, or a failed request, keeps the login wall.
+      publicBrowsing = !!data.publicBrowsing;
       // When the server has no admin account yet, the setup wizard is
       // the ONLY valid destination. Everything else — including /login,
       // /signup, /invite, the home page, package pages, the OAuth entry
@@ -124,7 +141,14 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
     throw redirect(302, '/');
   }
 
-  if (!isPublicPath) {
+  // The home page and package browsing open up only when the server
+  // says it has something public to show.
+  const isBrowsablePath =
+    publicBrowsing &&
+    (url.pathname === '/' ||
+      PUBLIC_BROWSING_PREFIXES.some((p) => url.pathname.startsWith(p)));
+
+  if (!isAuthPath && !isBrowsablePath) {
     if (!user) {
       throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname + url.search)}`);
     }
@@ -134,5 +158,5 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
     }
   }
 
-  return { signupEnabled };
+  return { signupEnabled, publicBrowsing };
 };
