@@ -7,6 +7,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 These endpoints power package discovery. club is a private repository, so they **require authentication** (a Bearer PAT or a session cookie). The search engine uses SQLite FTS5 by default, with an optional Meilisearch backend for larger deployments.
 
+When [public packages](/guides/public-packages/) are enabled, these endpoints also answer anonymous callers, with results filtered to packages marked public. An authenticated caller sees everything they have access to, as before. Either way, discontinued and unlisted packages are excluded for every caller.
+
 ## Search Packages
 
 ```http

@@ -12,6 +12,12 @@ These endpoints cover the Pub Spec v2 read surface (metadata and archives) plus 
   require authentication (a Bearer PAT or a session cookie), even though
   the upstream pub spec allows them to be public. The `dart pub` client
   sends the configured token automatically.
+
+  The exception is a package marked public on a server with
+  [public packages](/guides/public-packages/) enabled. Those read endpoints
+  answer without credentials. See
+  [Anonymous Reads of Public Packages](/api/overview/#anonymous-reads-of-public-packages)
+  for the exact set.
 </Aside>
 
 ## Pub Spec v2
@@ -116,6 +122,79 @@ PUT  /api/packages/<package>/options
 ```
 
 `PUT` accepts any subset of the three fields. `isUnlisted` hides the package from search and listings.
+
+---
+
+### Visibility
+
+Controls whether a package can be read without credentials. See the
+[Public Packages guide](/guides/public-packages/) for the model.
+
+```http
+GET  /api/packages/<package>/visibility
+```
+
+```json
+{
+  "package": "my_pkg",
+  "visibility": "private",
+  "changedAt": null,
+  "changedBy": null,
+  "publicPackagesEnabled": true,
+  "permittedByEnvironment": true,
+  "canManage": true
+}
+```
+
+`permittedByEnvironment` reports the `PUBLIC_PACKAGES_ENABLED` gate and
+`publicPackagesEnabled` the server admin toggle. `canManage` is true only
+when the caller may change this package **and** the feature is enabled, so
+a client can distinguish "not allowed" from "not turned on".
+
+```http
+POST /api/packages/<package>/visibility/preview
+```
+
+A dry run that changes nothing. Send the target visibility, optionally with
+the closure members currently selected:
+
+```json
+{
+  "visibility": "public",
+  "closure": ["core_ui", "icons"]
+}
+```
+
+The response reports the dependency closure that would move, the versions
+that would remain unresolvable, and any dependents the change would break.
+It is a `POST` rather than a `GET` because the request carries a set, not
+because it has side effects.
+
+```http
+PUT  /api/packages/<package>/visibility
+```
+
+```json
+{
+  "visibility": "public",
+  "confirm": "my_pkg",
+  "closure": ["core_ui", "icons"],
+  "acceptBreakage": false
+}
+```
+
+| Field | Required | Meaning |
+|-------|:--------:|---------|
+| `visibility` | yes | `public` or `private`. `target` is accepted as an alias |
+| `confirm` | yes | Must echo the package name exactly, or the call is rejected |
+| `closure` | no | Omit to move the whole computed closure. An explicit `[]` flips only this package |
+| `acceptBreakage` | no | Required to proceed when going private would break public dependents |
+
+Typed confirmation is deliberate friction: going public exposes the entire
+published history, and nothing already downloaded can be recalled.
+
+Returns `403` when public packages are not enabled on the server, and `400`
+on a confirmation mismatch.
 
 ---
 

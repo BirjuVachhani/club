@@ -30,7 +30,29 @@ PATs are created via `POST /api/auth/keys` or through the OAuth flow used by the
 Authorization: Bearer club_pat_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
 ```
 
-club is a private repository: the default policy is auth-required, and `/api/packages/*`, `/api/archives/*`, `/api/search`, and `/documentation/*` all require authentication. Only a small set of routes is public: the health check (`/api/v1/health`), the version pill (`/api/v1/version`), login / `/me` / signup, the first-run setup flow (`/api/setup/status`, `/verify`, `/complete`), the legal pages (`/api/legal/privacy`, `/api/legal/terms`), OAuth (`/oauth/authorize`, `/oauth/token`), invite lookup/accept (`/api/invites/*`), and user avatars (`/api/users/*`).
+club is a private repository: the default policy is auth-required, and `/api/packages/*`, `/api/archives/*`, `/api/search`, and `/documentation/*` all require authentication. Only a small set of routes is unconditionally public: the health check (`/api/v1/health`), the version pill (`/api/v1/version`), login / `/me` / signup, the first-run setup flow (`/api/setup/status`, `/verify`, `/complete`), the legal pages (`/api/legal/privacy`, `/api/legal/terms`), OAuth (`/oauth/authorize`, `/oauth/token`), invite lookup/accept (`/api/invites/*`), user avatars (`/api/users/*`), and `/robots.txt`.
+
+### Anonymous Reads of Public Packages
+
+When [public packages](/guides/public-packages/) are enabled **and** the package in question is marked public, a further set of read-only routes answers without credentials. Anything not on this list still requires authentication, whatever the package's visibility.
+
+Per-package reads, `GET` and `HEAD` only:
+
+| Route | Notes |
+|-------|-------|
+| `/api/packages/<pkg>` | Version list, filtered to versions that can resolve anonymously |
+| `/api/packages/<pkg>/{score,content,options,publisher,likes,permissions,dartdoc-status,list-info}` | Uploader emails are redacted from `list-info` |
+| `/api/packages/<pkg>/versions/<version>` | |
+| `/api/packages/<pkg>/versions/<version>/{score,content,options,scoring-report,archive.tar.gz}` | |
+| `/api/packages/<pkg>/versions/<version>/{screenshots,readme-assets}/<name>` | |
+| `/api/archives/<pkg>/<version>` | Tarball download |
+| `/documentation/<pkg>/<version>/<path>` | Generated API docs |
+
+Collection reads, which carry no package in the path and are instead filtered by the handler to public packages only:
+
+`/api/search`, `/api/discover`, `/api/packages`, `/api/package-name-completion-data`
+
+Deliberately absent, and each for a reason: `uploaders` (emails and user ids), `activity-log` (agent emails and full ownership history), `downloads` (download counts), and `visibility` (an admin surface). These require authentication even on a public package.
 
 ### Token Scopes
 

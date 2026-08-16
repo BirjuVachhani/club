@@ -34,7 +34,7 @@ The three compose freely — an internal helper package, for instance, is often 
 - If you access the package page by URL, it still loads. Only **discovery** is affected.
 
 <Aside type="note">
-Unlisting does not affect access control. To restrict **who** can download a package, the package needs to live on a server whose auth policy enforces that — unlisting alone does not make a package private.
+Unlisting does not affect access control. It decides whether a package is *advertised*, not who may read it. Access is governed separately by the server's auth policy and, where the operator has enabled it, by each package's [visibility](/guides/public-packages/). The two compose: a package that is public and unlisted resolves for `dart pub get` without a token but appears in no listing.
 </Aside>
 
 ## Who Can Unlist

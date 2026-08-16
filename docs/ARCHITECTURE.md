@@ -587,7 +587,8 @@ with a generic message (no stack traces in production).
 
 ## Security Considerations
 
-- **All access requires authentication** — no anonymous endpoints except health check
+- **All access requires authentication**: no anonymous endpoints except health check, version, and `robots.txt`
+- **Public packages**: opt-in per package, and only when `PUBLIC_PACKAGES_ENABLED` and the admin toggle are both on. Anonymous reads are confined to a route-shape allowlist; every write still requires auth. See [FEATURES.md](FEATURES.md#14-public-packages)
 - **Passwords**: bcrypt with cost=12
 - **API tokens**: stored as SHA-256 hash, raw shown once
 - **JWT secret**: minimum 32 characters, validated at startup

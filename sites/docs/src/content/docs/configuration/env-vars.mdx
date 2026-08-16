@@ -81,6 +81,7 @@ LOG_LEVEL=warning  # Quiet mode, only warnings and errors
 | `TOKEN_EXPIRY_DAYS` | No | `365` | Default API token expiry in days |
 | `BCRYPT_COST` | No | `12` | bcrypt hashing cost factor (10-14 recommended) |
 | `SIGNUP_ENABLED` | No | `false` | Enable `/signup` and public `POST /api/auth/signup` |
+| `PUBLIC_PACKAGES_ENABLED` | No | `false` | Permit packages to be marked public and read without credentials |
 | `TRUST_PROXY` | No | `false` | Trust `X-Forwarded-Proto` / `X-Forwarded-For` headers |
 | `ALLOWED_ORIGINS` | No | -- | CSV of extra browser origins permitted on public state-changing endpoints |
 
@@ -136,6 +137,18 @@ When `true`, exposes the `/signup` page and `POST /api/auth/signup` endpoint so 
 ```bash
 SIGNUP_ENABLED=true
 ```
+
+### PUBLIC_PACKAGES_ENABLED
+
+Permits individual packages to be marked public and read without credentials. Default: `false`, so a club server is fully private until you opt in.
+
+This is only the first of two gates. A server admin must also turn on the dashboard toggle under **Admin > Public packages**, and each package must be marked public on its own. Setting this to `false` again is a kill switch: every public package requires credentials on the next request, with no per-package state changed.
+
+```bash
+PUBLIC_PACKAGES_ENABLED=true
+```
+
+See the [Public Packages guide](/guides/public-packages/) for the full model.
 
 ### TRUST_PROXY
 

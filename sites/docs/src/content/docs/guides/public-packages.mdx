@@ -1,0 +1,157 @@
+---
+title: Public Packages
+description: Opt individual club packages into anonymous access so dart pub get resolves them without a token, with two server-level gates and an automatic dependency closure.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+By default a club server is entirely private: every package requires
+credentials. Public packages are the opt-in exception. A package marked
+public resolves for `dart pub get` without a token, and visitors can browse
+its page without an account.
+
+Nothing becomes public on its own. Two server-level gates and a per-package
+flag all have to line up, and every package stays private until someone
+deliberately changes it. Upgrading an existing server changes nothing:
+every package it already holds stays private.
+
+## Three Things Must Be True
+
+A package is reachable anonymously only when **all** of these hold:
+
+1. `PUBLIC_PACKAGES_ENABLED=true` in the server environment.
+2. The dashboard toggle under **Admin > Public packages** is on.
+3. The package itself is marked public.
+
+The first two answer to different people on purpose. The environment
+variable belongs to whoever controls the deployment; the toggle belongs to
+whoever controls the dashboard. Requiring both means a private registry
+cannot grow an anonymous surface from a single click, an upgrade, or a
+compromised admin session alone.
+
+<Aside type="caution" title="The kill switch">
+Turning off either gate makes every public package require credentials
+again on the very next request. There is no per-package state to undo and
+nothing to migrate back. It does not, of course, recall anything that was
+already downloaded.
+</Aside>
+
+## Enabling It
+
+<Steps>
+
+1. Set the environment variable and restart the server:
+
+   ```bash
+   PUBLIC_PACKAGES_ENABLED=true
+   ```
+
+   Or in `config.yaml`:
+
+   ```yaml
+   public_packages_enabled: true
+   ```
+
+2. Sign in as a server admin and turn on **Admin > Public packages**.
+
+   Until step 1 is done, this toggle is visible but refuses to turn on, and
+   the API answers `403` explaining which variable to set.
+
+3. Open a package page and use the **Visibility** panel to mark that
+   package public.
+
+</Steps>
+
+## The Dependency Closure
+
+A public package whose club-hosted dependency stayed private cannot be
+resolved by anyone without a token. So marking a package public walks its
+transitive dependency tree first and shows you exactly what has to go with
+it. You confirm once, and the whole closure flips together.
+
+Some deliberate rules govern what gets pulled in:
+
+- **Only `dependencies` participate.** A package's `dev_dependencies` are
+  never resolved by its consumers, so a private club-hosted dev dependency
+  breaks nothing downstream. They are listed separately and left
+  unselected. `dependency_overrides` apply only to the root package of a
+  solve and are ignored entirely.
+- **Every version counts, not just the latest.** `pub` aborts on a `401`
+  rather than backtracking, so a single private dependency on one old
+  version can poison resolution for a consumer pinned to the newest one.
+  The closure is the union across all versions.
+- **Only explicit `hosted:` dependencies pointing at this server count.**
+  A bare `foo: ^1.0.0` that happens to share a name with a local package is
+  flagged as ambiguous and never auto-included. An anonymous consumer
+  resolves that one from pub.dev regardless, so exposing the local package
+  would buy nothing.
+
+## Versions That Cannot Resolve
+
+Making a package public makes every version's bytes public. The anonymous
+**version list** additionally omits any version whose club-hosted
+dependencies are not all public, because that list is the input to a fresh
+`pub` solve, and a solver that never sees a version can never fail on it.
+
+Their manifests and tarballs stay readable. A lockfile pinned to a hidden
+version still fetches it and then fails on the actual private dependency,
+with `pub`'s own "requires authentication" message rather than a confusing
+`404`.
+
+If you publish a new version into a public package and it adds a private
+club-hosted dependency, the publish succeeds but that version is absent
+from the anonymous version list. The publish response says so, an audit
+record is written, and the package page shows it.
+
+## Going Back to Private
+
+This is the dangerous direction. Making a package private, or deleting it,
+breaks every public package that depends on it.
+
+Both paths run a reverse dependency check first and refuse until you either
+include the affected dependents in the change or explicitly accept the
+breakage. The confirmation shows a concrete chain per affected package, for
+example `app -> core_ui -> icons`, so the causation is visible rather than
+implied.
+
+## What Anonymous Visitors See
+
+| Visible | Hidden |
+|---|---|
+| Package page, README, CHANGELOG, example | Uploader email addresses |
+| Version list, manifests, tarballs | Package activity log |
+| Scores and generated API docs | Download counts |
+| Publisher name and badge | Publisher member lists |
+| Like counts | Who liked what |
+| Search and browse, filtered to public and listed packages | Any private package, in any listing |
+
+Search, browse, and name autocomplete are filtered to public packages for
+anonymous callers. A private package never appears in any listing, and its
+count never leaks through a total.
+
+## How It Interacts With Other Controls
+
+- **Unlisted** is orthogonal and composes cleanly. `visibility` decides who
+  may read a package; unlisted decides whether it is advertised. A package
+  that is both public and [unlisted](/guides/unlisting-packages/) resolves
+  for `dart pub get` without a token but appears in no listing.
+- **Force republish** (`?force=true`) is refused on a public package.
+  Rewriting the bytes of an already-published version breaks archive
+  immutability for anyone who recorded its hash.
+- **`robots.txt`** reflects the server's state. It allows `/packages` while
+  anonymous browsing is on and disallows everything when it is off.
+
+## Who Can Change Visibility
+
+Marking a package public or private requires package admin rights: an
+uploader, an admin of the owning publisher, or a server admin. The
+server-wide toggle under Admin is server-admin only.
+
+Every visibility change is written to the audit log with the actor, the
+closure that moved with it, and any breakage that was accepted.
+
+## API
+
+See [Package Visibility](/api/packages/#visibility) for the per-package
+endpoints and [Public Packages](/api/admin/#public-packages) for the
+server-wide switch.

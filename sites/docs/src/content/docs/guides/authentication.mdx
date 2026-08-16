@@ -5,7 +5,7 @@ description: How authentication works in club — personal access tokens, web se
 
 import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-All access to a club server requires authentication. There is no anonymous or public access — every request must carry a valid session cookie or personal access token.
+A club server is private by default: every request must carry a valid session cookie or personal access token. The one exception is opt-in. If the operator has enabled [public packages](/guides/public-packages/) and marked a specific package public, that package can be read anonymously. Everything else, including every write, still requires authentication.
 
 ## Auth Modes
 

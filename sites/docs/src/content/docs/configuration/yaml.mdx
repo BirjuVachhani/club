@@ -132,6 +132,11 @@ bcrypt_cost: 12
 # Enable the /signup page and public signup endpoint. Default: false
 signup_enabled: false
 
+# Permit packages to be marked public and read without credentials. Only
+# the first of two gates: a server admin must also turn on the dashboard
+# toggle, and each package must be marked public. Default: false
+public_packages_enabled: false
+
 # Trust X-Forwarded-Proto / X-Forwarded-For. Enable only behind a proxy
 # that strips client-supplied copies. Default: false
 trust_proxy: false
@@ -251,6 +256,7 @@ Each flat top-level YAML key maps to its corresponding environment variable:
 | `token_expiry_days` | `TOKEN_EXPIRY_DAYS` |
 | `bcrypt_cost` | `BCRYPT_COST` |
 | `signup_enabled` | `SIGNUP_ENABLED` |
+| `public_packages_enabled` | `PUBLIC_PACKAGES_ENABLED` |
 | `trust_proxy` | `TRUST_PROXY` |
 | `allowed_origins` | `ALLOWED_ORIGINS` |
 | `db_backend` | `DB_BACKEND` |

@@ -137,6 +137,8 @@ Authorization: Bearer club_pat_...
 
 Removes the package and every version, including blob storage and the search index.
 
+If any public package depends on this one, the call is refused until the caller explicitly accepts the breakage. Deletion cannot be undone the way a visibility flip can, so the check runs first.
+
 ### Delete a Version
 
 ```http
@@ -148,6 +150,47 @@ Removes a single version and its tarball.
 
 <Aside type="danger">
   Both operations are permanent and will break any lockfile that pinned the deleted version. Prefer retracting or discontinuing when possible.
+</Aside>
+
+---
+
+## Public Packages
+
+The server-wide half of the [public packages](/guides/public-packages/) switch. Server admin only.
+
+```http
+GET /api/admin/public-packages
+Authorization: Bearer club_pat_...
+```
+
+```json
+{
+  "permittedByEnvironment": true,
+  "enabled": false,
+  "requiresServerAdmin": true,
+  "totalPackages": 42,
+  "publicPackages": 0
+}
+```
+
+`permittedByEnvironment` reflects `PUBLIC_PACKAGES_ENABLED` in the server environment. When it is false the deployment forbids the feature outright and the toggle below cannot help.
+
+```http
+PUT /api/admin/public-packages
+Authorization: Bearer club_pat_...
+Content-Type: application/json
+```
+
+```json
+{
+  "enabled": true
+}
+```
+
+Returns `403` when the environment gate is off, naming the variable to set. Both directions are written to the audit log.
+
+<Aside type="caution">
+  Setting `enabled` back to false is a kill switch: every public package requires credentials again on the next request, with no per-package state changed. It does not recall anything already downloaded.
 </Aside>
 
 ---

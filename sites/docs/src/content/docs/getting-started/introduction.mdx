@@ -19,7 +19,7 @@ If your team ships shared Dart or Flutter code, CLUB replaces the workarounds yo
 ## Features
 
 - **Works with `dart pub` unchanged** — no custom CLI, no patches, no plugins. Your team uses the tools they already know.
-- **Private by default** — every request is authenticated. Nothing is public unless you make it public.
+- **Private by default**: every request is authenticated. Nothing is readable anonymously unless you turn on [public packages](/guides/public-packages/) and mark a package public yourself.
 - **Publishers** — group packages under a team or organization with member roles, like pub.dev's verified publishers.
 - **Familiar web UI** — browse packages, read READMEs and changelogs, see version history, manage users and tokens.
 - **CI-friendly tokens** — scoped personal access tokens (`read`, `write`, `admin`) you can drop into GitHub Actions, GitLab CI, and friends.
@@ -32,7 +32,7 @@ If your team ships shared Dart or Flutter code, CLUB replaces the workarounds yo
 | | pub.dev | CLUB |
 |---|---------|-------|
 | Hosting | Google-managed | Self-hosted |
-| Visibility | Public | Private (auth required) |
+| Visibility | Public | Private by default, public per package (opt-in) |
 | Cost | Free | Free (your infrastructure) |
 | User accounts | Google account | Email/password, invited by an admin (or optional self-signup) |
 | Package scoring | pana analysis | pana analysis (optional — admin toggle) |
