@@ -73,6 +73,7 @@ class PublicPackageAccess {
     // Package name listing. Filters via listPackages(scope:).
     '/api/packages',
     '/api/package-name-completion-data',
+    '/api/groups',
   };
 
   /// True when [path] is a collection read that anonymous callers may
@@ -134,6 +135,11 @@ class PublicPackageAccess {
     // Tarball download. Handled by the caller via [archiveCandidates],
     // because the split between package and version is ambiguous.
     if (path.startsWith('/api/archives/')) return null;
+
+    // Group details and their scoped package lists are collection reads.
+    // Return a sentinel package only to signal eligibility; authMiddleware
+    // handles these via the explicit collection-shape check added there.
+    if (path.startsWith('/api/groups/')) return null;
 
     if (!path.startsWith('/api/packages/')) return null;
 
@@ -258,6 +264,17 @@ class PublicPackageAccess {
     // at all, not merely return an empty list.
     if (isAnonymousCollection(path, method)) {
       return _isEnabled();
+    }
+
+    // Exact dynamic read shapes for groups. The handlers apply anonymous
+    // VisibilityScope to both member rows and counts.
+    if ((method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD') &&
+        path.startsWith('/api/groups/')) {
+      final parts = path.substring('/api/groups/'.length).split('/');
+      final detail = parts.length == 1 && parts.first.isNotEmpty;
+      final packages =
+          parts.length == 2 && parts.first.isNotEmpty && parts[1] == 'packages';
+      if (detail || packages) return _isEnabled();
     }
 
     final archive = archiveCandidates(path, method);

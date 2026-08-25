@@ -1,4 +1,5 @@
 import { api } from '$lib/api/client';
+import type { PackageGroupSummary } from '$lib/types/catalog';
 import type { PageLoad } from './$types';
 
 /**
@@ -8,16 +9,20 @@ import type { PageLoad } from './$types';
  * comes back as just `{ package, score }`.
  */
 interface DiscoverHit {
-  package: string;
+  type: 'package' | 'group';
+  package?: string;
   score: number;
   data?: any;
   scoreInfo?: any;
   listInfo?: any;
+  group?: PackageGroupSummary;
 }
 
 interface DiscoverResponse {
-  packages: DiscoverHit[];
+  items: DiscoverHit[];
   totalCount: number;
+  packageCount: number;
+  groupCount: number;
   page: number;
   pageSize: number;
 }
@@ -38,6 +43,7 @@ export interface HomeData {
   recentlyUpdated: HomePackage[];
   recentlyAdded: HomePackage[];
   totalPackages: number;
+  groups: PackageGroupSummary[];
 }
 
 /** Maps a discover hit's bundled package data into a home-card model. */
@@ -51,7 +57,7 @@ function mapHit(hit: DiscoverHit): HomePackage | null {
     env?.flutter || (deps && typeof deps === 'object' && 'flutter' in deps) || pubspec.flutter,
   );
   return {
-    name: data.name ?? hit.package,
+    name: data.name ?? hit.package ?? '',
     description: pubspec.description ?? '',
     version: data.latest?.version ?? '',
     publishedAt: data.latest?.published ?? null,
@@ -69,7 +75,7 @@ async function fetchSection(
     const result = await api.get<DiscoverResponse>('/api/discover', {
       params: { q: '', sort, page: '1' },
     });
-    const packages = result.packages
+    const packages = result.items.filter((hit) => hit.type === 'package')
       .slice(0, limit)
       .map(mapHit)
       .filter((p): p is HomePackage => p !== null);
@@ -93,13 +99,13 @@ async function buildHome(): Promise<HomeData> {
         const result = await api.get<DiscoverResponse>('/api/discover', {
           params: { q: '', sort: 'updated', page: '1' },
         });
-        const all = result.packages
+        const all = result.items.filter((hit) => hit.type === 'package')
           .map(mapHit)
           .filter((p): p is HomePackage => p !== null);
         return {
           dart: all.filter((p) => !p.isFlutter).slice(0, 6),
           flutter: all.filter((p) => p.isFlutter).slice(0, 6),
-          total: result.totalCount,
+          total: result.packageCount,
         };
       } catch {
         return { dart: [] as HomePackage[], flutter: [] as HomePackage[], total: 0 };
@@ -115,6 +121,12 @@ async function buildHome(): Promise<HomeData> {
     recentlyUpdated: updated.packages,
     recentlyAdded: added.packages,
     totalPackages: buckets.total,
+    groups: await (async () => {
+      try {
+        const response = await api.get<{ groups: PackageGroupSummary[] }>('/api/groups');
+        return response.groups.slice(0, 6);
+      } catch { return []; }
+    })(),
   };
 }
 

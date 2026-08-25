@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GroupCard from "$lib/components/GroupCard.svelte";
   import { goto } from "$app/navigation";
   import { docsUrl } from "$lib/config";
   import DotsGrid from "$lib/components/DotsGrid.svelte";
@@ -237,6 +238,17 @@
         home.recentlyAdded,
         "Added ",
       )}
+      {#if home.groups.length}
+        <section class="pkg-section">
+          <div class="section-header">
+            <h2>Package Groups</h2>
+            <a href="/packages?type=groups">View all</a>
+          </div>
+          <div class="pkg-grid">
+            {#each home.groups as group}<GroupCard {group} compact />{/each}
+          </div>
+        </section>
+      {/if}
     </div>
   {/await}
 </div>

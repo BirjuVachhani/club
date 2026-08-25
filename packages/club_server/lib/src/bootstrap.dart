@@ -146,8 +146,7 @@ Future<BootstrapResult> bootstrap(
 
   final sdkManager = SdkManager(
     settingsStore: settingsStore,
-    sdkBaseDir:
-        Platform.environment['SDK_BASE_DIR'] ?? '/data/cache/sdks',
+    sdkBaseDir: Platform.environment['SDK_BASE_DIR'] ?? '/data/cache/sdks',
     generateId: () => _uuid.v4(),
   );
   await sdkManager.initialize();
@@ -305,6 +304,13 @@ Future<BootstrapResult> bootstrap(
     enforceRetractionWindow: config.enforceRetractionWindow,
   );
 
+  final packageGroupService = PackageGroupService(
+    store: metadataStore,
+    searchIndex: searchIndex,
+    packageService: packageService,
+    generateId: () => _uuid.v4(),
+  );
+
   final publisherService = PublisherService(
     store: metadataStore,
     generateId: () => _uuid.v4(),
@@ -362,6 +368,7 @@ Future<BootstrapResult> bootstrap(
   final handler = buildHandler(
     authService: authService,
     packageService: packageService,
+    packageGroupService: packageGroupService,
     publishService: publishService,
     publisherService: publisherService,
     likesService: likesService,
@@ -675,8 +682,7 @@ List<ExtractedScreenshot> _resolveScreenshots(
             ? entry['description'] as String
             : null,
         bytes: bytes,
-        mimeType:
-            readmeAssetMimeFor(ext) ?? 'application/octet-stream',
+        mimeType: readmeAssetMimeFor(ext) ?? 'application/octet-stream',
       ),
     );
   }

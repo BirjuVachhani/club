@@ -24,8 +24,9 @@ final _log = Logger('ClubMigrations');
 /// `3` adds per-package visibility (`packages.visibility` and its audit
 /// columns), the derived `package_versions.public_resolvable` flag, and
 /// the `package_version_dependencies` edge index that the visibility
-/// closure walks.
-const int schemaVersion = 3;
+/// closure walks. `4` adds visual package groups, ordered many-to-many
+/// package membership, and a dedicated group FTS index.
+const int schemaVersion = 4;
 
 /// A versioned SQL migration from [fromVersion] to [toVersion].
 ///
@@ -127,6 +128,51 @@ const List<SchemaMigration> migrations = [
       'CREATE INDEX IF NOT EXISTS idx_packages_visibility ON packages(visibility)',
       'CREATE INDEX IF NOT EXISTS idx_pvd_dep_name ON package_version_dependencies(dep_name, is_local)',
       'CREATE INDEX IF NOT EXISTS idx_pvd_package ON package_version_dependencies(package_name, version)',
+    ],
+  ),
+  // v3 → v4: visual package groups and ordered many-to-many package
+  // membership. Package ownership and permissions remain unchanged.
+  SchemaMigration(
+    fromVersion: 3,
+    toVersion: 4,
+    statements: [
+      '''
+      CREATE TABLE IF NOT EXISTS package_groups (
+        id            TEXT PRIMARY KEY NOT NULL,
+        slug          TEXT NOT NULL UNIQUE,
+        name          TEXT NOT NULL,
+        description   TEXT,
+        owner_user_id TEXT REFERENCES users(user_id) ON DELETE RESTRICT,
+        publisher_id  TEXT REFERENCES publishers(id) ON DELETE RESTRICT,
+        created_by    TEXT NOT NULL REFERENCES users(user_id),
+        created_at    INTEGER NOT NULL,
+        updated_at    INTEGER NOT NULL,
+        CHECK ((owner_user_id IS NULL) != (publisher_id IS NULL))
+      )
+      ''',
+      '''
+      CREATE TABLE IF NOT EXISTS package_group_packages (
+        group_id     TEXT NOT NULL REFERENCES package_groups(id) ON DELETE CASCADE,
+        package_name TEXT NOT NULL REFERENCES packages(name) ON DELETE CASCADE,
+        position     INTEGER NOT NULL,
+        added_by     TEXT REFERENCES users(user_id) ON DELETE SET NULL,
+        created_at   INTEGER NOT NULL,
+        PRIMARY KEY (group_id, package_name),
+        UNIQUE (group_id, position)
+      )
+      ''',
+      '''
+      CREATE VIRTUAL TABLE IF NOT EXISTS package_group_fts USING fts5(
+        group_id UNINDEXED,
+        slug UNINDEXED,
+        name,
+        description
+      )
+      ''',
+      'CREATE INDEX IF NOT EXISTS idx_package_groups_owner ON package_groups(owner_user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_package_groups_publisher ON package_groups(publisher_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pgp_group_position ON package_group_packages(group_id, position)',
+      'CREATE INDEX IF NOT EXISTS idx_pgp_package ON package_group_packages(package_name)',
     ],
   ),
 ];

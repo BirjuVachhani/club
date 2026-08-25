@@ -38,15 +38,23 @@ class SearchApi {
     _ => SearchOrder.relevance,
   };
 
+  SearchEntityType? _entityTypeOf(String? value) => switch (value) {
+    'packages' => SearchEntityType.package,
+    'groups' => SearchEntityType.packageGroup,
+    _ => null,
+  };
+
   Future<Response> _search(Request request) async {
     final q = request.url.queryParameters['q'];
     final page = int.tryParse(request.url.queryParameters['page'] ?? '1') ?? 1;
     final sortStr = request.url.queryParameters['sort'] ?? 'relevance';
+    final type = _entityTypeOf(request.url.queryParameters['type']);
 
     final result = await searchIndex.search(
       SearchQuery(
         query: q,
         order: _orderOf(sortStr),
+        entityType: type,
         offset: (page - 1) * _pageSize,
         limit: _pageSize,
       ),
@@ -55,10 +63,16 @@ class SearchApi {
 
     return Response.ok(
       jsonEncode({
-        'packages': result.hits
-            .map((h) => {'package': h.package, 'score': h.score})
+        'items': result.hits
+            .map(
+              (h) => h.type == SearchEntityType.package
+                  ? {'type': 'package', 'package': h.package, 'score': h.score}
+                  : {'type': 'group', 'groupId': h.groupId, 'score': h.score},
+            )
             .toList(),
         'totalCount': result.totalHits,
+        'packageCount': result.packageHits,
+        'groupCount': result.groupHits,
         'page': page,
         'pageSize': _pageSize,
       }),
@@ -76,12 +90,14 @@ class SearchApi {
     final q = request.url.queryParameters['q'];
     final page = int.tryParse(request.url.queryParameters['page'] ?? '1') ?? 1;
     final sortStr = request.url.queryParameters['sort'] ?? 'relevance';
+    final type = _entityTypeOf(request.url.queryParameters['type']);
 
     final scope = visibilityScopeFor(request);
     final result = await searchIndex.search(
       SearchQuery(
         query: q,
         order: _orderOf(sortStr),
+        entityType: type,
         offset: (page - 1) * _pageSize,
         limit: _pageSize,
       ),
@@ -89,8 +105,28 @@ class SearchApi {
     );
 
     final baseUrl = resolveBaseUrl(request);
-    final packages = await Future.wait(
+    final items = await Future.wait(
       result.hits.map((h) async {
+        if (h.type == SearchEntityType.packageGroup) {
+          final group = await metadataStore.lookupPackageGroup(h.groupId);
+          if (group == null) return null;
+          final preview = await metadataStore.listPackagesForGroup(
+            group.id,
+            scope: scope,
+            limit: 7,
+          );
+          return {
+            'type': 'group',
+            'score': h.score,
+            'group': {
+              ...group.toJson(),
+              'packageCount': preview.totalCount,
+              'previewPackages': await Future.wait(
+                preview.items.map(_groupPreviewPackageJson),
+              ),
+            },
+          };
+        }
         try {
           final data = await packageService.listVersions(
             h.package,
@@ -106,6 +142,7 @@ class SearchApi {
             scope: scope,
           );
           return {
+            'type': 'package',
             'package': h.package,
             'score': h.score,
             'data': data.toJson(),
@@ -113,17 +150,17 @@ class SearchApi {
             'listInfo': listInfo,
           };
         } catch (_) {
-          // Tolerate a single bad package: return the bare hit so the
-          // client can still render a minimal row for it.
-          return {'package': h.package, 'score': h.score};
+          return {'type': 'package', 'package': h.package, 'score': h.score};
         }
       }),
     );
 
     return Response.ok(
       jsonEncode({
-        'packages': packages,
+        'items': items.whereType<Map<String, dynamic>>().toList(),
         'totalCount': result.totalHits,
+        'packageCount': result.packageHits,
+        'groupCount': result.groupHits,
         'page': page,
         'pageSize': _pageSize,
       }),
@@ -141,6 +178,23 @@ class SearchApi {
   /// Unlisted packages are excluded: they are meant to be reachable by URL
   /// only, and an autocomplete that suggests the name defeats that. They
   /// remain fully usable by anyone who knows the name.
+  Future<Map<String, dynamic>> _groupPreviewPackageJson(Package package) async {
+    final versionName = package.latestVersion ?? package.latestPrerelease ?? '';
+    var description = '';
+    if (versionName.isNotEmpty) {
+      final version = await metadataStore.lookupVersion(
+        package.name,
+        versionName,
+      );
+      description = version?.pubspecMap['description'] as String? ?? '';
+    }
+    return {
+      'name': package.name,
+      'version': versionName,
+      'description': description,
+    };
+  }
+
   Future<Response> _completionData(Request request) async {
     final packages = await metadataStore.listPackages(
       limit: 10000,
@@ -175,6 +229,7 @@ class SearchApi {
       jsonEncode({
         'packages': packages.items.map((p) => p.name).toList(),
         'totalCount': packages.totalCount,
+        'nextPageToken': packages.nextPageToken,
       }),
       headers: {'content-type': 'application/json'},
     );

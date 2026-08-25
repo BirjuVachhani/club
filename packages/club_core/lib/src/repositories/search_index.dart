@@ -14,6 +14,12 @@ abstract interface class SearchIndex {
   /// Index or re-index a single package document.
   Future<void> indexPackage(IndexDocument doc);
 
+  /// Index or re-index a visual package group.
+  Future<void> indexPackageGroup(PackageGroupIndexDocument document);
+
+  /// Remove a visual package group from the index.
+  Future<void> removePackageGroup(String groupId);
+
   /// Remove a package from the index.
   Future<void> removePackage(String package);
 

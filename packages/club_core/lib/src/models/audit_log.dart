@@ -70,6 +70,13 @@ abstract final class AuditKind {
   static const uploaderRemoved = 'package.uploader_removed';
   static const publisherChanged = 'package.publisher_changed';
   static const packageDeleted = 'package.deleted';
+  static const packageGroupCreated = 'package_group.created';
+  static const packageGroupUpdated = 'package_group.updated';
+  static const packageGroupDeleted = 'package_group.deleted';
+  static const packageGroupPackageAdded = 'package_group.package_added';
+  static const packageGroupPackageRemoved = 'package_group.package_removed';
+  static const packageGroupPackageMoved = 'package_group.package_moved';
+  static const packageGroupReordered = 'package_group.reordered';
 
   /// Visibility transitions. Non-negotiable to record: making a package
   /// public is an irreversible disclosure, and "who exposed our source,

@@ -12,6 +12,7 @@
   import ScreenshotGallery from "$lib/components/ScreenshotGallery.svelte";
   import ScoresTab from "./_ScoresTab.svelte";
   import VisibilityPanel from "./_VisibilityPanel.svelte";
+  import PackageGroupsPanel from "./_PackageGroupsPanel.svelte";
   import { api } from "$lib/api/client";
   import { confirmDialog } from "$lib/stores/confirm";
   import { page } from "$app/state";
@@ -1491,6 +1492,8 @@
                     </p>
                   {/if}
                 </section>
+
+                <PackageGroupsPanel packageName={pkg.name} publishers={myPublishers} />
 
                 <section class="admin-section">
                   <h3>Version retraction</h3>

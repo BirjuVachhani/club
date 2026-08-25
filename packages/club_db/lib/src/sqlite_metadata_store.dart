@@ -384,10 +384,7 @@ class SqliteMetadataStore implements MetadataStore {
       final remaining = (await listVersions(
         package,
         scope: VisibilityScope.trustedInternal,
-      ))
-          .where((v) => !v.isRetracted)
-          .map((v) => v.version)
-          .toList();
+      )).where((v) => !v.isRetracted).map((v) => v.version).toList();
 
       final latestStable = VersionValidator.latestStable(remaining);
       final latestAny = VersionValidator.latestAny(remaining);
@@ -1015,6 +1012,374 @@ class SqliteMetadataStore implements MetadataStore {
       [userId],
     );
     return rows.map(_rowToToken).toList();
+  }
+
+  // ── Package Groups ──────────────────────────────────────────────────────────
+
+  @override
+  Future<PackageGroup?> lookupPackageGroup(String id) async {
+    final rows = await _db.select('SELECT * FROM package_groups WHERE id = ?', [
+      id,
+    ]);
+    return rows.isEmpty ? null : _rowToPackageGroup(rows.first);
+  }
+
+  @override
+  Future<PackageGroup?> lookupPackageGroupBySlug(String slug) async {
+    final rows = await _db.select(
+      'SELECT * FROM package_groups WHERE slug = ?',
+      [slug],
+    );
+    return rows.isEmpty ? null : _rowToPackageGroup(rows.first);
+  }
+
+  @override
+  Future<PackageGroup> createPackageGroup(
+    PackageGroupCompanion companion,
+  ) async {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    await _db.execute(
+      '''INSERT INTO package_groups
+         (id, slug, name, description, owner_user_id, publisher_id,
+          created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+      [
+        companion.id,
+        companion.slug,
+        companion.name,
+        companion.description,
+        companion.ownerUserId,
+        companion.publisherId,
+        companion.createdBy,
+        now,
+        now,
+      ],
+    );
+    return (await lookupPackageGroup(companion.id))!;
+  }
+
+  @override
+  Future<PackageGroup> updatePackageGroup(
+    String id, {
+    required String name,
+    String? description,
+  }) async {
+    if (await lookupPackageGroup(id) == null) {
+      throw NotFoundException.packageGroup(id);
+    }
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    await _db.execute(
+      'UPDATE package_groups SET name = ?, description = ?, updated_at = ? WHERE id = ?',
+      [name, description, now, id],
+    );
+    return (await lookupPackageGroup(id))!;
+  }
+
+  @override
+  Future<void> deletePackageGroup(String id) async {
+    await _db.execute('DELETE FROM package_groups WHERE id = ?', [id]);
+  }
+
+  @override
+  Future<Page<PackageGroup>> listPackageGroups({
+    required VisibilityScope scope,
+    int limit = 50,
+    String? pageToken,
+    String? query,
+    bool includeEmpty = false,
+  }) async {
+    final offset = int.tryParse(pageToken ?? '') ?? 0;
+    final where = <String>[];
+    final args = <Object?>[];
+    if (query != null && query.trim().isNotEmpty) {
+      where.add(
+        '(g.name LIKE ? COLLATE NOCASE OR g.description LIKE ? COLLATE NOCASE)',
+      );
+      final pattern = '%${query.trim()}%';
+      args.addAll([pattern, pattern]);
+    }
+    if (scope.publicOnly || !includeEmpty) {
+      final visibility = scope.publicOnly ? 'AND p.visibility = ?' : '';
+      where.add('''EXISTS (
+        SELECT 1 FROM package_group_packages gp
+        JOIN packages p ON p.name = gp.package_name
+        WHERE gp.group_id = g.id
+          AND p.is_unlisted = 0 AND p.is_discontinued = 0 $visibility
+      )''');
+      if (scope.publicOnly) args.add(PackageVisibility.public.wireName);
+    }
+    final predicate = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
+    final countRows = await _db.select(
+      'SELECT COUNT(*) AS cnt FROM package_groups g $predicate',
+      args,
+    );
+    final rows = await _db.select(
+      '''SELECT g.* FROM package_groups g $predicate
+         ORDER BY g.updated_at DESC LIMIT ? OFFSET ?''',
+      [...args, limit, offset],
+    );
+    final total = countRows.first.read<int>('cnt');
+    final next = offset + rows.length < total
+        ? '${offset + rows.length}'
+        : null;
+    return Page(
+      items: rows.map(_rowToPackageGroup).toList(),
+      nextPageToken: next,
+      totalCount: total,
+    );
+  }
+
+  @override
+  Future<List<PackageGroup>> listPackageGroupsForUser(String userId) async {
+    final rows = await _db.select(
+      '''SELECT DISTINCT g.* FROM package_groups g
+         LEFT JOIN publisher_members pm ON pm.publisher_id = g.publisher_id
+         WHERE g.owner_user_id = ? OR (pm.user_id = ? AND pm.role = ?)
+         ORDER BY g.name COLLATE NOCASE''',
+      [userId, userId, PublisherRole.admin],
+    );
+    return rows.map(_rowToPackageGroup).toList();
+  }
+
+  @override
+  Future<List<PackageGroup>> listPackageGroupsForPackage(
+    String packageName,
+  ) async {
+    final rows = await _db.select(
+      '''SELECT g.* FROM package_groups g
+         JOIN package_group_packages gp ON gp.group_id = g.id
+         WHERE gp.package_name = ? ORDER BY g.name COLLATE NOCASE''',
+      [packageName],
+    );
+    return rows.map(_rowToPackageGroup).toList();
+  }
+
+  @override
+  Future<Page<Package>> listPackagesForGroup(
+    String groupId, {
+    required VisibilityScope scope,
+    int limit = 50,
+    String? pageToken,
+    bool includeUnlisted = false,
+  }) async {
+    final offset = int.tryParse(pageToken ?? '') ?? 0;
+    final clauses = <String>['gp.group_id = ?'];
+    final args = <Object?>[groupId];
+    if (!includeUnlisted) {
+      clauses.add('p.is_unlisted = 0');
+      clauses.add('p.is_discontinued = 0');
+    }
+    if (scope.publicOnly) {
+      clauses.add('p.visibility = ?');
+      args.add(PackageVisibility.public.wireName);
+    }
+    final where = clauses.join(' AND ');
+    final countRows = await _db.select(
+      '''SELECT COUNT(*) AS cnt FROM package_group_packages gp
+         JOIN packages p ON p.name = gp.package_name WHERE $where''',
+      args,
+    );
+    final rows = await _db.select(
+      '''SELECT p.* FROM package_group_packages gp
+         JOIN packages p ON p.name = gp.package_name
+         WHERE $where ORDER BY gp.position LIMIT ? OFFSET ?''',
+      [...args, limit, offset],
+    );
+    final total = countRows.first.read<int>('cnt');
+    final next = offset + rows.length < total
+        ? '${offset + rows.length}'
+        : null;
+    return Page(
+      items: rows.map(_rowToPackage).toList(),
+      nextPageToken: next,
+      totalCount: total,
+    );
+  }
+
+  @override
+  Future<List<PackageGroupPackage>> listPackageGroupMemberships(
+    String groupId,
+  ) async {
+    final rows = await _db.select(
+      'SELECT * FROM package_group_packages WHERE group_id = ? ORDER BY position',
+      [groupId],
+    );
+    return rows.map(_rowToPackageGroupPackage).toList();
+  }
+
+  @override
+  Future<void> addPackageToGroup(
+    String groupId,
+    String packageName, {
+    required String addedBy,
+  }) async {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    await _db.execute(
+      '''INSERT OR IGNORE INTO package_group_packages
+         (group_id, package_name, position, added_by, created_at)
+         SELECT ?, ?, COALESCE(MAX(position) + 1, 0), ?, ?
+         FROM package_group_packages WHERE group_id = ?''',
+      [groupId, packageName, addedBy, now, groupId],
+    );
+    await _db.execute('UPDATE package_groups SET updated_at = ? WHERE id = ?', [
+      now,
+      groupId,
+    ]);
+  }
+
+  @override
+  Future<void> removePackageFromGroup(
+    String groupId,
+    String packageName,
+  ) async {
+    await transaction((tx) async {
+      await _db.execute(
+        'DELETE FROM package_group_packages WHERE group_id = ? AND package_name = ?',
+        [groupId, packageName],
+      );
+      await normalizePackageGroupPositions(groupId);
+      await _db.execute(
+        'UPDATE package_groups SET updated_at = ? WHERE id = ?',
+        [DateTime.now().toUtc().millisecondsSinceEpoch, groupId],
+      );
+    });
+  }
+
+  @override
+  Future<void> movePackageBetweenGroups(
+    String packageName, {
+    required String fromGroupId,
+    required String toGroupId,
+    required String addedBy,
+  }) async {
+    await transaction((tx) async {
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      await _db.execute(
+        '''INSERT OR IGNORE INTO package_group_packages
+           (group_id, package_name, position, added_by, created_at)
+           SELECT ?, ?, COALESCE(MAX(position) + 1, 0), ?, ?
+           FROM package_group_packages WHERE group_id = ?''',
+        [toGroupId, packageName, addedBy, now, toGroupId],
+      );
+      await _db.execute(
+        '''DELETE FROM package_group_packages
+           WHERE group_id = ? AND package_name = ?''',
+        [fromGroupId, packageName],
+      );
+      await normalizePackageGroupPositions(fromGroupId);
+      await _db.execute(
+        'UPDATE package_groups SET updated_at = ? WHERE id IN (?, ?)',
+        [now, fromGroupId, toGroupId],
+      );
+    });
+  }
+
+  @override
+  Future<void> replacePackageGroupPackages(
+    String groupId,
+    List<String> packageNames, {
+    required String addedBy,
+  }) async {
+    if (packageNames.toSet().length != packageNames.length) {
+      throw const InvalidInputException(
+        'A package can appear only once in a group.',
+      );
+    }
+    await transaction((tx) async {
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      final existing = await listPackageGroupMemberships(groupId);
+      final existingNames = existing.map((item) => item.packageName).toSet();
+      final desiredNames = packageNames.toSet();
+
+      for (final packageName in existingNames.difference(desiredNames)) {
+        await _db.execute(
+          '''DELETE FROM package_group_packages
+             WHERE group_id = ? AND package_name = ?''',
+          [groupId, packageName],
+        );
+      }
+      for (final packageName in desiredNames.difference(existingNames)) {
+        await _db.execute(
+          '''INSERT INTO package_group_packages
+             (group_id, package_name, position, added_by, created_at)
+             VALUES (?, ?, ?, ?, ?)''',
+          [
+            groupId,
+            packageName,
+            packageNames.indexOf(packageName),
+            addedBy,
+            now,
+          ],
+        );
+      }
+
+      await _db.execute(
+        '''UPDATE package_group_packages SET position = -position - 1
+           WHERE group_id = ?''',
+        [groupId],
+      );
+      for (var index = 0; index < packageNames.length; index++) {
+        await _db.execute(
+          '''UPDATE package_group_packages SET position = ?
+             WHERE group_id = ? AND package_name = ?''',
+          [index, groupId, packageNames[index]],
+        );
+      }
+      await _db.execute(
+        'UPDATE package_groups SET updated_at = ? WHERE id = ?',
+        [now, groupId],
+      );
+    });
+  }
+
+  @override
+  Future<void> reorderPackageGroup(
+    String groupId,
+    List<String> packageNames,
+  ) async {
+    await transaction((tx) async {
+      final current = await listPackageGroupMemberships(groupId);
+      final currentNames = current.map((m) => m.packageName).toSet();
+      if (packageNames.length != currentNames.length ||
+          packageNames.toSet().length != packageNames.length ||
+          !currentNames.containsAll(packageNames)) {
+        throw const InvalidInputException(
+          'The package order must contain every group package exactly once.',
+        );
+      }
+      await _db.execute(
+        'UPDATE package_group_packages SET position = -position - 1 WHERE group_id = ?',
+        [groupId],
+      );
+      for (var i = 0; i < packageNames.length; i++) {
+        await _db.execute(
+          'UPDATE package_group_packages SET position = ? WHERE group_id = ? AND package_name = ?',
+          [i, groupId, packageNames[i]],
+        );
+      }
+      await _db.execute(
+        'UPDATE package_groups SET updated_at = ? WHERE id = ?',
+        [DateTime.now().toUtc().millisecondsSinceEpoch, groupId],
+      );
+    });
+  }
+
+  @override
+  Future<void> normalizePackageGroupPositions(String groupId) async {
+    final rows = await _db.select(
+      'SELECT package_name FROM package_group_packages WHERE group_id = ? ORDER BY position',
+      [groupId],
+    );
+    await _db.execute(
+      'UPDATE package_group_packages SET position = -position - 1 WHERE group_id = ?',
+      [groupId],
+    );
+    for (var i = 0; i < rows.length; i++) {
+      await _db.execute(
+        'UPDATE package_group_packages SET position = ? WHERE group_id = ? AND package_name = ?',
+        [i, groupId, rows[i].read<String>('package_name')],
+      );
+    }
   }
 
   // ── Publishers ─────────────────────────────────────────────────────────────
@@ -1988,6 +2353,30 @@ class SqliteMetadataStore implements MetadataStore {
     );
   }
 
+  static PackageGroup _rowToPackageGroup(QueryRow row) {
+    return PackageGroup(
+      id: row.read<String>('id'),
+      slug: row.read<String>('slug'),
+      name: row.read<String>('name'),
+      description: row.readNullable<String>('description'),
+      ownerUserId: row.readNullable<String>('owner_user_id'),
+      publisherId: row.readNullable<String>('publisher_id'),
+      createdBy: row.read<String>('created_by'),
+      createdAt: _intToDateTime(row.read<int>('created_at')),
+      updatedAt: _intToDateTime(row.read<int>('updated_at')),
+    );
+  }
+
+  static PackageGroupPackage _rowToPackageGroupPackage(QueryRow row) {
+    return PackageGroupPackage(
+      groupId: row.read<String>('group_id'),
+      packageName: row.read<String>('package_name'),
+      position: row.read<int>('position'),
+      addedBy: row.readNullable<String>('added_by'),
+      createdAt: _intToDateTime(row.read<int>('created_at')),
+    );
+  }
+
   static Publisher _rowToPublisher(QueryRow row) {
     return Publisher(
       id: row.read<String>('id'),
@@ -2042,7 +2431,9 @@ class SqliteMetadataStore implements MetadataStore {
       grantedPoints: row.readNullable<int>('granted_points'),
       maxPoints: row.readNullable<int>('max_points'),
       reportJson: row.readNullable<String>('report_json'),
-      panaTags: panaTagsJson == null ? const [] : _jsonToStringList(panaTagsJson),
+      panaTags: panaTagsJson == null
+          ? const []
+          : _jsonToStringList(panaTagsJson),
       panaVersion: row.readNullable<String>('pana_version'),
       dartVersion: row.readNullable<String>('dart_version'),
       flutterVersion: row.readNullable<String>('flutter_version'),

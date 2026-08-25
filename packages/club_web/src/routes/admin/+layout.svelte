@@ -12,6 +12,7 @@
     { href: '/admin/settings/stats', label: 'Stats' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/packages', label: 'Packages' },
+    { href: '/admin/groups', label: 'Groups' },
     { href: '/admin/publishers', label: 'Publishers' },
     { href: '/admin/settings/sdk', label: 'Scoring' },
     { href: '/admin/settings/visibility', label: 'Public packages' },

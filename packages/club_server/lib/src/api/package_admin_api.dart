@@ -14,12 +14,14 @@ class PackageAdminApi {
     required this.metadataStore,
     required this.blobStore,
     required this.visibilityService,
+    required this.packageGroupService,
   });
 
   final PackageService packageService;
   final MetadataStore metadataStore;
   final BlobStore blobStore;
   final VisibilityService visibilityService;
+  final PackageGroupService packageGroupService;
 
   /// Refuse a removal that would break public packages, unless the caller
   /// has explicitly accepted it via `?acceptBreakage=true`.
@@ -39,10 +41,7 @@ class PackageAdminApi {
     final dependents = await visibilityService.breakageFromRemoving(package);
     if (dependents.isEmpty) return;
 
-    final summary = dependents
-        .take(5)
-        .map((d) => d.pathDescription)
-        .join('; ');
+    final summary = dependents.take(5).map((d) => d.pathDescription).join('; ');
     throw ConflictException(
       '$action breaks ${dependents.length} public package(s) that depend '
       'on it: $summary${dependents.length > 5 ? '; ...' : ''}. '
@@ -68,6 +67,10 @@ class PackageAdminApi {
     router.delete('/api/packages/<package>/uploaders/<email>', _removeUploader);
     router.get('/api/packages/<package>/publisher', _getPublisher);
     router.put('/api/packages/<package>/publisher', _setPublisher);
+    router.get('/api/packages/<package>/groups', _getGroups);
+    router.post('/api/packages/<package>/groups', _addGroup);
+    router.delete('/api/packages/<package>/groups/<groupId>', _removeGroup);
+    router.post('/api/packages/<package>/groups/move', _moveGroup);
     router.get('/api/packages/<package>/likes', _getLikes);
     router.get('/api/packages/<package>/permissions', _getPermissions);
     router.get('/api/packages/<package>/activity-log', _getActivityLog);
@@ -205,6 +208,109 @@ class PackageAdminApi {
 
     await metadataStore.removeUploader(package, user.userId);
     return _json({'status': 'ok'});
+  }
+
+  Future<Response> _getGroups(Request request, String package) async {
+    final actor = requireAuthUser(request);
+    final groups = await metadataStore.listPackageGroupsForPackage(package);
+    final results = await Future.wait(
+      groups.map(
+        (group) async => {
+          ...group.toJson(),
+          'canManage': await packageGroupService.canManage(
+            group.id,
+            actor.userId,
+          ),
+        },
+      ),
+    );
+    return _json({'groups': results});
+  }
+
+  Future<Response> _addGroup(Request request, String package) async {
+    final actor = requireAuthUser(request);
+    final body =
+        jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+    var groupId = body['groupId'] as String?;
+    if (groupId == null) {
+      final create = body['createGroup'];
+      if (create is! Map<String, dynamic>) {
+        throw const InvalidInputException(
+          'groupId or createGroup is required.',
+        );
+      }
+      if (!await packageService.isPackageAdmin(package, actor.userId)) {
+        throw ForbiddenException.notUploader(package);
+      }
+      final group = await packageGroupService.createAndAdd(
+        packageName: package,
+        name: create['name'] as String? ?? '',
+        description: create['description'] as String?,
+        publisherId: create['publisherId'] as String?,
+        actingUserId: actor.userId,
+      );
+      groupId = group.id;
+    } else {
+      await packageGroupService.addPackage(
+        groupId,
+        package,
+        actingUserId: actor.userId,
+      );
+    }
+    return _json({'status': 'ok', 'groupId': groupId});
+  }
+
+  Future<Response> _removeGroup(
+    Request request,
+    String package,
+    String groupId,
+  ) async {
+    final actor = requireAuthUser(request);
+    await packageGroupService.removePackage(
+      groupId,
+      package,
+      actingUserId: actor.userId,
+    );
+    return _json({'status': 'ok'});
+  }
+
+  Future<Response> _moveGroup(Request request, String package) async {
+    final actor = requireAuthUser(request);
+    final body =
+        jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+    final fromGroupId = body['fromGroupId'] as String?;
+    var toGroupId = body['toGroupId'] as String?;
+    if (fromGroupId == null) {
+      throw const InvalidInputException('fromGroupId is required.');
+    }
+    if (toGroupId == null) {
+      final create = body['createGroup'];
+      if (create is! Map<String, dynamic>) {
+        throw const InvalidInputException(
+          'toGroupId or createGroup is required.',
+        );
+      }
+      if (!await packageService.isPackageAdmin(package, actor.userId)) {
+        throw ForbiddenException.notUploader(package);
+      }
+      final group = await packageGroupService.createAndMove(
+        packageName: package,
+        fromGroupId: fromGroupId,
+        name: create['name'] as String? ?? '',
+        description: create['description'] as String?,
+        publisherId: create['publisherId'] as String?,
+        actingUserId: actor.userId,
+      );
+      toGroupId = group.id;
+      return _json({'status': 'ok', 'groupId': toGroupId});
+    }
+    await packageGroupService.movePackage(
+      packageName: package,
+      fromGroupId: fromGroupId,
+      toGroupId: toGroupId,
+      actingUserId: actor.userId,
+    );
+    return _json({'status': 'ok', 'groupId': toGroupId});
   }
 
   Future<Response> _getPublisher(Request request, String package) async {
@@ -382,7 +488,10 @@ class PackageAdminApi {
       action: 'Deleting $package',
     );
 
-    final versions = await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal);
+    final versions = await metadataStore.listVersions(
+      package,
+      scope: VisibilityScope.trustedInternal,
+    );
     for (final v in versions) {
       await blobStore.delete(package, v.version);
     }

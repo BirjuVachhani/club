@@ -4,6 +4,7 @@ import '../models/api_token.dart';
 import '../models/audit_log.dart';
 import '../models/dartdoc_status.dart';
 import '../models/package.dart';
+import '../models/package_group.dart';
 import '../models/package_score.dart';
 import '../models/package_version.dart';
 import '../models/publisher.dart';
@@ -94,6 +95,54 @@ abstract interface class MetadataStore {
     int limit = 50,
     String? pageToken,
     bool includeUnlisted = true,
+  });
+
+  // ── Package Groups ─────────────────────────────────────────
+
+  Future<PackageGroup?> lookupPackageGroup(String id);
+  Future<PackageGroup?> lookupPackageGroupBySlug(String slug);
+  Future<PackageGroup> createPackageGroup(PackageGroupCompanion companion);
+  Future<PackageGroup> updatePackageGroup(
+    String id, {
+    required String name,
+    String? description,
+  });
+  Future<void> deletePackageGroup(String id);
+  Future<Page<PackageGroup>> listPackageGroups({
+    required VisibilityScope scope,
+    int limit = 50,
+    String? pageToken,
+    String? query,
+    bool includeEmpty = false,
+  });
+  Future<List<PackageGroup>> listPackageGroupsForUser(String userId);
+  Future<List<PackageGroup>> listPackageGroupsForPackage(String packageName);
+  Future<Page<Package>> listPackagesForGroup(
+    String groupId, {
+    required VisibilityScope scope,
+    int limit = 50,
+    String? pageToken,
+    bool includeUnlisted = false,
+  });
+  Future<List<PackageGroupPackage>> listPackageGroupMemberships(String groupId);
+  Future<void> addPackageToGroup(
+    String groupId,
+    String packageName, {
+    required String addedBy,
+  });
+  Future<void> removePackageFromGroup(String groupId, String packageName);
+  Future<void> normalizePackageGroupPositions(String groupId);
+  Future<void> movePackageBetweenGroups(
+    String packageName, {
+    required String fromGroupId,
+    required String toGroupId,
+    required String addedBy,
+  });
+  Future<void> reorderPackageGroup(String groupId, List<String> packageNames);
+  Future<void> replacePackageGroupPackages(
+    String groupId,
+    List<String> packageNames, {
+    required String addedBy,
   });
 
   // ── Package Versions ───────────────────────────────────────

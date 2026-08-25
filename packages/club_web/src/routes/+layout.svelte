@@ -372,7 +372,7 @@
               {/if}
             </div>
           {:else}
-            <a href="/login" class="inline-flex h-9 items-center rounded-md {isHome ? 'bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm hover:brightness-110' : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'} px-3 sm:px-4 text-sm font-medium transition-all">Sign In</a>
+            <a href="/login" class:home-sign-in={isHome} class="inline-flex h-9 items-center rounded-md {isHome ? 'bg-[var(--primary)] shadow-sm hover:brightness-110' : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'} px-3 sm:px-4 text-sm font-medium transition-all">Sign In</a>
           {/if}
         </div>
       </div>
@@ -421,6 +421,11 @@
 {/if}
 
 <style>
+  .home-sign-in,
+  .home-sign-in:hover {
+    color: var(--primary-foreground);
+  }
+
   .version-pill {
     font-family: var(--pub-code-font-family);
     font-size: 11px;

@@ -31,6 +31,9 @@ class NotFoundException extends ClubException {
   factory NotFoundException.publisher(String id) =>
       NotFoundException('Publisher \'$id\' was not found.');
 
+  factory NotFoundException.packageGroup(String id) =>
+      NotFoundException('Package group \'$id\' was not found.');
+
   factory NotFoundException.token(String id) =>
       NotFoundException('Token \'$id\' was not found.');
 }

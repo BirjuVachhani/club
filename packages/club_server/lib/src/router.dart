@@ -17,6 +17,7 @@ import 'api/legal_api.dart';
 import 'api/oauth_api.dart';
 import 'api/likes_api.dart';
 import 'api/package_admin_api.dart';
+import 'api/package_group_api.dart';
 import 'api/visibility_api.dart';
 import 'api/pub_api.dart';
 import 'api/robots_api.dart';
@@ -46,6 +47,7 @@ import 'middleware/setup_guard.dart';
 Handler buildHandler({
   required AuthService authService,
   required PackageService packageService,
+  required PackageGroupService packageGroupService,
   required PublishService publishService,
   required PublisherService publisherService,
   required LikesService likesService,
@@ -101,11 +103,17 @@ Handler buildHandler({
     authService: authService,
     metadataStore: metadataStore,
   );
+  final packageGroupApi = PackageGroupApi(
+    service: packageGroupService,
+    metadataStore: metadataStore,
+    packageService: packageService,
+  );
   final packageAdminApi = PackageAdminApi(
     packageService: packageService,
     metadataStore: metadataStore,
     blobStore: blobStore,
     visibilityService: visibilityService,
+    packageGroupService: packageGroupService,
   );
   final visibilityApi = VisibilityApi(
     visibilityService: visibilityService,
@@ -177,6 +185,7 @@ Handler buildHandler({
       // matched by the visibility router rather than falling through.
       .add(visibilityApi.router.call)
       .add(packageAdminApi.router.call)
+      .add(packageGroupApi.router.call)
       .add(searchApi.router.call)
       .add(likesApi.router.call)
       .add(accountApi.router.call)

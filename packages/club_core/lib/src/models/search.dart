@@ -1,4 +1,6 @@
-/// A document to be indexed in the search index.
+import 'package_group.dart';
+
+/// A package document to be indexed.
 class IndexDocument {
   const IndexDocument({
     required this.package,
@@ -23,32 +25,39 @@ class IndexDocument {
   final DateTime updatedAt;
 }
 
-/// Sort order for search results.
-///
-/// Every order except [relevance] is newest/highest first: these back
-/// "Recently Updated", "Most Likes", and "Recently Added" surfaces, where the
-/// point is to show what just happened. In particular [created] means *most
-/// recently created first*, not oldest first.
-enum SearchOrder {
-  /// FTS rank. Falls back to [updated] when there is no query to rank against.
-  relevance,
+/// Searchable fields for a visual package group.
+class PackageGroupIndexDocument {
+  const PackageGroupIndexDocument({
+    required this.id,
+    required this.slug,
+    required this.name,
+    this.description,
+  });
 
-  /// Most recently published to, descending.
-  updated,
+  factory PackageGroupIndexDocument.fromGroup(PackageGroup group) =>
+      PackageGroupIndexDocument(
+        id: group.id,
+        slug: group.slug,
+        name: group.name,
+        description: group.description,
+      );
 
-  /// Most liked, descending.
-  likes,
-
-  /// Most recently added to the repository, descending.
-  created,
+  final String id;
+  final String slug;
+  final String name;
+  final String? description;
 }
 
-/// Input to a search query.
+enum SearchOrder { relevance, updated, likes, created }
+
+enum SearchEntityType { package, packageGroup }
+
 class SearchQuery {
   const SearchQuery({
     this.query,
     this.tags = const [],
     this.order = SearchOrder.relevance,
+    this.entityType,
     this.offset = 0,
     this.limit = 20,
   });
@@ -56,25 +65,40 @@ class SearchQuery {
   final String? query;
   final List<String> tags;
   final SearchOrder order;
+  final SearchEntityType? entityType;
   final int offset;
   final int limit;
 }
 
-/// A single hit in search results.
+/// A package or group returned by catalog search.
 class SearchHit {
-  const SearchHit({required this.package, this.score = 0.0});
+  const SearchHit.package({required String package, this.score = 0.0})
+    : type = SearchEntityType.package,
+      identifier = package;
 
-  final String package;
+  const SearchHit.packageGroup({required String groupId, this.score = 0.0})
+    : type = SearchEntityType.packageGroup,
+      identifier = groupId;
+
+  final SearchEntityType type;
+  final String identifier;
   final double score;
+
+  /// Backwards-compatible package name accessor for package hits.
+  String get package => identifier;
+  String get groupId => identifier;
 }
 
-/// Full search result page.
 class SearchResult {
   const SearchResult({
     required this.hits,
     this.totalHits = -1,
+    this.packageHits = -1,
+    this.groupHits = -1,
   });
 
   final List<SearchHit> hits;
   final int totalHits;
+  final int packageHits;
+  final int groupHits;
 }

@@ -41,7 +41,7 @@ const SIGNED_OUT_ONLY_PREFIXES = ['/login', '/signup'];
  * matter which route the browser is on. Getting this list wrong shows
  * an empty page, not someone else's source.
  */
-const PUBLIC_BROWSING_PREFIXES = ['/packages', '/publishers'];
+const PUBLIC_BROWSING_PREFIXES = ['/packages', '/publishers', '/groups'];
 
 export const load: LayoutLoad = async ({ url, fetch }) => {
   if (!browser) return { signupEnabled: false, publicBrowsing: false };

@@ -109,6 +109,7 @@ void main() {
       '/api/discover',
       '/api/packages',
       '/api/package-name-completion-data',
+      '/api/groups',
     ];
 
     for (final path in collections) {
@@ -233,18 +234,20 @@ void main() {
       }
     });
 
-    test('PackageNameValidator rejects every name containing a percent sign',
-        () {
-      // The load-bearing rule. If this ever passes, the gate must decode
-      // before comparing.
-      for (final name in ['pro%76ider', 'a%2Fb', 'pkg%25']) {
-        expect(
-          PackageNameValidator.isValid(name),
-          isFalse,
-          reason: '$name must be rejected as a package name',
-        );
-      }
-    });
+    test(
+      'PackageNameValidator rejects every name containing a percent sign',
+      () {
+        // The load-bearing rule. If this ever passes, the gate must decode
+        // before comparing.
+        for (final name in ['pro%76ider', 'a%2Fb', 'pkg%25']) {
+          expect(
+            PackageNameValidator.isValid(name),
+            isFalse,
+            reason: '$name must be rejected as a package name',
+          );
+        }
+      },
+    );
 
     test('an encoded separator is rejected outright', () {
       // Originally this asserted the gate returned the raw segment

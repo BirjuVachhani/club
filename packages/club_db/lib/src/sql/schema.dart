@@ -158,6 +158,35 @@ const List<String> schema = [
   )
   ''',
 
+  // ── Package Groups ──────────────────────────────────────────
+  // Visual-only collections. Ownership controls group management and has no
+  // effect on the packages linked through package_group_packages.
+  '''
+  CREATE TABLE IF NOT EXISTS package_groups (
+    id            TEXT PRIMARY KEY NOT NULL,
+    slug          TEXT NOT NULL UNIQUE,
+    name          TEXT NOT NULL,
+    description   TEXT,
+    owner_user_id TEXT REFERENCES users(user_id) ON DELETE RESTRICT,
+    publisher_id  TEXT REFERENCES publishers(id) ON DELETE RESTRICT,
+    created_by    TEXT NOT NULL REFERENCES users(user_id),
+    created_at    INTEGER NOT NULL,
+    updated_at    INTEGER NOT NULL,
+    CHECK ((owner_user_id IS NULL) != (publisher_id IS NULL))
+  )
+  ''',
+  '''
+  CREATE TABLE IF NOT EXISTS package_group_packages (
+    group_id     TEXT NOT NULL REFERENCES package_groups(id) ON DELETE CASCADE,
+    package_name TEXT NOT NULL REFERENCES packages(name) ON DELETE CASCADE,
+    position     INTEGER NOT NULL,
+    added_by     TEXT REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at   INTEGER NOT NULL,
+    PRIMARY KEY (group_id, package_name),
+    UNIQUE (group_id, position)
+  )
+  ''',
+
   // ── Package Versions ────────────────────────────────────────
   // `tags` is a JSON array of derived SDK/platform strings, e.g.
   //   '["sdk:dart","sdk:flutter","platform:android"]'
@@ -312,6 +341,15 @@ const List<String> schema = [
   )
   ''',
 
+  '''
+  CREATE VIRTUAL TABLE IF NOT EXISTS package_group_fts USING fts5(
+    group_id UNINDEXED,
+    slug UNINDEXED,
+    name,
+    description
+  )
+  ''',
+
   // ── Package Scores ──────────────────────────────────────────
   // Persisted pana analysis results. One row per (package, version).
   // `report_json` holds the full pana Summary JSON for rendering the
@@ -391,6 +429,10 @@ const List<String> schema = [
   'CREATE INDEX IF NOT EXISTS idx_api_tokens_token_hash ON api_tokens(token_hash)',
   'CREATE INDEX IF NOT EXISTS idx_user_invites_user_id ON user_invites(user_id)',
   'CREATE INDEX IF NOT EXISTS idx_user_invites_token_hash ON user_invites(token_hash)',
+  'CREATE INDEX IF NOT EXISTS idx_package_groups_owner ON package_groups(owner_user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_package_groups_publisher ON package_groups(publisher_id)',
+  'CREATE INDEX IF NOT EXISTS idx_pgp_group_position ON package_group_packages(group_id, position)',
+  'CREATE INDEX IF NOT EXISTS idx_pgp_package ON package_group_packages(package_name)',
   'CREATE INDEX IF NOT EXISTS idx_packages_publisher_id ON packages(publisher_id)',
   'CREATE INDEX IF NOT EXISTS idx_packages_updated_at ON packages(updated_at DESC)',
   // Anonymous browse is `WHERE visibility='public' AND is_unlisted=0 AND

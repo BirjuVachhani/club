@@ -3,8 +3,9 @@
   import { page } from '$app/state';
   import Button from '$lib/components/ui/Button.svelte';
   import PackageCard from '$lib/components/PackageCard.svelte';
+  import GroupCard from '$lib/components/GroupCard.svelte';
   import Skeleton from '$lib/components/Skeleton.svelte';
-  import type { PackageListItem } from './+page';
+  import type { CatalogListItem, PackageListItem } from './+page';
 
   let { data } = $props();
 
@@ -21,6 +22,7 @@
   }
 
   let sortBy = $state('relevance');
+  let resultType = $state('all');
   let filterPlatforms = $state<Record<string, boolean>>({
     android: false, ios: false, linux: false, macos: false, web: false, windows: false,
   });
@@ -31,6 +33,7 @@
 
   $effect(() => {
     sortBy = data.sort ?? 'relevance';
+    resultType = data.type ?? 'all';
   });
 
   // Re-hydrate filter state from URL (initial mount + back/forward nav).
@@ -41,12 +44,14 @@
     filterWasm = page.url.searchParams.get('wasm') === '1';
   });
 
-  function buildUrl(overrides: { page?: number; sort?: string } = {}): string {
+  function buildUrl(overrides: { page?: number; sort?: string; type?: string } = {}): string {
     const params = new URLSearchParams();
     const q = data.query ?? '';
     if (q) params.set('q', q);
     params.set('sort', overrides.sort ?? sortBy);
     params.set('page', String(overrides.page ?? data.page ?? 1));
+    const type = overrides.type ?? resultType;
+    if (type !== 'all') params.set('type', type);
     const plats = PLATFORMS.filter((p) => filterPlatforms[p]);
     if (plats.length > 0) params.set('platforms', plats.join(','));
     const sdks = SDKS.filter((s) => filterSdks[s]);
@@ -54,6 +59,10 @@
     if (filterBuildHooks) params.set('hooks', '1');
     if (filterWasm) params.set('wasm', '1');
     return `/packages?${params.toString()}`;
+  }
+
+  function handleTypeChange() {
+    goto(buildUrl({ type: resultType, page: 1 }));
   }
 
   function handleSortChange() {
@@ -98,19 +107,20 @@
   // Client-side filtering applied to the streamed result list. Called from
   // inside the `{#await}` `:then` branch via `{@const}`, so it stays
   // reactive to both the resolved data and the filter checkboxes.
-  function applyFilters(list: PackageListItem[]): PackageListItem[] {
+  function applyFilters(list: CatalogListItem[]): CatalogListItem[] {
     if (!hasActiveFilters) return list;
     const selectedPlatforms = PLATFORMS.filter((p) => filterPlatforms[p]);
     const selectedSdks = SDKS.filter((s) => filterSdks[s]);
-    return list.filter(
-      (pkg) =>
-        pkgMatchesPlatforms(pkg, selectedPlatforms) &&
+    return list.filter((item) => {
+      if (item.type === 'group') return false;
+      const pkg = item.package;
+      return pkgMatchesPlatforms(pkg, selectedPlatforms) &&
         pkgMatchesSdks(pkg, selectedSdks) &&
         (!filterBuildHooks ||
           (Array.isArray(pkg.tags) && pkg.tags.includes('has:build-hooks'))) &&
         (!filterWasm ||
-          (Array.isArray(pkg.tags) && pkg.tags.includes('is:wasm-ready'))),
-    );
+          (Array.isArray(pkg.tags) && pkg.tags.includes('is:wasm-ready')));
+    });
   }
 
   function onFilterChange() {
@@ -208,16 +218,24 @@
         {#await data.streamed.results}
           <Skeleton width="2.5rem" height="0.85rem" radius="4px" />
         {:then results}
-          {@const filtered = applyFilters(results.packages)}
+          {@const filtered = applyFilters(results.items)}
           {#if hasActiveFilters}
             <span>{filtered.length}</span>
             <span class="results-subtle">of {results.totalCount ?? 0} on this page</span>
           {:else}
             <span>{results.totalCount ?? 0}</span>
-            packages
+            results ({results.packageCount} packages, {results.groupCount} groups)
           {/if}
         {/await}
       </span>
+      <div class="sort-control">
+        <span>SHOW</span>
+        <select bind:value={resultType} onchange={handleTypeChange} aria-label="Result type">
+          <option value="all">ALL</option>
+          <option value="packages">PACKAGES</option>
+          <option value="groups">GROUPS</option>
+        </select>
+      </div>
       <div class="sort-control">
         <span>SORT BY</span>
         <select
@@ -227,7 +245,7 @@
         >
           <option value="relevance">DEFAULT RANKING</option>
           <option value="updated">RECENTLY UPDATED</option>
-          <option value="likes">MOST LIKES</option>
+          {#if resultType !== "groups"}<option value="likes">MOST LIKES</option>{/if}
         </select>
       </div>
     </div>
@@ -247,10 +265,14 @@
           </div>
         {/each}
       {:then results}
-        {@const filtered = applyFilters(results.packages)}
+        {@const filtered = applyFilters(results.items)}
         {#if filtered.length > 0}
           {#each filtered as pkg}
-            <PackageCard {pkg} />
+            {#if pkg.type === "group"}
+                  <GroupCard group={pkg.group} />
+                {:else}
+                  <PackageCard pkg={pkg.package} />
+                {/if}
           {/each}
         {:else}
           <div class="empty-state">

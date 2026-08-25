@@ -37,6 +37,10 @@ abstract final class Permissions {
   /// Publish new versions and edit package/version metadata.
   static bool canPublish(UserRole role) => role.isAtLeast(UserRole.member);
 
+  /// Create a user-owned visual package group.
+  static bool canCreatePackageGroup(UserRole role) =>
+      role.isAtLeast(UserRole.member);
+
   /// Retract or unretract a package version.
   static bool canRetract(UserRole role) => role.isAtLeast(UserRole.member);
 
