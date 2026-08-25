@@ -80,7 +80,9 @@
 
   <div class="toolbar">
     <div class="search">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
       <Input
+        class="search-input"
         value={search.raw}
         oninput={(e) => search.set((e.currentTarget as HTMLInputElement).value)}
         placeholder="Filter by name..."
@@ -178,10 +180,13 @@
   }
 
   .search {
+    position: relative;
     flex: 1 1 14rem;
     min-width: 0;
     max-width: 22rem;
   }
+  .search-icon { position: absolute; top: 50%; left: 12px; z-index: 1; color: var(--muted-foreground); pointer-events: none; transform: translateY(-50%); }
+  .search :global(.search-input) { padding-left: 2.25rem; }
 
   .count {
     color: var(--muted-foreground);

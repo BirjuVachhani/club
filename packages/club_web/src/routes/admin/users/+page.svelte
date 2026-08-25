@@ -243,13 +243,17 @@
   {/if}
 
   <div class="filter-row">
-    <input
+    <label class="email-filter-wrap">
+      <span class="sr-only">Filter users by email</span>
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+      <input
       type="search"
       placeholder="Filter by email..."
       bind:value={emailFilter}
       oninput={onEmailInput}
       class="email-filter"
-    />
+      />
+    </label>
     <span class="count-label">
       Showing {users.length} of {totalCount}
     </span>
@@ -435,10 +439,11 @@
     gap: 0.75rem 1rem;
     margin-bottom: 1rem;
   }
+  .email-filter-wrap { position: relative; flex: 1 1 14rem; max-width: 20rem; }
+  .email-filter-wrap .search-icon { position: absolute; top: 50%; left: 11px; z-index: 1; color: var(--muted-foreground); pointer-events: none; transform: translateY(-50%); }
   .email-filter {
-    flex: 1 1 14rem;
-    max-width: 20rem;
-    padding: 0.5rem 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem 0.5rem 2.25rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--background);
@@ -701,4 +706,5 @@
   button.primary:hover { opacity: 0.9; }
   button.mini { padding: 0.25rem 0.625rem; font-size: 0.75rem; margin-left: 0.25rem; }
   button.danger { color: var(--destructive); border-color: var(--destructive); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>

@@ -158,7 +158,9 @@
 <p class="sub">Every package on this server. Expand a row to manage individual versions.</p>
 
 <div class="search">
+  <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
   <Input
+    class="search-input"
     value={search.raw}
     oninput={(e) => search.set((e.currentTarget as HTMLInputElement).value)}
     placeholder="Filter by name..."
@@ -287,10 +289,13 @@
     font-size: 0.875rem;
   }
   .search {
+    position: relative;
     margin-bottom: 1rem;
     width: 100%;
     max-width: 20rem;
   }
+  .search-icon { position: absolute; top: 50%; left: 12px; z-index: 1; color: var(--muted-foreground); pointer-events: none; transform: translateY(-50%); }
+  .search :global(.search-input) { padding-left: 2.25rem; }
   .table-scroll {
     width: 100%;
     overflow-x: auto;

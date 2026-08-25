@@ -358,12 +358,17 @@
       {#if packageEditError}<p class="form-error">{packageEditError}</p>{/if}
       <label class="search-field">
         <span class="field-label">Search packages</span>
-        <input
-          class="field-control"
-          type="search"
-          bind:value={packageSearch}
-          placeholder="Search by package name"
-        />
+        <span class="search-control">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            class="field-control"
+            type="search"
+            bind:value={packageSearch}
+            placeholder="Search by package name"
+          />
+        </span>
       </label>
 
       <div class="picker-summary">
@@ -545,6 +550,17 @@
   }
   .edit-form { display: flex; flex-direction: column; gap: 22px; }
   .field, .search-field { display: flex; flex-direction: column; gap: 7px; }
+  .search-control { position: relative; display: block; }
+  .search-control .field-control { padding-left: 38px; }
+  .search-control .search-icon {
+    position: absolute;
+    top: 50%;
+    left: 13px;
+    z-index: 1;
+    color: var(--muted-foreground);
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
   .field-label { color: var(--foreground); font-size: 14px; font-weight: 650; line-height: 1.3; }
   .field-hint { color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
   .field-control {

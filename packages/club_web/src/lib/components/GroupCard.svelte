@@ -49,6 +49,9 @@
       <div class="title-line">
         <a class="group-title" href={`/groups/${group.slug}`}>{group.name}</a>
         <span class="group-badge">GROUP</span>
+        <span class="title-package-count">
+          {group.packageCount} {group.packageCount === 1 ? "package" : "packages"}
+        </span>
       </div>
       {#if group.description}
         <p class="description">{group.description}</p>
@@ -81,13 +84,6 @@
       {/if}
     </div>
 
-    <a class="row-aside" href={`/groups/${group.slug}`} aria-label={`See all ${group.packageCount} packages in ${group.name}`}>
-      <span class="package-count">{group.packageCount}</span>
-      <span class="package-count-label">{group.packageCount === 1 ? "package" : "packages"}</span>
-      <svg class="row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m9 18 6-6-6-6" />
-      </svg>
-    </a>
   </article>
 {/if}
 
@@ -97,7 +93,7 @@
      banner or section heading. */
   .group-row {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-columns: 52px minmax(0, 1fr);
     align-items: center;
     gap: 18px;
     min-width: 0;
@@ -195,6 +191,13 @@
     line-height: 1;
     letter-spacing: 0.08em;
   }
+  .title-package-count {
+    color: var(--pub-muted-text-color);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
   .description {
     display: -webkit-box;
     overflow: hidden;
@@ -281,36 +284,6 @@
   }
   .see-more:hover { text-decoration: underline; }
 
-  .row-aside {
-    display: grid;
-    grid-template-columns: auto 16px;
-    grid-template-rows: auto auto;
-    align-items: center;
-    min-width: 88px;
-    padding-left: 18px;
-    border-left: 1px solid var(--pub-divider-color);
-    color: var(--pub-muted-text-color);
-    text-align: right;
-    text-decoration: none;
-  }
-  .package-count {
-    color: var(--pub-default-text-color);
-    font-size: 18px;
-    font-weight: 650;
-    line-height: 1.1;
-  }
-  .package-count-label {
-    grid-row: 2;
-    font-size: 11px;
-  }
-  .row-chevron {
-    grid-row: 1 / 3;
-    grid-column: 2;
-    margin-left: 12px;
-    transition: transform 0.16s ease;
-  }
-  .group-row:hover .row-chevron { transform: translateX(3px); }
-
   /* Home treatment stays card-like because it lives in a grid, not a list. */
   .compact-card {
     position: relative;
@@ -381,15 +354,6 @@
     .sheet-back { left: 6px; }
     .sheet-middle { top: 3px; left: 3px; }
     .sheet-front { top: 6px; }
-    .row-aside {
-      grid-column: 2;
-      display: flex;
-      min-width: 0;
-      padding: 0;
-      border-left: 0;
-      gap: 4px;
-      text-align: left;
-    }
     .preview-package {
       grid-template-columns: minmax(0, 1fr) 14px;
       gap: 8px;
@@ -402,9 +366,6 @@
       grid-column: 2;
       grid-row: 1 / 3;
     }
-    .package-count { font-size: 12px; }
-    .package-count-label { font-size: 11px; }
-    .row-chevron { margin-left: auto; }
     .compact-stack { inset-inline: 8px; }
     .compact-back { inset-inline: 16px; }
   }
