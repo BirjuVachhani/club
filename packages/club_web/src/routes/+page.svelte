@@ -239,6 +239,7 @@
     position: relative;
     overflow: hidden;
     background: var(--background);
+    transition: background-color 520ms cubic-bezier(0.22, 1, 0.36, 1);
     margin-top: -56px;
     padding: 140px 16px 72px;
     text-align: center;
@@ -284,14 +285,18 @@
     object-fit: cover;
     object-position: center center;
   }
+  .hero-background-light { opacity: 1; }
+  .hero-background-dark { opacity: 0; }
+  .hero-background-light,
   .hero-background-dark {
-    display: none;
+    transition: opacity 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity;
   }
   :global(:root.dark-theme) .hero > .hero-background-light {
-    display: none;
+    opacity: 0;
   }
   :global(:root.dark-theme) .hero > .hero-background-dark {
-    display: block;
+    opacity: 1;
   }
   .hero-bottom-fade {
     position: absolute;
@@ -315,6 +320,14 @@
       var(--background) 100%
     );
     pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero,
+    .hero-background-light,
+    .hero-background-dark {
+      transition: none;
+    }
   }
 
   .hero-content {

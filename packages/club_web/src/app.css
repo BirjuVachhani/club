@@ -279,6 +279,7 @@ html {
 body {
   margin: 0;
   background: var(--background);
+  transition: background-color 520ms cubic-bezier(0.22, 1, 0.36, 1);
   color: var(--foreground);
   font-family: var(--pub-font-family);
   line-height: 1.5;
@@ -287,6 +288,12 @@ body {
   font-kerning: normal;
   font-feature-settings: "kern", "calt";
   text-rendering: optimizeLegibility;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
 }
 
 h1,
