@@ -6,8 +6,8 @@
 /// archive root and the archive name.
 ///
 /// This is the one place `club upgrade` duplicates knowledge that also
-/// lives in the installer scripts, so `release_target_test.dart` pins all
-/// five names. If CI's naming ever changes, that test fails rather than
+/// lives in the installer scripts, so `release_target_test.dart` pins every
+/// published name. If CI's naming ever changes, that test fails rather than
 /// users getting a 404.
 library;
 
@@ -20,6 +20,7 @@ const releaseTargets = <String>{
   'macos-x64',
   'macos-arm64',
   'windows-x64',
+  'windows-arm64',
 };
 
 /// The release asset name for [version] on [target].
@@ -66,7 +67,9 @@ String? resolveTarget({
 
 /// Pulls `arm64` out of a `Platform.version` ending in `on "macos_arm64"`.
 String? _archFromDartVersion(String dartVersion) {
-  final match = RegExp(r'on "([a-z0-9]+)_([a-z0-9_]+)"').firstMatch(dartVersion);
+  final match = RegExp(
+    r'on "([a-z0-9]+)_([a-z0-9_]+)"',
+  ).firstMatch(dartVersion);
   return match?.group(2);
 }
 
@@ -75,10 +78,10 @@ String? _archFromDartVersion(String dartVersion) {
 /// Matches the normalisation in club_server's `sdk_manager.dart` so the
 /// two never disagree about what machine they are on.
 String? _normaliseArch(String? raw) => switch (raw) {
-      'arm64' || 'aarch64' => 'arm64',
-      'x64' || 'x86_64' || 'amd64' => 'x64',
-      _ => null,
-    };
+  'arm64' || 'aarch64' => 'arm64',
+  'x64' || 'x86_64' || 'amd64' => 'x64',
+  _ => null,
+};
 
 /// Resolves the release target for this process.
 String? detectTarget() {

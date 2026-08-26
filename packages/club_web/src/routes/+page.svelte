@@ -163,13 +163,13 @@
         />
       </form>
       <p class="hero-sub">Your private Dart & Flutter package repository</p>
-      {#await data.streamed.home then home}
-        {#if home.totalPackages > 0}
-          <p class="hero-stat">
-            {home.totalPackages}
-            {home.totalPackages === 1 ? "package" : "packages"} hosted
-          </p>
-        {/if}
+      {#await data.streamed.home}
+        <p class="hero-stat is-loading" aria-hidden="true">0 packages hosted</p>
+      {:then home}
+        <p class="hero-stat" class:is-loading={home.totalPackages <= 0}>
+          {home.totalPackages}
+          {home.totalPackages === 1 ? "package" : "packages"} hosted
+        </p>
       {/await}
       <a href="/packages" class="hero-view-all">View all packages &rarr;</a>
     </div>
@@ -259,8 +259,8 @@
     --hero-strong: #263442;
     --hero-text: #34495a;
     --hero-muted: #536b7c;
-    --hero-search-surface: rgb(255 247 243 / 82%);
-    --hero-search-focus: rgb(255 250 247 / 94%);
+    --hero-search-surface: rgb(255 247 243 / 72%);
+    --hero-search-focus: rgb(255 250 247 / 86%);
     position: relative;
     overflow: hidden;
     background: var(--background);
@@ -433,11 +433,18 @@
   }
 
   .hero-stat {
+    min-height: 19.5px;
     margin: 0;
     color: var(--hero-muted);
     opacity: 0.9;
     font-weight: 520;
     font-size: 13px;
+    line-height: 1.5;
+    transition: opacity 0.18s ease;
+  }
+  .hero-stat.is-loading {
+    visibility: hidden;
+    opacity: 0;
   }
 
   .hero-view-all {

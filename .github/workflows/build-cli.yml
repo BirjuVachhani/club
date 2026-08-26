@@ -22,6 +22,7 @@
 #   macos-x64     macos-15-intel                (last Intel Mac runner)
 #   macos-arm64   macos-latest            (Apple silicon)
 #   windows-x64   windows-latest
+#   windows-arm64 windows-11-arm
 #
 # `dart build cli` compiles for the host architecture only — it does not
 # cross-compile yet — so every target gets its own runner.
@@ -137,6 +138,12 @@ jobs:
             os: windows-latest
             archive: zip
             exec: club.exe
+            pe_machine: '8664'
+          - target: windows-arm64
+            os: windows-11-arm
+            archive: zip
+            exec: club.exe
+            pe_machine: 'AA64'
 
     runs-on: ${{ matrix.os }}
 
@@ -170,6 +177,35 @@ jobs:
 
       - name: Build CLI
         run: dart build cli --target packages/club_cli/bin/club.dart --output build/cli
+
+      # Windows ARM64 can emulate x64 executables, so merely running the
+      # smoke test does not prove that the published binary is native.
+      - name: Verify Windows executable architecture
+        if: startsWith(matrix.target, 'windows-')
+        shell: pwsh
+        env:
+          EXEC: ${{ matrix.exec }}
+          EXPECTED_MACHINE: ${{ matrix.pe_machine }}
+        run: |
+          $binary = "build/cli/bundle/bin/$env:EXEC"
+          $bytes = [System.IO.File]::ReadAllBytes($binary)
+          if ($bytes.Length -lt 64) {
+            throw "Executable is too small to contain a PE header: $binary"
+          }
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ($peOffset -lt 0 -or $peOffset + 6 -gt $bytes.Length) {
+            throw "Executable has an invalid PE header offset: $binary"
+          }
+          $signature = [BitConverter]::ToUInt32($bytes, $peOffset)
+          if ($signature -ne 0x00004550) {
+            throw "Executable is missing the PE signature: $binary"
+          }
+          $actual = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          $expected = [Convert]::ToUInt16($env:EXPECTED_MACHINE, 16)
+          if ($actual -ne $expected) {
+            throw ('Wrong PE machine type: expected 0x{0:X4}, got 0x{1:X4}' -f $expected, $actual)
+          }
+          Write-Host ('Verified PE machine type: 0x{0:X4}' -f $actual)
 
       # Make sure the binary actually runs on its host and reports the
       # version we burned in. Catches "binary builds but won't link"

@@ -7,25 +7,25 @@ void main() {
     List<String> assets = const [],
     bool prerelease = false,
     bool draft = false,
-  }) =>
-      {
-        'tag_name': tag,
-        'prerelease': prerelease,
-        'draft': draft,
-        'html_url': 'https://github.com/BirjuVachhani/club/releases/tag/$tag',
-        'assets': [
-          for (final a in assets) {'name': a, 'size': 1},
-        ],
-      };
+  }) => {
+    'tag_name': tag,
+    'prerelease': prerelease,
+    'draft': draft,
+    'html_url': 'https://github.com/BirjuVachhani/club/releases/tag/$tag',
+    'assets': [
+      for (final a in assets) {'name': a, 'size': 1},
+    ],
+  };
 
   List<String> fullAssets(String version) => [
-        'club-cli-$version-linux-x64.tar.gz',
-        'club-cli-$version-linux-arm64.tar.gz',
-        'club-cli-$version-macos-x64.tar.gz',
-        'club-cli-$version-macos-arm64.tar.gz',
-        'club-cli-$version-windows-x64.zip',
-        'SHA256SUMS.txt',
-      ];
+    'club-cli-$version-linux-x64.tar.gz',
+    'club-cli-$version-linux-arm64.tar.gz',
+    'club-cli-$version-macos-x64.tar.gz',
+    'club-cli-$version-macos-arm64.tar.gz',
+    'club-cli-$version-windows-x64.zip',
+    'club-cli-$version-windows-arm64.zip',
+    'SHA256SUMS.txt',
+  ];
 
   group('parseRelease', () {
     test('reads the tag, version, and assets', () {
@@ -78,8 +78,7 @@ void main() {
             'junk',
             {'name': 'ok.tar.gz'},
           ],
-        })!
-            .assetNames,
+        })!.assetNames,
         {'ok.tar.gz'},
       );
     });
@@ -128,17 +127,30 @@ void main() {
       expect(r.hasAssetsFor('linux-arm64'), isFalse);
     });
 
-    test('windows needs the .zip, not the .tar.gz', () {
+    test('windows targets need .zip, not .tar.gz', () {
+      for (final target in ['windows-x64', 'windows-arm64']) {
+        final tarRelease = release([
+          'club-cli-0.4.2-$target.tar.gz',
+          'SHA256SUMS.txt',
+        ]);
+        expect(tarRelease.hasAssetsFor(target), isFalse, reason: target);
+        expect(
+          release([
+            'club-cli-0.4.2-$target.zip',
+            'SHA256SUMS.txt',
+          ]).hasAssetsFor(target),
+          isTrue,
+          reason: target,
+        );
+      }
+    });
+
+    test('windows x64 archive does not satisfy windows arm64', () {
       final r = release([
-        'club-cli-0.4.2-windows-x64.tar.gz',
+        'club-cli-0.4.2-windows-x64.zip',
         'SHA256SUMS.txt',
       ]);
-      expect(r.hasAssetsFor('windows-x64'), isFalse);
-      expect(
-        release(['club-cli-0.4.2-windows-x64.zip', 'SHA256SUMS.txt'])
-            .hasAssetsFor('windows-x64'),
-        isTrue,
-      );
+      expect(r.hasAssetsFor('windows-arm64'), isFalse);
     });
 
     test('the version in the asset name has to match the tag', () {
@@ -161,8 +173,9 @@ void main() {
     });
 
     test('reports no release when unset', () async {
-      final result =
-          await FakeReleaseResolver().resolveLatest(includePreReleases: false);
+      final result = await FakeReleaseResolver().resolveLatest(
+        includePreReleases: false,
+      );
       expect(result.ok, isFalse);
       expect(result.failure, ResolveFailure.noRelease);
     });
@@ -183,4 +196,5 @@ const releaseTargetsForTest = [
   'macos-x64',
   'macos-arm64',
   'windows-x64',
+  'windows-arm64',
 ];

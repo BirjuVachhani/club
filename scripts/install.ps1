@@ -62,9 +62,39 @@ if (-not $InstallDir)  { $InstallDir  = if ($env:CLUB_INSTALL_DIR) { $env:CLUB_I
 if (-not $Repo)        { $Repo        = if ($env:CLUB_REPO) { $env:CLUB_REPO } else { 'BirjuVachhani/club' } }
 if (-not $Pre)         { $Pre         = [bool]$env:CLUB_PRE }
 
-# Only x64 Windows builds exist today; arm64 Windows would need a new
-# matrix entry in build-cli.yml first.
-$target = 'windows-x64'
+function ConvertTo-ClubArchitecture {
+    param([string]$Value)
+
+    if (-not $Value) { return $null }
+    switch ($Value.ToUpperInvariant()) {
+        { $_ -in @('ARM64', 'AARCH64') } { return 'arm64' }
+        { $_ -in @('X64', 'AMD64', 'X86_64') } { return 'x64' }
+        default { return $null }
+    }
+}
+
+# PROCESSOR_ARCHITEW6432 names the native OS architecture when this script
+# runs in an emulated or 32-bit PowerShell process. Prefer that signal so an
+# x64 PowerShell process on Windows ARM64 still installs the native binary.
+$nativeSignal = $env:PROCESSOR_ARCHITEW6432
+$runtimeSignal = $null
+try {
+    $runtimeSignal = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+} catch {
+    # RuntimeInformation is not available on every PowerShell 5.1 host.
+}
+
+$architecture = ConvertTo-ClubArchitecture $nativeSignal
+if (-not $architecture) {
+    $architecture = ConvertTo-ClubArchitecture $runtimeSignal
+}
+if (-not $architecture) {
+    $architecture = ConvertTo-ClubArchitecture $env:PROCESSOR_ARCHITECTURE
+}
+if (-not $architecture) {
+    throw "Unsupported Windows architecture (OSArchitecture='$runtimeSignal', PROCESSOR_ARCHITEW6432='$nativeSignal', PROCESSOR_ARCHITECTURE='$env:PROCESSOR_ARCHITECTURE')."
+}
+$target = "windows-$architecture"
 
 # Resolve the tag. By default /releases/latest, which GitHub filters to
 # stable releases; -Pre switches to /releases?per_page=1, which returns the

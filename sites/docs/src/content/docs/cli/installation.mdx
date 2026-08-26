@@ -102,9 +102,10 @@ prints the exact line to add to your shell's rc file. For the default
 iwr -useb https://club.birju.dev/install.ps1 | iex
 ```
 
-The script detects the architecture, downloads the matching `.zip`
-from the release, verifies its SHA-256 against `SHA256SUMS.txt`, and
-copies `club.exe` into `%USERPROFILE%\.club\bin`.
+The script detects the native Windows architecture (`x64` or `arm64`),
+even when PowerShell itself is running under emulation. It downloads the
+matching `.zip`, verifies its SHA-256 against `SHA256SUMS.txt`, and copies
+`club.exe` into `%USERPROFILE%\.club\bin`.
 
 <Aside>
   Same caveat as the Unix version: pipe-to-`iex` runs whatever the
@@ -235,6 +236,7 @@ single `SHA256SUMS.txt`:
 | macOS Intel | `club-cli-<version>-macos-x64.tar.gz` |
 | macOS Apple silicon | `club-cli-<version>-macos-arm64.tar.gz` |
 | Windows x86_64 | `club-cli-<version>-windows-x64.zip` |
+| Windows ARM64 | `club-cli-<version>-windows-arm64.zip` |
 
 <Tabs>
   <TabItem label="Linux / macOS">
@@ -274,13 +276,15 @@ single `SHA256SUMS.txt`:
       2. Verify the archive in PowerShell:
 
          ```powershell
-         Get-FileHash .\club-cli-0.1.0-windows-x64.zip -Algorithm SHA256
+         $Version = '0.7.0'
+         $Target = 'windows-arm64' # Use windows-x64 on an x64 machine
+         Get-FileHash ".\club-cli-$Version-$Target.zip" -Algorithm SHA256
          ```
 
          Compare the hash against the line for your file in
          `SHA256SUMS.txt`.
 
-      3. Extract the zip. Move `club-cli-<version>-windows-x64\bin\club.exe`
+      3. Extract the zip. Move `club-cli-<version>-<target>\bin\club.exe`
          somewhere on your `PATH` (for example,
          `%USERPROFILE%\bin`), or add the extracted `bin` directory to
          `PATH` directly.

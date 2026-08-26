@@ -56,7 +56,7 @@ class ReleaseInfo {
   ///
   /// Both the platform archive and the checksums file are required.
   /// `install.sh` refuses to install without `SHA256SUMS.txt`, and the
-  /// upload job attaches all five archives plus the checksums together, so
+  /// upload job attaches all target archives plus the checksums together, so
   /// a partially uploaded release can genuinely have archives and no sums.
   bool hasAssetsFor(String target) =>
       assetNames.contains(archiveName(version, target)) &&

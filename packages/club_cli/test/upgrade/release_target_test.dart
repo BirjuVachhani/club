@@ -8,12 +8,18 @@ void main() {
   // naming changes, this test should fail before users get a 404.
   group('asset names match build-cli.yml', () {
     test('every published target', () {
-      expect(archiveName('0.4.2', 'linux-x64'), 'club-cli-0.4.2-linux-x64.tar.gz');
+      expect(
+        archiveName('0.4.2', 'linux-x64'),
+        'club-cli-0.4.2-linux-x64.tar.gz',
+      );
       expect(
         archiveName('0.4.2', 'linux-arm64'),
         'club-cli-0.4.2-linux-arm64.tar.gz',
       );
-      expect(archiveName('0.4.2', 'macos-x64'), 'club-cli-0.4.2-macos-x64.tar.gz');
+      expect(
+        archiveName('0.4.2', 'macos-x64'),
+        'club-cli-0.4.2-macos-x64.tar.gz',
+      );
       expect(
         archiveName('0.4.2', 'macos-arm64'),
         'club-cli-0.4.2-macos-arm64.tar.gz',
@@ -21,6 +27,10 @@ void main() {
       expect(
         archiveName('0.4.2', 'windows-x64'),
         'club-cli-0.4.2-windows-x64.zip',
+      );
+      expect(
+        archiveName('0.4.2', 'windows-arm64'),
+        'club-cli-0.4.2-windows-arm64.zip',
       );
     });
 
@@ -38,6 +48,7 @@ void main() {
         'macos-x64',
         'macos-arm64',
         'windows-x64',
+        'windows-arm64',
       });
     });
   });
@@ -81,10 +92,10 @@ void main() {
       );
     });
 
-    test('windows arm64 has no published build', () {
+    test('windows arm64', () {
       expect(
         resolve('3.12.2 (stable) (Tue) on "windows_arm64"', 'windows'),
-        isNull,
+        'windows-arm64',
       );
     });
 

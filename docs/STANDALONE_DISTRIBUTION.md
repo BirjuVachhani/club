@@ -67,7 +67,7 @@ These are fixed — future implementation should not re-debate.
 - Env keys canonicalized in [packages/club_server/lib/src/config/env_keys.dart](../packages/club_server/lib/src/config/env_keys.dart). Required: `JWT_SECRET` (32+ chars). Defaults target Docker layout.
 
 ### Existing release infrastructure to mirror
-- [.github/workflows/build-cli.yml](../.github/workflows/build-cli.yml) — matrix of 5 platforms, `dart build cli`, SHA256SUMS, GitHub Release attachment.
+- [.github/workflows/build-cli.yml](../.github/workflows/build-cli.yml): matrix of 6 targets, including Windows ARM64, with `dart build cli`, SHA256SUMS, and GitHub Release attachment.
 - [scripts/build-cli.sh](../scripts/build-cli.sh) — version-burning pattern.
 - [.github/workflows/build-docker.yml](../.github/workflows/build-docker.yml) — multi-arch Docker to GHCR; will continue to run in parallel to the new standalone workflow.
 
