@@ -1,3 +1,21 @@
+## 0.7.0
+
+### Added
+
+- Package groups organize related packages into searchable, manually ordered collections with user or publisher ownership.
+- Group detail and administration views support package selection, drag-and-drop reordering, and group management.
+- Group names participate in discovery, with dedicated group results and matching member packages.
+
+### Changed
+
+- Package, group, and admin listings share consistent cards, menus, search controls, dialogs, and responsive styling.
+- Group package listings now include the same platform, screenshot, score, download, publisher, and license metadata as package search results.
+
+### Fixed
+
+- The home page sign-in action remains visible against its background in dark mode.
+- Group management feedback, dropdown spacing, dividers, package editing, and action placement now render consistently.
+
 ## 0.6.1
 
 ### Changed
