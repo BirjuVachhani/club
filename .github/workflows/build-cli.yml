@@ -183,6 +183,7 @@ jobs:
         env:
           EXEC: ${{ matrix.exec }}
           EXPECTED: ${{ needs.resolve.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           binary="build/cli/bundle/bin/$EXEC"
           if [ ! -x "$binary" ]; then

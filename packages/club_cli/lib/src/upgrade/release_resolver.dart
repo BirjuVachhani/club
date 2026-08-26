@@ -75,9 +75,7 @@ enum ResolveFailure {
 
 /// The result of a resolve: exactly one of [release] or [failure] is set.
 class ResolveResult {
-  const ResolveResult.found(this.release)
-      : failure = null,
-        message = null;
+  const ResolveResult.found(this.release) : failure = null, message = null;
   const ResolveResult.failed(this.failure, this.message) : release = null;
 
   final ReleaseInfo? release;
@@ -108,15 +106,18 @@ class GithubReleaseResolver implements ReleaseResolver {
   GithubReleaseResolver({
     HttpClient? client,
     String? repo,
+    String? githubToken,
     this.timeout = const Duration(seconds: 10),
-  })  : _client = client ?? HttpClient(),
-        _repo = repo ?? releaseRepo {
+  }) : _client = client ?? HttpClient(),
+       _repo = repo ?? releaseRepo,
+       _githubToken = githubToken ?? Platform.environment['GITHUB_TOKEN'] {
     _client.userAgent =
         'club-cli/$clubCliVersion (+https://github.com/$_defaultRepo)';
   }
 
   final HttpClient _client;
   final String _repo;
+  final String? _githubToken;
   final Duration timeout;
 
   @override
@@ -177,7 +178,9 @@ class GithubReleaseResolver implements ReleaseResolver {
     if (result is _Err && result.statusCode == HttpStatus.notFound) {
       // Tags are published as `v1.2.3`, but accept a bare `1.2.3` too
       // rather than making the user guess which form this repo uses.
-      result = await _get('releases/tags/${tag.startsWith('v') ? tag.substring(1) : tag}');
+      result = await _get(
+        'releases/tags/${tag.startsWith('v') ? tag.substring(1) : tag}',
+      );
     }
     if (result is _Err) {
       if (result.statusCode == HttpStatus.notFound) {
@@ -203,6 +206,9 @@ class GithubReleaseResolver implements ReleaseResolver {
     try {
       final req = await _client.getUrl(uri).timeout(timeout);
       req.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
+      if (_githubToken case final token? when token.isNotEmpty) {
+        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
       final res = await req.close().timeout(timeout);
       if (res.statusCode != HttpStatus.ok) {
         await res.drain<void>().timeout(timeout).catchError((_) {});
@@ -235,7 +241,8 @@ ReleaseInfo? parseRelease(Object? decoded, {bool stableOnly = false}) {
 
   // `releases/latest` already excludes these on GitHub's side, but defend
   // against the upstream behaviour changing, the way the server does.
-  if (stableOnly && (decoded['prerelease'] == true || decoded['draft'] == true)) {
+  if (stableOnly &&
+      (decoded['prerelease'] == true || decoded['draft'] == true)) {
     return null;
   }
 
@@ -267,7 +274,9 @@ class FakeReleaseResolver implements ReleaseResolver {
   final ResolveResult? failure;
 
   @override
-  Future<ResolveResult> resolveLatest({required bool includePreReleases}) async {
+  Future<ResolveResult> resolveLatest({
+    required bool includePreReleases,
+  }) async {
     if (failure != null) return failure!;
     if (latest == null) {
       return const ResolveResult.failed(
