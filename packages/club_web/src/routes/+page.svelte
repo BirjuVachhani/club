@@ -160,6 +160,7 @@
           type="text"
           bind:value={searchQuery}
           placeholder="Search packages"
+          style="backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);"
         />
       </form>
       <p class="hero-sub">Your private Dart & Flutter package repository</p>
