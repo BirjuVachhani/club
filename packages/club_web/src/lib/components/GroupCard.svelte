@@ -18,14 +18,20 @@
     <span class="compact-stack compact-back" aria-hidden="true"></span>
     <span class="compact-stack compact-middle" aria-hidden="true"></span>
     <span class="compact-surface">
-      <span class="compact-meta">
-        <span>GROUP</span>
-        <span>{group.packageCount} {group.packageCount === 1 ? "package" : "packages"}</span>
-      </span>
       <strong>{group.name}</strong>
       {#if group.description}
         <span class="description">{group.description}</span>
+      {:else if group.previewPackages?.length}
+        <span class="compact-package-list" aria-label="Packages in this group">
+          {#each group.previewPackages as pkg (pkg.name)}
+            <span>{pkg.name}</span>
+          {/each}
+        </span>
       {/if}
+      <span class="compact-meta">
+        <span class="compact-group-tag">Group</span>
+        <span>{group.packageCount} {group.packageCount === 1 ? "package" : "packages"}</span>
+      </span>
     </span>
   </a>
 {:else}
@@ -290,51 +296,103 @@
     display: flex;
     width: 100%;
     min-width: 0;
+    min-height: 220px;
     padding-bottom: 10px;
-    color: var(--text-primary);
+    color: var(--foreground);
     text-decoration: none;
     isolation: isolate;
   }
   .compact-stack {
     position: absolute;
-    inset-inline: 12px;
-    height: 100%;
-    border: 1px solid var(--border-color);
+    right: 10px;
+    left: 10px;
+    height: calc(100% - 4px);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background: var(--background-secondary);
+    background: var(--card);
     pointer-events: none;
+    transition: border-color 0.15s ease;
   }
-  .compact-back { top: 10px; inset-inline: 22px; opacity: 0.55; z-index: -2; }
-  .compact-middle { top: 5px; opacity: 0.82; z-index: -1; }
+  .compact-back { top: 14px; right: 22px; left: 22px; opacity: 0.5; z-index: -2; }
+  .compact-middle { top: 7px; opacity: 0.82; z-index: -1; }
   .compact-surface {
     display: flex;
     flex: 1;
     min-width: 0;
     flex-direction: column;
     gap: 10px;
-    padding: 16px;
-    border: 1px solid var(--border-color);
+    min-height: 210px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background: var(--background-primary);
+    background: var(--card);
     transition: border-color 0.15s ease, transform 0.15s ease;
   }
   .compact-card:hover .compact-surface,
   .compact-card:focus-visible .compact-surface {
-    border-color: var(--accent-color);
+    border-color: var(--pub-link-text-color);
     transform: translateY(-2px);
+  }
+  .compact-card:hover .compact-stack,
+  .compact-card:focus-visible .compact-stack {
+    border-color: var(--pub-link-text-color);
   }
   .compact-card:focus-visible { outline: none; }
   .compact-meta {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    color: var(--text-secondary);
+    gap: 8px;
+    margin-top: auto;
+    color: var(--pub-muted-text-color);
     font-size: 11px;
+    font-weight: 500;
+  }
+  .compact-group-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 7px;
+    border: 1px solid color-mix(in srgb, var(--pub-link-text-color) 28%, var(--border));
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--pub-link-text-color) 9%, var(--card));
+    color: var(--pub-link-text-color);
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    line-height: 1;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  .compact-surface strong { font-size: 16px; line-height: 1.25; }
+  .compact-surface strong {
+    color: var(--pub-link-text-color);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .compact-surface .description {
+    flex: 1;
+    color: var(--pub-muted-text-color);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .compact-package-list {
+    position: relative;
+    display: flex;
+    max-height: 112px;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+    overflow: hidden;
+    color: var(--pub-muted-text-color);
+    font-size: 12px;
+    line-height: 1.35;
+    -webkit-mask-image: linear-gradient(to bottom, black 58%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 58%, transparent 100%);
+  }
+  .compact-package-list span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   @media (min-width: 640px) {
     .group-row:hover {
@@ -366,7 +424,7 @@
       grid-column: 2;
       grid-row: 1 / 3;
     }
-    .compact-stack { inset-inline: 8px; }
-    .compact-back { inset-inline: 16px; }
+    .compact-stack { right: 8px; left: 8px; }
+    .compact-back { right: 16px; left: 16px; }
   }
 </style>

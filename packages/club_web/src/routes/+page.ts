@@ -37,11 +37,15 @@ export interface HomePackage {
   isFlutter: boolean;
 }
 
+export type HomeCatalogItem =
+  | { type: 'package'; package: HomePackage }
+  | { type: 'group'; group: PackageGroupSummary };
+
 export interface HomeData {
   dartPackages: HomePackage[];
   flutterPackages: HomePackage[];
-  recentlyUpdated: HomePackage[];
-  recentlyAdded: HomePackage[];
+  recentlyUpdated: HomeCatalogItem[];
+  recentlyAdded: HomeCatalogItem[];
   totalPackages: number;
   groups: PackageGroupSummary[];
 }
@@ -70,18 +74,21 @@ function mapHit(hit: DiscoverHit): HomePackage | null {
 async function fetchSection(
   sort: string,
   limit = 6,
-): Promise<{ packages: HomePackage[]; total: number }> {
+): Promise<{ items: HomeCatalogItem[]; total: number }> {
   try {
     const result = await api.get<DiscoverResponse>('/api/discover', {
       params: { q: '', sort, page: '1' },
     });
-    const packages = result.items.filter((hit) => hit.type === 'package')
-      .slice(0, limit)
-      .map(mapHit)
-      .filter((p): p is HomePackage => p !== null);
-    return { packages, total: result.totalCount };
+    const items = result.items.slice(0, limit).flatMap((hit): HomeCatalogItem[] => {
+      if (hit.type === 'group' && hit.group) {
+        return [{ type: 'group', group: hit.group }];
+      }
+      const pkg = mapHit(hit);
+      return pkg ? [{ type: 'package', package: pkg }] : [];
+    });
+    return { items, total: result.totalCount };
   } catch {
-    return { packages: [], total: 0 };
+    return { items: [], total: 0 };
   }
 }
 
@@ -118,8 +125,8 @@ async function buildHome(): Promise<HomeData> {
   return {
     dartPackages: buckets.dart,
     flutterPackages: buckets.flutter,
-    recentlyUpdated: updated.packages,
-    recentlyAdded: added.packages,
+    recentlyUpdated: updated.items,
+    recentlyAdded: added.items,
     totalPackages: buckets.total,
     groups: await (async () => {
       try {

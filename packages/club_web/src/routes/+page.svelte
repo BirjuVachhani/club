@@ -3,7 +3,7 @@
   import { goto } from "$app/navigation";
   import { docsUrl } from "$lib/config";
   import Skeleton from "$lib/components/Skeleton.svelte";
-  import type { HomePackage } from "./+page";
+  import type { HomeCatalogItem, HomePackage } from "./+page";
 
   let { data } = $props();
 
@@ -71,6 +71,31 @@
       <div class="pkg-grid">
         {#each items as pkg}
           {@render pkgCard(pkg, prefix)}
+        {/each}
+      </div>
+    </section>
+  {/if}
+{/snippet}
+
+{#snippet catalogSection(
+  title: string,
+  href: string,
+  items: HomeCatalogItem[],
+  prefix: string,
+)}
+  {#if items.length > 0}
+    <section class="pkg-section">
+      <div class="section-header">
+        <h2>{title}</h2>
+        <a {href} class="view-all">View all &rarr;</a>
+      </div>
+      <div class="pkg-grid">
+        {#each items as item}
+          {#if item.type === "group"}
+            <GroupCard group={item.group} compact />
+          {:else}
+            {@render pkgCard(item.package, prefix)}
+          {/if}
         {/each}
       </div>
     </section>
@@ -197,13 +222,13 @@
         home.flutterPackages,
         "",
       )}
-      {@render pkgSection(
+      {@render catalogSection(
         "Recently Updated",
         "/packages?sort=updated",
         home.recentlyUpdated,
         "Updated ",
       )}
-      {@render pkgSection(
+      {@render catalogSection(
         "Recently Added",
         "/packages?sort=created",
         home.recentlyAdded,
@@ -495,7 +520,8 @@
   .pkg-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
-    gap: 12px;
+    column-gap: 12px;
+    row-gap: 22px;
   }
 
   .home-card {

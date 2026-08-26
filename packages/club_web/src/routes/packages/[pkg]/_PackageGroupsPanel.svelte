@@ -12,7 +12,6 @@
   let memberships = $state<PackageGroupSummary[]>([]);
   let available = $state<PackageGroupSummary[]>([]);
   let selectedGroupId = $state("");
-  let sourceGroupId = $state("");
   let createDialogOpen = $state(false);
   let name = $state("");
   let description = $state("");
@@ -47,17 +46,9 @@
     busy = true;
     message = "";
     try {
-      if (sourceGroupId) {
-        await api.post(`/api/packages/${packageName}/groups/move`, {
-          fromGroupId: sourceGroupId,
-          toGroupId: selectedGroupId,
-        });
-      } else {
-        await api.post(`/api/packages/${packageName}/groups`, {
-          groupId: selectedGroupId,
-        });
-      }
-      sourceGroupId = "";
+      await api.post(`/api/packages/${packageName}/groups`, {
+        groupId: selectedGroupId,
+      });
       selectedGroupId = "";
       message = "Groups updated.";
       await load();
@@ -78,15 +69,7 @@
         description,
         ...(publisherId ? { publisherId } : {}),
       };
-      if (sourceGroupId) {
-        await api.post(`/api/packages/${packageName}/groups/move`, {
-          fromGroupId: sourceGroupId,
-          createGroup,
-        });
-      } else {
-        await api.post(`/api/packages/${packageName}/groups`, { createGroup });
-      }
-      sourceGroupId = "";
+      await api.post(`/api/packages/${packageName}/groups`, { createGroup });
       name = "";
       description = "";
       publisherId = "";
@@ -130,11 +113,26 @@
   <div class="memberships">
     {#each memberships as group (group.id)}
       <div class="membership">
-        <a href={`/groups/${group.slug}`}>{group.name}</a>
-        <div>
-          <button onclick={() => sourceGroupId = group.id}>Move</button>
-          <button onclick={() => remove(group.id)} disabled={busy}>Remove</button>
+        <div class="membership-copy">
+          <a href={`/groups/${group.slug}`}>{group.name}</a>
+          {#if group.description}
+            <p>{group.description}</p>
+          {/if}
         </div>
+        <button
+          class="remove-button"
+          onclick={() => remove(group.id)}
+          disabled={busy}
+          aria-label={`Remove ${group.name} from this package`}
+          title="Remove from group"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="m19 6-1 14H6L5 6" />
+            <path d="M10 11v5M14 11v5" />
+          </svg>
+        </button>
       </div>
     {:else}
       <p class="empty">This package is not in a group.</p>
@@ -142,23 +140,17 @@
   </div>
 
   <div class="editor">
-    {#if sourceGroupId}
-      <p class="notice">
-        Moving replaces the selected membership and keeps all others.
-      </p>
-    {/if}
-
     <div class="group-picker-row">
       <select
         class="group-picker"
         bind:value={selectedGroupId}
         onchange={handleGroupSelection}
-        aria-label={sourceGroupId ? "Move package to group" : "Add package to group"}
+        aria-label="Add package to group"
       >
         <option value="">Select a group</option>
         <option value="__create__">＋ Create a new group</option>
         <optgroup label="Existing groups">
-          {#each available.filter((group) => group.id !== sourceGroupId) as group}
+          {#each available.filter((group) => !memberships.some((item) => item.id === group.id)) as group}
             <option value={group.id}>{group.name}</option>
           {/each}
         </optgroup>
@@ -168,14 +160,9 @@
         onclick={addToSelectedGroup}
         disabled={busy || !selectedGroupId}
       >
-        {sourceGroupId ? "Move package" : "Add to group"}
+        Add to group
       </button>
-      {#if sourceGroupId}
-        <button class="cancel-button" onclick={() => sourceGroupId = ""}>
-          Cancel
-        </button>
-      {/if}
-    </div>
+   </div>
 
     {#if message}<p>{message}</p>{/if}
   </div>
@@ -184,10 +171,8 @@
 <Dialog
   bind:open={createDialogOpen}
   title="Create a new group"
-  description={sourceGroupId
-    ? "Create a group and move this package into it. Other group memberships remain unchanged."
-    : "Create a visual collection and add this package to it."}
-  confirmLabel={sourceGroupId ? "Create and move" : "Create and add"}
+  description="Create a visual collection and add this package to it."
+  confirmLabel="Create and add"
   busy={busy}
   confirmDisabled={!name.trim()}
   onConfirm={createAndAddGroup}
@@ -232,7 +217,7 @@
   }
 
   h3, p { margin: 0; }
-  .option-desc, .empty, .notice {
+  .option-desc, .empty {
     color: var(--muted-foreground);
     font-size: 14px;
   }
@@ -242,17 +227,57 @@
     flex-direction: column;
     gap: 10px;
   }
+  .memberships {
+    overflow: hidden;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--muted) 20%, var(--card));
+  }
 
   .membership {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    min-height: 54px;
     padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border-bottom: 1px solid var(--border);
   }
-  .membership div { display: flex; gap: 8px; }
+  .membership:last-child { border-bottom: 0; }
+  .membership-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .membership a { color: var(--pub-link-text-color); text-decoration: none; }
+  .membership a:hover { text-decoration: underline; }
+  .membership-copy p {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .remove-button {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-color: transparent;
+    color: var(--muted-foreground);
+    background: transparent;
+  }
+  .remove-button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+    color: var(--destructive);
+    background: color-mix(in srgb, var(--destructive) 8%, transparent);
+  }
+  .remove-button:disabled { cursor: not-allowed; opacity: 0.45; }
 
   .group-picker-row {
     display: flex;
@@ -276,8 +301,6 @@
     min-width: 112px;
     white-space: nowrap;
   }
-
-  .cancel-button { width: auto; }
 
   button, input, textarea, select {
     padding: 9px 11px;
