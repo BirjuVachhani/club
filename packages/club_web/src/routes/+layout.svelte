@@ -262,7 +262,8 @@
         <!-- Right actions -->
         <div class="flex shrink-0 items-center gap-2">
           <button
-            class="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full {headerDark ? 'text-white/80 bg-black/40 backdrop-blur-md hover:bg-black/60 hover:text-white' : 'bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]'} transition-colors duration-200"
+            class:home-theme-toggle={isHome}
+            class="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full {isHome ? '' : 'bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]'} transition-colors duration-200"
             onclick={toggleTheme}
             title="Toggle theme"
           >
@@ -372,7 +373,7 @@
               {/if}
             </div>
           {:else}
-            <a href="/login" class:home-sign-in={isHome} class="inline-flex h-9 items-center rounded-md {isHome ? 'bg-[var(--primary)] shadow-sm hover:brightness-110' : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'} px-3 sm:px-4 text-sm font-medium transition-all">Sign In</a>
+            <a href="/login" class:home-sign-in={isHome} class="inline-flex h-9 items-center rounded-md {isHome ? 'home-sign-in-surface shadow-sm' : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'} px-3 sm:px-4 text-sm font-medium transition-all">Sign In</a>
           {/if}
         </div>
       </div>
@@ -423,7 +424,40 @@
 <style>
   .home-sign-in,
   .home-sign-in:hover {
-    color: var(--primary-foreground);
+    color: #141517;
+  }
+  .home-sign-in-surface {
+    background: #ffffff;
+  }
+  .home-sign-in-surface:hover {
+    background: #ededed;
+  }
+  .home-theme-toggle {
+    background: #ffffff;
+    color: #141517;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  }
+  .home-theme-toggle:hover {
+    background: #ededed;
+    color: #141517;
+  }
+  :global(:root.dark-theme) .home-sign-in,
+  :global(:root.dark-theme) .home-sign-in:hover {
+    color: #ffffff;
+  }
+  :global(:root.dark-theme) .home-sign-in-surface {
+    background: #141517;
+  }
+  :global(:root.dark-theme) .home-sign-in-surface:hover {
+    background: #050505;
+  }
+  :global(:root.dark-theme) .home-theme-toggle {
+    background: #141517;
+    color: #ffffff;
+  }
+  :global(:root.dark-theme) .home-theme-toggle:hover {
+    background: #050505;
+    color: #ffffff;
   }
 
   .version-pill {

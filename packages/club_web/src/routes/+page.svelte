@@ -2,7 +2,6 @@
   import GroupCard from "$lib/components/GroupCard.svelte";
   import { goto } from "$app/navigation";
   import { docsUrl } from "$lib/config";
-  import DotsGrid from "$lib/components/DotsGrid.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
   import type { HomePackage } from "./+page";
 
@@ -12,40 +11,6 @@
 
   // Fixed-length range for rendering skeleton placeholder cards.
   const skeletonRange = Array.from({ length: 6 }, (_, i) => i);
-
-  // Halo params scale per breakpoint. On narrow/portrait viewports the
-  // halo has to be larger and higher to clear the hero content; on
-  // desktop the original values look right.
-  type Halo = { radius: number; y: number };
-  const HALO = {
-    mobile: { radius: 0.55, y: 0.5 } satisfies Halo,
-    tablet: { radius: 0.42, y: 0.55 } satisfies Halo,
-    desktop: { radius: 0.35, y: 0.65 } satisfies Halo,
-  };
-
-  let halo = $state<Halo>(HALO.desktop);
-
-  $effect(() => {
-    if (typeof window === "undefined") return;
-    const mq = {
-      mobile: window.matchMedia("(max-width: 767px)"),
-      tablet: window.matchMedia("(min-width: 768px) and (max-width: 1023px)"),
-    };
-    function update() {
-      halo = mq.mobile.matches
-        ? HALO.mobile
-        : mq.tablet.matches
-          ? HALO.tablet
-          : HALO.desktop;
-    }
-    update();
-    mq.mobile.addEventListener("change", update);
-    mq.tablet.addEventListener("change", update);
-    return () => {
-      mq.mobile.removeEventListener("change", update);
-      mq.tablet.removeEventListener("change", update);
-    };
-  });
 
   function handleSearch(e: Event) {
     e.preventDefault();
@@ -139,7 +104,13 @@
 <div class="home">
   <!-- Hero Section -->
   <section class="hero">
-    <DotsGrid centerHoleRadius={halo.radius} centerHoleY={halo.y} />
+    <div class="hero-background hero-background-light" aria-hidden="true">
+      <img src="/bg_light.webp" alt="" />
+    </div>
+    <div class="hero-background hero-background-dark" aria-hidden="true">
+      <img src="/bg_dark.webp" alt="" />
+    </div>
+    <div class="hero-bottom-fade" aria-hidden="true"></div>
     <div class="hero-content">
       <div class="hero-lockup">
         <img
@@ -260,12 +231,29 @@
 
   /* ── Hero ── */
   .hero {
+    --hero-strong: #263442;
+    --hero-text: #34495a;
+    --hero-muted: #536b7c;
+    --hero-search-surface: rgb(255 247 243 / 82%);
+    --hero-search-focus: rgb(255 250 247 / 94%);
     position: relative;
     overflow: hidden;
     background: var(--background);
     margin-top: -56px;
     padding: 140px 16px 72px;
     text-align: center;
+  }
+
+  :global(:root.dark-theme) .hero {
+    --hero-strong: var(--foreground);
+    --hero-text: var(--muted-foreground);
+    --hero-muted: var(--muted-foreground);
+    --hero-search-surface: color-mix(
+      in srgb,
+      var(--foreground) 8%,
+      transparent
+    );
+    --hero-search-focus: color-mix(in srgb, var(--foreground) 15%, transparent);
   }
 
   @media (min-width: 640px) {
@@ -280,9 +268,58 @@
     }
   }
 
+  .hero-background {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .hero-background img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center center;
+  }
+  .hero-background-dark {
+    display: none;
+  }
+  :global(:root.dark-theme) .hero > .hero-background-light {
+    display: none;
+  }
+  :global(:root.dark-theme) .hero > .hero-background-dark {
+    display: block;
+  }
+  .hero-bottom-fade {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    z-index: 1;
+    height: clamp(120px, 25%, 210px);
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--background) 3%, transparent) 12%,
+      color-mix(in srgb, var(--background) 8%, transparent) 22%,
+      color-mix(in srgb, var(--background) 16%, transparent) 32%,
+      color-mix(in srgb, var(--background) 27%, transparent) 43%,
+      color-mix(in srgb, var(--background) 41%, transparent) 54%,
+      color-mix(in srgb, var(--background) 57%, transparent) 65%,
+      color-mix(in srgb, var(--background) 72%, transparent) 76%,
+      color-mix(in srgb, var(--background) 85%, transparent) 86%,
+      color-mix(in srgb, var(--background) 94%, transparent) 94%,
+      var(--background) 100%
+    );
+    pointer-events: none;
+  }
+
   .hero-content {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     max-width: 600px;
     margin: 0 auto;
   }
@@ -301,7 +338,9 @@
     max-width: 100%;
   }
   @media (min-width: 640px) {
-    .hero-full-logo { height: 56px; }
+    .hero-full-logo {
+      height: 56px;
+    }
   }
 
   .hero-search {
@@ -315,7 +354,7 @@
     left: 16px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--muted-foreground);
+    color: var(--hero-strong);
     pointer-events: none;
     /* backdrop-filter on the input creates a stacking context that would
        otherwise paint over absolutely-positioned siblings. */
@@ -328,10 +367,10 @@
     padding: 0 20px 0 44px;
     border: none;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    background: var(--hero-search-surface);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    color: var(--foreground);
+    color: var(--hero-strong);
     font-size: 16px;
     font-family: inherit;
     outline: none;
@@ -339,44 +378,55 @@
   }
 
   .hero-search input::placeholder {
-    color: var(--muted-foreground);
+    color: var(--hero-muted);
+    opacity: 1;
   }
 
   .hero-search input:focus {
-    background: color-mix(in srgb, var(--foreground) 15%, transparent);
+    background: var(--hero-search-focus);
     box-shadow: 0 0 0 3px var(--ring);
   }
 
   .hero-sub {
     margin: 0 0 6px;
-    color: var(--muted-foreground);
+    color: var(--hero-text);
+    font-weight: 520;
     font-size: 15px;
   }
 
   .hero-stat {
     margin: 0;
-    color: var(--muted-foreground);
-    opacity: 0.7;
+    color: var(--hero-muted);
+    opacity: 0.9;
+    font-weight: 520;
     font-size: 13px;
   }
 
   .hero-view-all {
     display: inline-block;
     margin-top: 20px;
-    padding: 10px 22px;
+    padding: 11px 22px;
     border: 1px solid var(--primary);
     border-radius: 8px;
-    color: var(--primary);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  .hero-view-all:hover {
     background: var(--primary);
     color: var(--primary-foreground);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 24%, transparent);
+    font-size: 14px;
+    font-weight: 650;
+    text-decoration: none;
+    transition:
+      filter 0.15s,
+      transform 0.15s,
+      box-shadow 0.15s;
+  }
+  .hero-view-all:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 7px 18px color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+  .hero-view-all:focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 3px;
   }
 
   /* ── Sections ── */
@@ -560,7 +610,9 @@
     color: var(--pub-heading-text-color);
   }
   @media (min-width: 640px) {
-    .empty-card h2 { font-size: 28px; }
+    .empty-card h2 {
+      font-size: 28px;
+    }
   }
 
   .empty-card p {
