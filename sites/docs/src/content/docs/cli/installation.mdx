@@ -360,9 +360,9 @@ the one-liner. Replacing the running binary is safe on every platform.
 | `0` | Upgraded, already current, or `--check` found nothing newer. |
 | `65` | `--check` only: a newer version is available. |
 | `66` | A downgrade needed confirmation but the shell is not interactive. Pass `--yes`. |
-| `69` | GitHub was unreachable, or a pinned `--version` has no build for your platform. |
-| `70` | The installer ran and failed. |
-| `78` | This install cannot upgrade itself, or the target directory is not writable. |
+| `69` | GitHub was unreachable, a pinned build is unavailable, or Homebrew could not be started. |
+| `70` | The install script or a Homebrew command ran and failed. |
+| `78` | The install cannot be upgraded as requested, an option is unsupported for Homebrew, or the target directory is not writable. |
 
 `--check` returning `65` follows the `git diff --exit-code` convention, which
 trips up CI steps that treat any non-zero code as failure. Prefer `--json`
@@ -374,16 +374,28 @@ club upgrade --check --json | jq -e .updateAvailable
 
 ### Homebrew installs
 
-`club upgrade` refuses when the binary came from Homebrew, because Homebrew
-owns its own files. Use [`brew upgrade`](#homebrew-macos-and-linux) instead:
+When the binary came from Homebrew, `club upgrade` delegates to Homebrew
+instead of replacing files in the Cellar itself. It runs the equivalent of:
 
 ```bash
 brew update && brew upgrade club
 ```
 
-The same applies to `dart pub global activate` installs and to running from
-a source checkout, both of which are detected and refused with the right
-command to run instead.
+Homebrew installations use package-manager-specific option behavior:
+
+- `--check` updates tap metadata, then queries `brew outdated` without installing.
+- `--dry-run` prints the Homebrew commands without running them.
+- `--force` uses `brew reinstall club`.
+- `--yes` is forwarded to Homebrew.
+- `--version`, `--pre`, and `--install-dir` are rejected because the stable
+  formula owns the available version and destination.
+
+A missing `brew` executable returns 69. A Homebrew command that starts but
+fails returns 70 with the command to retry. `--json` captures Homebrew output
+so stdout remains one machine-readable JSON document.
+
+`dart pub global activate` installs and source checkouts are still detected
+and refused with the right command to run instead.
 
 ### Pre-releases
 

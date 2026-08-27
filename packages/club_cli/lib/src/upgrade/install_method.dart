@@ -1,10 +1,9 @@
 /// Works out how this `club` binary got onto the machine.
 ///
-/// `club upgrade` replaces the CLI by re-running the installer script that
-/// put it there, so it first has to know which installer that was — and
-/// refuse outright when the answer is "something else entirely", such as
-/// Homebrew or a `dart run` from a source checkout. Guessing wrong means
-/// either clobbering a package manager's files or reporting success while
+/// `club upgrade` first has to know who owns the installation. Script
+/// installs are replaced by re-running their installer, Homebrew installs are
+/// delegated to Homebrew, and unsupported layouts are refused. Guessing wrong
+/// means either clobbering a package manager's files or reporting success while
 /// the old binary stays on PATH.
 ///
 /// Detection is purely path-based. There is deliberately no receipt file:
@@ -47,7 +46,7 @@ enum InstallMethod {
   /// Somewhere we do not recognise.
   unknown;
 
-  /// Whether `club upgrade` can replace this installation.
+  /// Whether Club can replace this installation directly.
   bool get isUpgradable =>
       this == scriptStandalone ||
       this == scriptBundle ||
@@ -70,7 +69,7 @@ class InstallLocation {
 
   /// Directory the installer should write into, when known.
   ///
-  /// Null for every method where [InstallMethod.isUpgradable] is false.
+  /// Null for every method Club cannot replace directly.
   final String? destDir;
 
   /// For bundle layouts, the directory replaced wholesale.

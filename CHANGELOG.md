@@ -9,6 +9,7 @@
 
 ### Changed
 
+- `club upgrade` delegates Homebrew installations to Homebrew.
 - Package, group, and admin listings share consistent cards, menus, search controls, dialogs, and responsive styling.
 - Group package listings now include the same platform, screenshot, score, download, publisher, and license metadata as package search results.
 

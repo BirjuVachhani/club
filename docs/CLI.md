@@ -287,9 +287,9 @@ club admin package moderate <package> --action <discontinue|delete>
 
 ### club upgrade
 
-Upgrade the club CLI itself to the latest release. Resolves the newest
-stable release from GitHub, then hands off to the install script that put
-the binary there.
+Upgrade the club CLI itself to the latest release. Script installations
+resolve the newest stable release from GitHub and hand off to the install
+script. Homebrew installations delegate to Homebrew.
 
 ```
 club upgrade [--check] [--version <v>] [--pre] [--force] [--dry-run] [--yes]
@@ -307,11 +307,17 @@ club upgrade [--check] [--version <v>] [--pre] [--force] [--dry-run] [--yes]
 | `--install-dir <path>` | Override the auto-detected install directory. |
 | `--json` | Machine-readable output. |
 
-Refuses, with the right command to run instead, when the CLI came from
-Homebrew (`brew upgrade club`), from `dart pub global activate`, or from a
-source checkout. A release is only offered once its build artifacts have
-finished uploading, so a tag that is visible on GitHub may take a few
-minutes to become installable.
+For a Homebrew installation, the command runs `brew update` followed by
+`brew upgrade club`. `--check` queries the formula with `brew outdated`,
+`--force` uses `brew reinstall club`, and `--dry-run` prints the commands
+without running them. Homebrew installations reject `--version`, `--pre`,
+and `--install-dir` because the package manager owns those choices.
+
+The command still refuses, with the right command to run instead, when the
+CLI came from `dart pub global activate` or a source checkout. For script
+installations, a release is only offered once its build artifacts have
+finished uploading, so a tag visible on GitHub may take a few minutes to
+become installable.
 
 ---
 
