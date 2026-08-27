@@ -12,7 +12,6 @@ library;
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:yaml_edit/yaml_edit.dart';
 
 import '../util/yaml_utils.dart';
@@ -26,10 +25,13 @@ String? buildRewrittenYaml(PackagePlan plan) {
   final editor = YamlEditor(plan.package.rawYaml);
   for (final r in plan.rewrites) {
     ensureMapNode(editor, r.section.key);
-    editor.update([r.section.key, r.depName], <String, Object?>{
-      'hosted': r.serverUrl,
-      'version': r.constraint,
-    });
+    editor.update(
+      [r.section.key, r.depName],
+      <String, Object?>{
+        'hosted': r.serverUrl,
+        'version': r.constraint,
+      },
+    );
   }
   return editor.toString();
 }
@@ -51,7 +53,7 @@ int applyPlans(List<PackagePlan> plans, {required bool dryRun}) {
     if (next == null) continue;
     pending.add(
       _PendingWrite(
-        path: p.join(plan.package.directory, 'pubspec.yaml'),
+        path: plan.package.pubspecPath,
         contents: next,
       ),
     );

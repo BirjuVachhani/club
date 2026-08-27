@@ -67,8 +67,9 @@ void main() {
     test('the pubspec on disk is never rewritten', () {
       final root = workspaceWith({'pkg_a': '1.2.0'});
       discoverPackages(root.path, versionOverride: '3.0.0');
-      final onDisk =
-          File(p.join(root.path, 'pkg_a', 'pubspec.yaml')).readAsStringSync();
+      final onDisk = File(
+        p.join(root.path, 'pkg_a', 'pubspec.yaml'),
+      ).readAsStringSync();
       expect(onDisk, contains('version: 1.2.0'));
       expect(onDisk, isNot(contains('3.0.0')));
     });
@@ -85,6 +86,61 @@ void main() {
       final root = workspaceWith({'pkg_a': null});
       final found = discoverPackages(root.path, versionOverride: '3.0.0');
       expect(found['pkg_a']!.version, '3.0.0');
+    });
+  });
+  group('discoverPackages manifest names', () {
+    test('discovers pubspec.yml and records its exact path', () {
+      final root = Directory.systemTemp.createTempSync('club-yml-test-');
+      addTearDown(() {
+        if (root.existsSync()) root.deleteSync(recursive: true);
+      });
+      final packageDir = Directory(p.join(root.path, 'pkg'))
+        ..createSync(recursive: true);
+      final manifest = File(p.join(packageDir.path, 'pubspec.yml'))
+        ..writeAsStringSync('name: pkg\nversion: 1.0.0\n');
+
+      final found = discoverPackages(root.path);
+
+      expect(found['pkg']!.pubspecPath, p.canonicalize(manifest.path));
+    });
+
+    test('rejects directories containing both manifest filenames', () {
+      final root = Directory.systemTemp.createTempSync(
+        'club-both-pubspec-test-',
+      );
+      addTearDown(() {
+        if (root.existsSync()) root.deleteSync(recursive: true);
+      });
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: pkg\nversion: 1.0.0\n');
+      File(
+        p.join(root.path, 'pubspec.yml'),
+      ).writeAsStringSync('name: pkg\nversion: 1.0.0\n');
+
+      expect(
+        () => discoverPackages(root.path),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('does not include workspace umbrella manifests', () {
+      final root = Directory.systemTemp.createTempSync('club-workspace-test-');
+      addTearDown(() {
+        if (root.existsSync()) root.deleteSync(recursive: true);
+      });
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(
+        'name: workspace_root\nworkspace:\n  - packages/pkg\n',
+      );
+      final packageDir = Directory(p.join(root.path, 'packages', 'pkg'))
+        ..createSync(recursive: true);
+      File(
+        p.join(packageDir.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: pkg\nversion: 1.0.0\n');
+
+      final found = discoverPackages(root.path);
+
+      expect(found.keys, ['pkg']);
     });
   });
 }

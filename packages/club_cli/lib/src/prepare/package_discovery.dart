@@ -1,6 +1,6 @@
 /// Discovers all publishable Dart packages under a root directory.
 ///
-/// Walks the file tree from [rootDir] looking for `pubspec.yaml` files,
+/// Walks the file tree from [rootDir] looking for `pubspec.yaml` or `pubspec.yml` files,
 /// skipping ignored conventional directories (`.git`, `.dart_tool`, `build`,
 /// `node_modules`, hidden dirs). Each pubspec is parsed; pubspecs without a
 /// `name` or `version` (typical of pub workspace roots and umbrella manifests)
@@ -18,6 +18,7 @@ import '../publish/pr_version.dart';
 class DiscoveredPackage {
   DiscoveredPackage({
     required this.directory,
+    required this.pubspecPath,
     required this.pubspec,
     required this.rawYaml,
     this.versionOverride,
@@ -26,12 +27,15 @@ class DiscoveredPackage {
   /// Absolute, canonicalized path to the package directory.
   final String directory;
 
+  /// Absolute path to the discovered `pubspec.yaml` or `pubspec.yml`.
+  final String pubspecPath;
+
   /// Parsed pubspec. May lack a `version:` field — that is only required
   /// for packages that end up in a publish closure, and the planner is
   /// responsible for surfacing a clear error in that case.
   final Pubspec pubspec;
 
-  /// Raw pubspec.yaml contents (preserved for downstream rewriters).
+  /// Raw pubspec contents (preserved for downstream rewriters).
   final String rawYaml;
 
   /// When set, replaces the pubspec's own version everywhere this package's
@@ -96,18 +100,28 @@ Map<String, DiscoveredPackage> discoverPackages(
       return;
     }
 
-    File? pubspec;
+    File? yamlPubspec;
+    File? ymlPubspec;
     final subdirs = <Directory>[];
     for (final e in entries) {
       final base = p.basename(e.path);
       if (e is File && base == 'pubspec.yaml') {
-        pubspec = e;
+        yamlPubspec = e;
+      } else if (e is File && base == 'pubspec.yml') {
+        ymlPubspec = e;
       } else if (e is Directory) {
         if (base.startsWith('.') || _skipDirs.contains(base)) continue;
         subdirs.add(e);
       }
     }
 
+    if (yamlPubspec != null && ymlPubspec != null) {
+      throw FormatException(
+        'Both pubspec.yaml and pubspec.yml exist in ${dir.path}.',
+      );
+    }
+
+    final pubspec = yamlPubspec ?? ymlPubspec;
     if (pubspec != null) {
       final raw = pubspec.readAsStringSync();
       try {
@@ -120,9 +134,11 @@ Map<String, DiscoveredPackage> discoverPackages(
           final baseVersion = parsed.version?.toString();
           final pkg = DiscoveredPackage(
             directory: p.canonicalize(dir.path),
+            pubspecPath: p.canonicalize(pubspec.path),
             pubspec: parsed,
             rawYaml: raw,
-            versionOverride: versionOverride ??
+            versionOverride:
+                versionOverride ??
                 (versionSuffix == null || baseVersion == null
                     ? null
                     : applyPrereleaseSuffix(baseVersion, versionSuffix)),

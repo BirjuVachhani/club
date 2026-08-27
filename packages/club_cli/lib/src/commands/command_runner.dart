@@ -12,6 +12,7 @@ import 'logout_command.dart';
 import 'mcp_command.dart';
 import 'prepare_command.dart';
 import 'publish_command.dart';
+import 'set_version_command.dart';
 import 'setup_command.dart';
 import 'upgrade_command.dart';
 
@@ -31,6 +32,7 @@ CommandRunner<void> buildCommandRunner() {
   runner.addCommand(SetupCommand());
   runner.addCommand(PublishCommand());
   runner.addCommand(PrepareCommand());
+  runner.addCommand(SetVersionCommand());
   runner.addCommand(AddCommand());
   runner.addCommand(GlobalCommand());
   runner.addCommand(McpCommand());

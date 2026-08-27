@@ -184,6 +184,7 @@ Future<List<T>> pickMulti<T>(
   String prompt,
   List<PickOption<T>> options, {
   int minSelected = 1,
+  String? nonInteractiveMessage,
 }) async {
   if (options.isEmpty) {
     throw ArgumentError('pickMulti() called with no options.');
@@ -195,11 +196,11 @@ Future<List<T>> pickMulti<T>(
     prompt: prompt,
     optionCount: options.length,
     nonInteractiveMessage:
+        nonInteractiveMessage ??
         'Multiple options available, but cannot prompt in a non-interactive '
-        'shell. Pass package names as positional arguments to bypass the '
-        'interactive picker.',
-    footer:
-        '↑/↓ to move, Space to toggle, Enter to confirm, q to cancel.',
+            'shell. Pass package names as positional arguments to bypass the '
+            'interactive picker.',
+    footer: '↑/↓ to move, Space to toggle, Enter to confirm, q to cancel.',
     lineFor: (i, cursor) {
       final opt = options[i];
       final pointer = i == cursor ? cyan('❯ ') : '  ';
@@ -231,9 +232,7 @@ Future<List<T>> pickMulti<T>(
 
 /// Outcome of an Enter press, returned from [_runMenu]'s `onEnter` callback.
 class _EnterAction<R> {
-  _EnterAction.complete(R this.value)
-    : refuse = false,
-      refusalMessage = null;
+  _EnterAction.complete(R this.value) : refuse = false, refusalMessage = null;
   _EnterAction.refuse(String message)
     : value = null,
       refuse = true,
@@ -285,13 +284,19 @@ Future<R> _runMenu<R>({
     // the parent shell resets the tty when it regains control.
     try {
       stdin.echoMode = wasEchoMode;
-    } on StdinException {/* ignore */}
+    } on StdinException {
+      /* ignore */
+    }
     try {
       stdin.lineMode = wasLineMode;
-    } on StdinException {/* ignore */}
+    } on StdinException {
+      /* ignore */
+    }
     try {
       stdout.writeln();
-    } on StdoutException {/* ignore */}
+    } on StdoutException {
+      /* ignore */
+    }
   }
 }
 

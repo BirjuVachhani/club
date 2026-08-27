@@ -2,6 +2,7 @@
 
 ### Added
 
+- `club set-version` updates selected package versions and hosted internal dependency constraints across Dart workspaces.
 - Native Windows ARM64 CLI builds, installation, and upgrade detection.
 - Package groups organize related packages into searchable, manually ordered collections with user or publisher ownership.
 - Group detail and administration views support package selection, drag-and-drop reordering, and group management.

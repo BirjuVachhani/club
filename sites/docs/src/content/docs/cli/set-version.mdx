@@ -1,0 +1,91 @@
+---
+title: club set-version
+description: Set package versions and keep hosted internal dependency constraints in sync across a Dart workspace.
+sidebar:
+  order: 7
+---
+
+`club set-version` updates package versions across a Dart workspace without publishing anything.
+
+```bash
+club set-version 0.2.0
+```
+
+The command recursively discovers packages below the current directory and opens a multi-select list. Select every package that should receive the new top-level `version`.
+
+For each selected package, the command also scans every discovered package for matching hosted dependencies. References in `dependencies`, `dev_dependencies`, and `dependency_overrides` are updated to a caret constraint for the new version.
+
+## Example
+
+Given these packages:
+
+```yaml
+# packages/a/pubspec.yaml
+name: a
+version: 0.1.0
+```
+
+```yaml
+# packages/b/pubspec.yaml
+name: b
+version: 0.1.0
+dependencies:
+  a: ^0.1.0
+```
+
+```yaml
+# packages/c/pubspec.yaml
+name: c
+version: 0.1.0
+dependencies:
+  a:
+    hosted: https://myclub.example.com
+    version: ^0.1.0
+  b:
+    hosted: https://myclub.example.com
+    version: ^0.1.0
+```
+
+Run the command and select `a`, `b`, and `c`:
+
+```bash
+club set-version 0.2.0
+```
+
+The resulting package versions become `0.2.0`, and the hosted internal constraints become `^0.2.0`. Existing hosted URLs and dependency declaration shapes are preserved.
+
+## Dependency rules
+
+The command updates these hosted forms:
+
+```yaml
+dependencies:
+  a: ^0.1.0
+  b:
+    hosted: https://myclub.example.com
+    version: ^0.1.0
+```
+
+It skips path, Git, and SDK dependencies:
+
+```yaml
+dependencies:
+  local_a:
+    path: ../a
+  git_b:
+    git: https://example.com/b.git
+  flutter:
+    sdk: flutter
+```
+
+Only selected packages receive a new top-level `version`. Unselected packages are still scanned so their hosted references to selected packages remain resolvable.
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `-C, --directory <dir>` | Discover packages below a different directory. |
+
+Both `pubspec.yaml` and `pubspec.yml` manifests are supported. A workspace umbrella manifest is not offered as a package.
+
+The version must be valid pub semantic version syntax, such as `1.2.3`, `1.2.3-beta.1`, or `1.2.3+build5`. Do not prefix it with `v`.
