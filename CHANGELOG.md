@@ -1,16 +1,27 @@
-## 0.7.0
+## 0.7.1
 
 ### Added
 
 - `club set-version` updates selected package versions and hosted internal dependency constraints across Dart workspaces.
 - Native Windows ARM64 CLI builds, installation, and upgrade detection.
+
+### Changed
+
+- `club upgrade` delegates Homebrew installations to Homebrew.
+- GitHub release lookup uses `GITHUB_TOKEN` when available to avoid unauthenticated API limits.
+- Home page package counts remain stable while streamed data loads.
+- The home page search surface uses translucent backdrop blur styling.
+
+## 0.7.0
+
+### Added
+
 - Package groups organize related packages into searchable, manually ordered collections with user or publisher ownership.
 - Group detail and administration views support package selection, drag-and-drop reordering, and group management.
 - Group names participate in discovery, with dedicated group results and matching member packages.
 
 ### Changed
 
-- `club upgrade` delegates Homebrew installations to Homebrew.
 - Package, group, and admin listings share consistent cards, menus, search controls, dialogs, and responsive styling.
 - Group package listings now include the same platform, screenshot, score, download, publisher, and license metadata as package search results.
 
