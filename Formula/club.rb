@@ -18,28 +18,28 @@
 class Club < Formula
   desc "Self-hosted, private Dart package repository CLI"
   homepage "https://github.com/BirjuVachhani/club"
-  version "0.8.0"
+  version "0.8.1"
   license "Apache-2.0"
 
   on_macos do
     on_arm do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-macos-arm64.tar.gz"
-      sha256 "e256b46d2a11e849ede9bd5b8b48737f79a85bb577aa026a58f1efd6ae9c9bee"
+      sha256 "8d60d429784f0a8b0f2ee0aecbddb311ad72c92664933a41ded00f7b1fc21fa3"
     end
     on_intel do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-macos-x64.tar.gz"
-      sha256 "bddf19453ef90b91ad724451753b7f42b28df4ef422a457757c361b8bd033824"
+      sha256 "a94e92316d754274103957ce5fc0807d6bec7f0c0291030564112e8a4d094f6c"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-linux-arm64.tar.gz"
-      sha256 "e852fe73dca07ca90596580879b5ea05d524f6973f6fa96549bf288bc5f3b538"
+      sha256 "934c3c8a98e02a0251718ce91b4abd8cd04cbf595c832d90ac1f6c37538a0183"
     end
     on_intel do
       url "https://github.com/BirjuVachhani/club/releases/download/#{version}/club-cli-#{version}-linux-x64.tar.gz"
-      sha256 "a6fe0236fe68fad9583942207fac65a1c9b00b4db3c5f9ba25d8a1bf1ce75825"
+      sha256 "ac8d62ad862e49cfb42e682c65c8693ea787a67224a21f879c2baf8c83819d7c"
     end
   end
 
