@@ -22,6 +22,8 @@ class AdminApi {
     required this.authService,
     required this.metadataStore,
     required this.blobStore,
+    required this.siteStore,
+    required this.publishService,
     required this.searchIndex,
     required this.serverUrl,
     required this.config,
@@ -33,6 +35,8 @@ class AdminApi {
   final AuthService authService;
   final MetadataStore metadataStore;
   final BlobStore blobStore;
+  final SiteArchiveStore siteStore;
+  final PublishService publishService;
   final SearchIndex searchIndex;
 
   /// Public base URL, used to produce full invite links.
@@ -61,10 +65,7 @@ class AdminApi {
     final dependents = await visibilityService.breakageFromRemoving(package);
     if (dependents.isEmpty) return;
 
-    final summary = dependents
-        .take(5)
-        .map((d) => d.pathDescription)
-        .join('; ');
+    final summary = dependents.take(5).map((d) => d.pathDescription).join('; ');
     throw ConflictException(
       '$action breaks ${dependents.length} public package(s) that depend '
       'on it: $summary${dependents.length > 5 ? '; ...' : ''}. '
@@ -108,7 +109,10 @@ class AdminApi {
   Future<Response> _getPublicPackagesSettings(Request request) async {
     requireRole(request, UserRole.admin);
 
-    final counts = await metadataStore.listPackages(limit: 1, scope: VisibilityScope.trustedInternal);
+    final counts = await metadataStore.listPackages(
+      limit: 1,
+      scope: VisibilityScope.trustedInternal,
+    );
     return _jsonResponse({
       // False here means the deployment forbids it outright and the
       // dashboard toggle cannot help. The UI needs the distinction to
@@ -193,8 +197,7 @@ class AdminApi {
     final pkg = await metadataStore.lookupPackage(package);
     if (pkg == null) throw NotFoundException.package(package);
 
-    final includeDev =
-        request.url.queryParameters['includeDev'] == 'true';
+    final includeDev = request.url.queryParameters['includeDev'] == 'true';
 
     final closure = await metadataStore.localDependencyClosure(
       {package},
@@ -213,8 +216,8 @@ class AdminApi {
       final member = await metadataStore.lookupPackage(name);
       members.add({
         'package': name,
-        'visibility': (member?.visibility ?? PackageVisibility.private)
-            .wireName,
+        'visibility':
+            (member?.visibility ?? PackageVisibility.private).wireName,
         'exists': member != null,
         'isTarget': name == package,
       });
@@ -224,7 +227,10 @@ class AdminApi {
     // buys nothing (an anonymous consumer resolves pub.dev regardless),
     // so they are reported separately rather than folded into the closure.
     final ambiguous = <Map<String, Object?>>[];
-    for (final version in await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal)) {
+    for (final version in await metadataStore.listVersions(
+      package,
+      scope: VisibilityScope.trustedInternal,
+    )) {
       for (final dep in await metadataStore.listVersionDependencies(
         package,
         version.version,
@@ -296,7 +302,10 @@ class AdminApi {
         scope: VisibilityScope.trustedInternal,
       );
       for (final pkg in page.items) {
-        final versions = await metadataStore.listVersions(pkg.name, scope: VisibilityScope.trustedInternal);
+        final versions = await metadataStore.listVersions(
+          pkg.name,
+          scope: VisibilityScope.trustedInternal,
+        );
         // Probe existence in parallel per-package. `exists` is cheap on a
         // local filesystem but can be an HTTP HEAD per call on S3/GCS —
         // fanning out keeps the handler from serialising hundreds of
@@ -770,7 +779,10 @@ class AdminApi {
 
     final rows = <Map<String, dynamic>>[];
     for (final p in result.items) {
-      final versions = await metadataStore.listVersions(p.name, scope: VisibilityScope.trustedInternal);
+      final versions = await metadataStore.listVersions(
+        p.name,
+        scope: VisibilityScope.trustedInternal,
+      );
       final totalBytes = versions.fold<int>(
         0,
         (sum, v) => sum + v.archiveSizeBytes,
@@ -795,39 +807,46 @@ class AdminApi {
     });
   }
 
-  Future<Response> _deletePackage(Request request, String package) async {
-    final actor = requireRole(request, UserRole.admin);
+  Future<Response> _deletePackage(Request request, String package) =>
+      publishService.withPackageLock(package, () async {
+        final actor = requireRole(request, UserRole.admin);
 
-    // Same breakage check as the package-owner delete path. Being a
-    // server admin means you are allowed to break public packages, not
-    // that you should do it without being told.
-    await _guardBreakage(request, package, action: 'Deleting $package');
+        // Same breakage check as the package-owner delete path. Being a
+        // server admin means you are allowed to break public packages, not
+        // that you should do it without being told.
+        await _guardBreakage(request, package, action: 'Deleting $package');
 
-    final versions = await metadataStore.listVersions(package, scope: VisibilityScope.trustedInternal);
-    for (final v in versions) {
-      await blobStore.delete(package, v.version);
-    }
+        // Fail closed: do not release the name while private site data remains.
+        await siteStore.deletePackage(package);
 
-    await metadataStore.deletePackage(package);
-    await searchIndex.removePackage(package);
+        final versions = await metadataStore.listVersions(
+          package,
+          scope: VisibilityScope.trustedInternal,
+        );
+        for (final v in versions) {
+          await blobStore.delete(package, v.version);
+        }
 
-    // Dependents' `public_resolvable` flags are now stale: they point at a
-    // package row that no longer exists. The recompute treats a missing
-    // dependency as blocking, so this demotes them correctly instead of
-    // leaving them advertised to anonymous clients.
-    await metadataStore.recomputePublicResolvable(
-      await metadataStore.packagesDependingOn({package}),
-    );
+        await metadataStore.deletePackage(package);
+        await searchIndex.removePackage(package);
 
-    await _audit(
-      kind: AuditKind.packageDeleted,
-      actorId: actor.userId,
-      packageName: package,
-      summary: 'Package $package deleted by ${actor.email}.',
-    );
+        // Dependents' `public_resolvable` flags are now stale: they point at a
+        // package row that no longer exists. The recompute treats a missing
+        // dependency as blocking, so this demotes them correctly instead of
+        // leaving them advertised to anonymous clients.
+        await metadataStore.recomputePublicResolvable(
+          await metadataStore.packagesDependingOn({package}),
+        );
 
-    return _jsonResponse({'status': 'ok'});
-  }
+        await _audit(
+          kind: AuditKind.packageDeleted,
+          actorId: actor.userId,
+          packageName: package,
+          summary: 'Package $package deleted by ${actor.email}.',
+        );
+
+        return _jsonResponse({'status': 'ok'});
+      });
 
   Future<Response> _deleteVersion(
     Request request,

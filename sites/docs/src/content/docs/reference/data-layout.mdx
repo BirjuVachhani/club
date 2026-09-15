@@ -35,6 +35,12 @@ This is the authoritative layout reference. Every other operational doc (backups
 │               ├── blob                 concatenated, per-file gzipped
 │               └── index.json           BlobIndex: path → {start,end}
 │
+├── sites/                          PRIMARY: back up
+│   └── <package>/<site>/
+│       ├── site.tar.gz              archived target
+│       ├── redirect.json            URL target (instead of archive)
+│       └── metadata.json            optional display label
+│
 ├── cache/                           🟡 REGENERABLE  — skip from backups
 │   ├── dartdoc/                     only when DARTDOC_BACKEND=filesystem
 │   │   └── <package>/
@@ -66,11 +72,14 @@ Each top-level directory has one job. The tiers exist specifically so operators 
 |---|---|---|---|---|
 | Primary (DB) | `db/` | **Yes, must** | **Yes** | No — loses all metadata |
 | Primary (blobs) | `blobs/` | **Yes, must** | **Yes** | No — loses tarballs + screenshots + blob-mode dartdoc |
+| Primary (sites) | `sites/` | **Yes, must** | **Yes** | No, loses uploaded previews and external links |
 | Regenerable | `cache/` | Preferred | No | **Yes** — regenerates on demand |
 | Observability | `logs/` | Preferred | Only if you care about history | **Yes** |
 | Ephemeral | `tmp/` | No matter either way | No | **Yes** |
 
-A correctly-configured backup is **just two directories**: `db/` + `blobs/`. Everything else rebuilds itself:
+With local defaults, back up **three primary directories**: `db/`, `blobs/`, and
+`sites/`. Site data stays local even when package blobs use S3 or GCS. Caches can
+be regenerated; logs and temporary uploads are not primary state:
 
 - `cache/dartdoc/` regenerates on the next scoring pass per package.
 - `cache/sdks/` re-downloads on first boot when pana scheduling kicks in.
@@ -88,6 +97,7 @@ Every path is overridable. Defaults listed assume `DATA_DIR=/data`.
 |---|---|---|---|
 | SQLite DB file | `SQLITE_PATH` | `db.sqlite_path` | `/data/db/club.db` |
 | Blob store root | `BLOB_PATH` | `blob.path` | `/data/blobs` |
+| Package sites | `SITES_PATH` | `sites_path` | `/data/sites` |
 | Dartdoc (filesystem mode) | `DARTDOC_PATH` | `dartdoc_path` | `/data/cache/dartdoc` |
 | Flutter/Dart SDKs | `SDK_BASE_DIR` | — | `/data/cache/sdks` |
 | Pana pub-cache | — | — | `/data/cache/pub-cache` (hardcoded today) |
@@ -157,6 +167,22 @@ Only `latest/` exists — older versions' dartdoc is discarded on regeneration. 
 
 ---
 
+## Package site storage
+
+`sites/` holds the active site set per package, not a history per version.
+Archive targets store `site.tar.gz`; URL targets store `redirect.json` instead.
+An optional `metadata.json` holds the label. None of these files are a cache.
+
+Site replacement temporarily uses sibling `<package>.candidate` and
+`<package>.backup` directories. Startup recovers interrupted replacements.
+Use one server process and stop publishing during backup or restore so a site
+replacement cannot race the copy. Include this directory even when package
+blobs are backed up from object storage. See
+[Package Sites](/guides/package-sites/) and
+[site storage](/configuration/storage/#static-site-archives).
+
+---
+
 ## `cache/` — Re-derivable state
 
 ### `cache/dartdoc/` (filesystem mode only)
@@ -215,9 +241,10 @@ The `dart pub publish` upload protocol is three-step (reserve → upload bytes �
 This is what goes in your cron job. Everything else is derived or ephemeral.
 
 ```bash
-# Primary state — covers everything the registry needs to serve.
+# Stop the server before copying primary state.
+# Includes package sites; use your configured paths if different.
 tar czf /backups/club-$(date +%Y%m%d).tar.gz \
-  -C /data db blobs
+  -C /data db blobs sites
 
 # Optional: include logs for historical observability.
 tar czf /backups/club-logs-$(date +%Y%m%d).tar.gz \

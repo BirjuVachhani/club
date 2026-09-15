@@ -41,6 +41,7 @@ if [ "$USE_DUMMY" = true ]; then
 
   export SQLITE_PATH="${SQLITE_PATH:-${DUMMY_DIR}/club.db}"
   export BLOB_PATH="${BLOB_PATH:-${DUMMY_DIR}/packages}"
+  export SITES_PATH="${SITES_PATH:-${DUMMY_DIR}/sites}"
   export SDK_BASE_DIR="${SDK_BASE_DIR:-${DUMMY_DIR}/sdks}"
   export DARTDOC_PATH="${DARTDOC_PATH:-${DUMMY_DIR}/dartdoc}"
   export TEMP_DIR="${TEMP_DIR:-${DUMMY_DIR}/tmp/uploads}"
@@ -48,6 +49,7 @@ if [ "$USE_DUMMY" = true ]; then
 else
   export SQLITE_PATH="${SQLITE_PATH:-/tmp/club-dev.db}"
   export BLOB_PATH="${BLOB_PATH:-/tmp/club-dev-packages}"
+  export SITES_PATH="${SITES_PATH:-/tmp/club-dev-sites}"
   export SDK_BASE_DIR="${SDK_BASE_DIR:-/tmp/club-dev-sdks}"
   export DARTDOC_PATH="${DARTDOC_PATH:-/tmp/club-dev-dartdoc}"
   export TEMP_DIR="${TEMP_DIR:-/tmp/club-dev-uploads}"
@@ -55,6 +57,8 @@ else
 fi
 
 # Dev defaults
+export SITE_RUNNER_URL="${SITE_RUNNER_URL:-http://127.0.0.1:8081}"
+export SITE_RUNNER_PORT="${SITE_RUNNER_PORT:-8081}"
 export SERVER_URL="${SERVER_URL:-http://localhost:8080}"
 # SvelteKit dev server proxies /api to :8080 but keeps the browser's
 # Origin at :5173 — whitelist it so origin_guard lets login/signup through.
@@ -84,6 +88,7 @@ trap cleanup EXIT INT TERM
 
 echo "=== club dev server ==="
 echo "  API:      http://localhost:8080"
+echo "  Site runner: ${SITE_RUNNER_URL}"
 echo "  Web UI:   http://localhost:5173 (SvelteKit HMR)"
 if [ "$USE_DUMMY" = true ]; then
   echo "  Mode:     dummy (pre-seeded with real packages)"
@@ -94,6 +99,11 @@ fi
 echo "  Database: ${SQLITE_PATH}"
 echo "  Packages: ${BLOB_PATH}"
 echo ""
+
+if [ "$USE_DUMMY" = true ]; then
+  python3 "${PROJECT_ROOT}/scripts/seed-demo-site.py" "$SITES_PATH"
+  echo "  Preview: http://localhost:5173/packages/club_gallery_demo/site/demo"
+fi
 
 # Start Dart API server
 echo "Starting Dart API server..."

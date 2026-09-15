@@ -34,11 +34,16 @@ Always back up before upgrading. Pending migrations are applied automatically on
     1. **Back up your data:**
 
        ```bash
+       # Pause publishing for the entire backup.
        # SQLite
        sqlite3 /data/db/club.db ".backup /backups/club-pre-upgrade.db"
 
        # Filesystem blobs (tarballs + screenshots + blob-mode dartdoc)
        tar -czf /backups/blobs-pre-upgrade.tar.gz -C /data blobs/
+
+       # Sites stay local even when blobs use object storage.
+       # Use your configured SITES_PATH if different.
+       tar -czf /backups/sites-pre-upgrade.tar.gz -C /data/sites .
        ```
 
     2. **Pull the new image:**

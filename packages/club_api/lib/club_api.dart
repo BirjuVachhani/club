@@ -14,3 +14,4 @@ export 'package:club_core/src/models/api/package_publisher_info.dart';
 export 'package:club_core/src/models/api/version_content.dart';
 export 'package:club_core/src/models/api/package_dartdoc_status.dart';
 export 'package:club_core/src/models/api/package_scoring_report.dart';
+export 'src/site_attachment.dart';

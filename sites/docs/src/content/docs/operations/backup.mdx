@@ -11,12 +11,13 @@ A first-class backup/restore feature is planned for a future release. In the mea
   For the authoritative reference of every path under `/data` — what each tier holds, what can safely be deleted, and what each env var controls — see [Data Directory Layout](/reference/data-layout/).
 </Aside>
 
-The `/data` directory is structured in tiers so backups only need to cover the two primary ones:
+The `/data` directory is structured in tiers so backups only need to cover the three primary ones:
 
 ```
 /data/
 ├── db/           🔒 PRIMARY — back this up
 ├── blobs/        🔒 PRIMARY — back this up
+├── sites/        PRIMARY: back this up
 ├── cache/        🟡 safe to skip — regenerates automatically
 ├── logs/         🟢 observability — optional
 └── tmp/          🟢 ephemeral — never restore
@@ -24,11 +25,17 @@ The `/data` directory is structured in tiers so backups only need to cover the t
 
 - **`db/`** holds `club.db` plus the WAL/SHM sidecars. The SQLite source of truth: packages, versions, users, tokens, publishers, audit log, scores, download counts, settings.
 - **`blobs/`** holds package tarballs, per-version screenshots, and — when `DARTDOC_BACKEND=blob` — the indexed-blob dartdoc archives. Everything addressable via the `BlobStore` interface.
+- **`sites/`** holds active site archives, external URL destinations, and display labels. Back it up even when `BLOB_BACKEND` uses S3 or GCS. `SITES_PATH` can move it outside `/data`.
 - **`cache/`** holds regenerable content: `cache/dartdoc/` (filesystem-mode dartdoc, regenerated on next scoring run), `cache/sdks/` (Flutter/Dart SDK installs, re-downloaded on first boot), `cache/pub-cache/` (populated on demand). Skipping this from backups is fine.
 - **`logs/`** holds `scoring.log`. Back up only if you want the history.
 - **`tmp/`** holds in-flight uploads. Never restore — stale upload sessions will already have expired in the DB.
 
-A fresh container started against a restored `db/` + `blobs/` picks everything up automatically: the DB opens, tarballs and screenshots are served from disk, SDKs re-initialise on first scoring job. The admin UI surfaces a popup if any database entries point at missing tarballs after a partial restore, so you can clean up stranded records.
+A fresh container started against restored `db/`, `blobs/`, and `sites/` directories picks everything up automatically: the DB opens, tarballs and screenshots are served from disk, SDKs re-initialise on first scoring job. The admin UI surfaces a popup if any database entries point at missing tarballs after a partial restore, so you can clean up stranded records.
+
+Stop publishing while taking a consistent backup of site data and package
+state. Stop the server before copying SQLite files directly. The online scripts
+below back up components separately; they are not an atomic snapshot across all
+stores.
 
 ## What to Back Up
 
@@ -36,6 +43,7 @@ A fresh container started against a restored `db/` + `blobs/` picks everything u
 |-----------|----------|-----------------|
 | Metadata store | Packages, versions, users, tokens, publishers, audit log, scores, download counts, server settings | SQLite file (default, `/data/db/club.db`) or PostgreSQL database |
 | Blob store | `.tar.gz` package archives, screenshots, and (in blob-mode) dartdoc indexed blobs | Filesystem directory (`/data/blobs/`), S3 bucket, or GCS bucket |
+| Package sites | Active static archives, URL destinations, labels | Local `SITES_PATH` directory (default `/data/sites/`), independent of blob backend |
 
 <Aside type="caution">
 The search index (SQLite FTS5 or Meilisearch) does not need to be backed up separately. It is rebuilt from the metadata store as packages are re-indexed. Filesystem-mode dartdoc under `/data/cache/dartdoc/` is also not worth backing up — it regenerates on the next scoring pass after publish.
@@ -185,11 +193,28 @@ The search index (SQLite FTS5 or Meilisearch) does not need to be backed up sepa
 
 ---
 
+## Package Sites
+
+Back up `SITES_PATH` separately from object-storage blobs. At the default path:
+
+```bash
+# Pause publishing before copying the active site directory.
+tar -czf /backups/sites-$(date +%Y%m%d).tar.gz -C /data sites/
+
+# Restore while the server is stopped.
+tar -xzf /backups/sites-20260409.tar.gz -C /data
+```
+
+Use a matching database and blob backup. Restore labels and URL metadata along
+with archives, not just `*.tar.gz` files. The **Disable sites** setting is in the
+metadata database and is restored with it. See
+[site storage](/configuration/storage/#static-site-archives).
+
 ## Automated Backup with Cron
 
 ### Full Backup Script
 
-Create a script that backs up both the metadata and blob stores:
+Create a script that backs up metadata, blobs, and package sites:
 
 ```bash
 #!/bin/bash
@@ -234,6 +259,12 @@ if [ -d /data/blobs ]; then
   echo "Blob backup complete: $BACKUP_DIR/blobs-$DATE.tar.gz"
 fi
 
+# Site data is local even when blobs use S3. Pause publishing for this copy.
+SITE_DIR="${SITES_PATH:-/data/sites}"
+if [ -d "$SITE_DIR" ]; then
+  tar -czf "$BACKUP_DIR/sites-$DATE.tar.gz" -C "$SITE_DIR" .
+fi
+
 # S3 (uncomment if using S3)
 # echo "Syncing S3 bucket..."
 # aws s3 sync s3://club-packages "$BACKUP_DIR/packages-$DATE/"
@@ -263,7 +294,9 @@ crontab -e
 
 ### Docker Backup
 
-If club runs in Docker, execute the backup script inside the container or mount the data volumes:
+If club runs in Docker, use a sidecar with the required backup tools and mount
+the data volume. Pause publishing for the whole backup. The example assumes
+the default site path; mount and copy your configured `SITES_PATH` if different:
 
 ```bash
 # Backup from outside the container using mounted volumes
@@ -274,6 +307,7 @@ docker run --rm \
     apk add --no-cache sqlite
     sqlite3 /data/db/club.db ".backup /backups/club-$(date +%Y%m%d).db"
     tar -czf /backups/blobs-$(date +%Y%m%d).tar.gz -C /data blobs/
+    tar -czf /backups/sites-$(date +%Y%m%d).tar.gz -C /data/sites .
   '
 ```
 
@@ -310,14 +344,24 @@ docker run --rm \
    # aws s3 sync /backups/blobs/ s3://club-packages
    ```
 
-4. **Start the club server.**
+4. **Restore package sites**, if used. For the automated script's archive:
+
+   ```bash
+   mkdir -p /data/sites
+   tar -xzf /backups/sites-20260409.tar.gz -C /data/sites
+   ```
+
+   Use your configured `SITES_PATH` if different. The standalone recipe above
+   includes the `sites/` directory itself, so extract that archive into `/data`.
+
+5. **Start the club server.**
 
    ```bash
    docker compose up -d
    # or: systemctl start club
    ```
 
-5. **Verify the restore** by checking the health endpoint and browsing packages:
+6. **Verify the restore** by checking the health endpoint and browsing packages:
 
    ```bash
    curl https://packages.example.com/api/v1/health

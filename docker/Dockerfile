@@ -111,7 +111,7 @@ COPY docker/entrypoint.sh                                       /app/bin/entrypo
 RUN chmod +x /app/bin/entrypoint.sh
 
 VOLUME /data
-EXPOSE 8080
+EXPOSE 8080 8081
 
 # ── Scoring sandbox defaults (override via `docker run -e …` if needed) ──
 #
@@ -132,8 +132,8 @@ ENV SCORING_SUBPROCESS_BINARY=/app/scoring_subprocess/bin/scoring_subprocess \
     SCORING_SANDBOX_GID=1001 \
     SCORING_SANDBOX_RLIMITS=v=4194304,t=3600,n=1024
 
-# Healthcheck without curl — use wget from busybox or a simple tcp check
+# Fail on unhealthy HTTP responses using the installed runtime curl.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["sh", "-c", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /api/v1/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '\"ok\"' <&3"]
+  CMD curl --fail --silent --show-error --max-time 4 "http://127.0.0.1:${LISTEN_PORT:-8080}/api/v1/health" > /dev/null
 
 ENTRYPOINT ["/app/bin/entrypoint.sh"]

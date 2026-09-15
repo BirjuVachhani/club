@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
+import '../models/site_upload.dart';
+import '../repositories/site_archive_store.dart';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -122,6 +125,9 @@ class PublishService {
     required this.tempDir,
     required this.extractArchive,
     this.onVersionPublished,
+    this.siteStore,
+    this.validateSiteArchive,
+    this.siteLimits = const SiteLimits(),
     this.selfOrigin,
     this.maxUploadBytes = 100 * 1024 * 1024,
     this.uploadSessionTtl = const Duration(minutes: 10),
@@ -129,6 +135,38 @@ class PublishService {
   }) : _store = store,
        _blobStore = blobStore,
        _searchIndex = searchIndex;
+
+  final SiteArchiveStore? siteStore;
+  final Future<void> Function(File, SiteLimits)? validateSiteArchive;
+  final SiteLimits siteLimits;
+  final Map<String, Future<void>> _packageLocks = {};
+  final Set<String> _finalizing = {};
+
+  /// Serializes deletion with publication, including authorization and writes.
+  Future<T> withPackageLock<T>(
+    String package,
+    Future<T> Function() action,
+  ) async {
+    final unlock = await _lockPackage(package);
+    try {
+      return await action();
+    } finally {
+      unlock();
+    }
+  }
+
+  Future<void Function()> _lockPackage(String package) async {
+    final previous = _packageLocks[package];
+    final release = Completer<void>();
+    _packageLocks[package] = release.future;
+    if (previous != null) await previous;
+    return () {
+      release.complete();
+      if (identical(_packageLocks[package], release.future)) {
+        _packageLocks.remove(package);
+      }
+    };
+  }
 
   final MetadataStore _store;
   final BlobStore _blobStore;
@@ -187,6 +225,9 @@ class PublishService {
     return {
       'url': baseUrl.resolve('/api/packages/versions/upload').toString(),
       'fields': {'upload_id': uploadId},
+      if (siteStore != null) 'sites_version': 1,
+      if (siteStore != null) 'site_urls': true,
+      if (siteStore != null) 'site_limits': siteLimits.toJson(),
     };
   }
 
@@ -207,7 +248,7 @@ class PublishService {
     bool force = false,
   }) async {
     final session = await _store.lookupUploadSession(uploadId);
-    if (session == null) {
+    if (session == null || session.isExpired) {
       throw const InvalidInputException('Upload session not found or expired.');
     }
     if (session.userId != userId) {
@@ -219,9 +260,13 @@ class PublishService {
       );
     }
 
-    await _store.updateUploadSessionState(uploadId, UploadState.processing);
-
+    if (!_finalizing.add(uploadId)) {
+      throw const InvalidInputException('Upload is already being finalized.');
+    }
+    void Function()? unlock;
+    final siteDirectory = Directory('${session.tempPath}.sites');
     try {
+      await _store.updateUploadSessionState(uploadId, UploadState.processing);
       final tempFile = File(session.tempPath);
       if (!await tempFile.exists()) {
         throw const InvalidInputException('Upload file not found.');
@@ -254,13 +299,44 @@ class PublishService {
         throw PackageRejectedException.invalidVersion(version);
       }
 
+      unlock = await _lockPackage(name);
+
+      List<SiteUpload>? sites;
+      final manifestFile = File('${siteDirectory.path}/manifest.json');
+      if (await manifestFile.exists()) {
+        if (siteStore == null || validateSiteArchive == null) {
+          throw const InvalidInputException(
+            'Site publishing is not configured.',
+          );
+        }
+        sites = SiteUpload.parse(
+          jsonDecode(await manifestFile.readAsString()),
+          siteLimits,
+        );
+      }
+
       // Check authorization
       await _checkPublishAuth(name, userId);
+
+      if (sites != null) {
+        for (final site in sites) {
+          if (site.url != null) continue;
+          final file = File('${siteDirectory.path}/${site.part}');
+          if (await file.length() != site.length ||
+              (await sha256.bind(file.openRead()).first).toString() !=
+                  site.sha256) {
+            throw const InvalidInputException(
+              'Site archive length or digest mismatch.',
+            );
+          }
+          await validateSiteArchive!(file, siteLimits);
+        }
+      }
 
       // Check for duplicate version
       final existing = await _store.lookupVersion(name, version);
       if (existing != null) {
-        if (existing.archiveSha256 == sha256Hex && !force) {
+        if (existing.archiveSha256 == sha256Hex && !force && sites == null) {
           // Idempotent: same content + no force, treat as success.
           // Force bypasses this so an operator can re-run extraction
           // (e.g. to apply a server-side processing change like the
@@ -515,6 +591,25 @@ class PublishService {
         ),
       );
 
+      final warning = await _publicResolvabilityWarning(name, version);
+      var sitesMessage = '';
+      if (sites != null) {
+        final versions = await _store.listVersions(
+          name,
+          scope: VisibilityScope.trustedInternal,
+        );
+        final latest = VersionValidator.latestStable(
+          versions.where((v) => !v.isRetracted).map((v) => v.version).toList(),
+        );
+        if (latest == version && !VersionValidator.isPrerelease(version)) {
+          await siteStore!.replace(name, siteDirectory.path, sites);
+          sitesMessage = ' Updated ${sites.length} static site(s).';
+        } else {
+          sitesMessage =
+              ' Sites were validated but not activated: this is not the latest stable release.';
+        }
+      }
+
       // Notify listeners (e.g. scoring service) — fire-and-forget so a
       // scoring failure doesn't block the publish response.
       if (onVersionPublished != null) {
@@ -524,7 +619,11 @@ class PublishService {
 
       // Cleanup
       await _store.updateUploadSessionState(uploadId, UploadState.complete);
-      await tempFile.delete();
+      try {
+        await tempFile.delete();
+      } on FileSystemException {
+        /* Cleanup is retryable. */
+      }
 
       // Distinct message on force-republish so the CLI user can tell
       // whether the overwrite path actually executed end-to-end. A plain
@@ -539,8 +638,9 @@ class PublishService {
       // string and there is no other channel back to the publisher, so a
       // silent success would leave them believing anonymous consumers can
       // get the version they just shipped.
-      final warning = await _publicResolvabilityWarning(name, version);
-      return warning == null ? base : '$base\n\n$warning';
+      return warning == null
+          ? '$base$sitesMessage'
+          : '$base$sitesMessage\n\n$warning';
     } catch (e) {
       await _store.updateUploadSessionState(uploadId, UploadState.failed);
       // Try to clean up temp file
@@ -548,6 +648,14 @@ class PublishService {
         await File(session.tempPath).delete();
       } catch (_) {}
       rethrow;
+    } finally {
+      unlock?.call();
+      _finalizing.remove(uploadId);
+      if (await siteDirectory.exists()) {
+        try {
+          await siteDirectory.delete(recursive: true);
+        } catch (_) {}
+      }
     }
   }
 
@@ -557,10 +665,29 @@ class PublishService {
 
   /// Clean up expired upload sessions and their temp files.
   Future<void> cleanupExpiredSessions() async {
+    final directory = Directory(tempDir);
+    if (await directory.exists()) {
+      await for (final entity in directory.list(followLinks: false)) {
+        final basename = entity.uri.pathSegments
+            .where((s) => s.isNotEmpty)
+            .last;
+        final suffix = basename.endsWith('.tar.gz.sites')
+            ? '.tar.gz.sites'
+            : '.tar.gz';
+        if (!basename.endsWith(suffix)) continue;
+        final id = basename.substring(0, basename.length - suffix.length);
+        if (_finalizing.contains(id)) continue;
+        final session = await _store.lookupUploadSession(id);
+        if (session == null || session.isExpired) {
+          try {
+            await entity.delete(recursive: entity is Directory);
+          } on FileSystemException {
+            /* Retry next cleanup. */
+          }
+        }
+      }
+    }
     await _store.deleteExpiredUploadSessions();
-    // Note: temp files for expired sessions should also be cleaned.
-    // The MetadataStore implementation should handle deleting the files
-    // or we scan the temp directory for orphaned files.
   }
 
   /// Blob-store key prefix for a given version's screenshots. Resolves to
@@ -573,8 +700,7 @@ class PublishService {
   /// assets. The on-disk filename keeps the extension (unlike screenshots,
   /// which strip it) so the HTTP route can derive the Content-Type from
   /// the URL without an accompanying DB metadata table.
-  static String _readmeAssetPrefix(String version) =>
-      '$version/readme-assets/';
+  static String _readmeAssetPrefix(String version) => '$version/readme-assets/';
 
   static PackageScreenshot _screenshotMeta(ExtractedScreenshot s) =>
       PackageScreenshot(

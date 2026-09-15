@@ -29,6 +29,7 @@ enum DepSection {
   devDependencies('dev_dependencies');
 
   const DepSection(this.key);
+
   final String key;
 }
 
@@ -74,8 +75,8 @@ class DependencyGraph {
     required this.packages,
     required this.edges,
     required this.errors,
-    required Map<String, List<DependencyEdge>> adjacency,
-  }) : _adjacency = adjacency;
+    required this._adjacency,
+  });
 
   /// Construct from a flat edge list. Pre-indexes outgoing edges by package
   /// name so [outgoing] is O(1) regardless of graph size.
@@ -117,6 +118,7 @@ class DependencyGraph {
 /// discovered set.
 class GraphError {
   GraphError(this.message, {this.hint});
+
   final String message;
   final String? hint;
 }
@@ -207,7 +209,9 @@ void _scanSection({
     if (dep is PathDependency) {
       // Resolve the path against the depending package's directory and
       // see whether it lands inside any discovered package.
-      final absolute = p.canonicalize(p.normalize(p.join(pkg.directory, dep.path)));
+      final absolute = p.canonicalize(
+        p.normalize(p.join(pkg.directory, dep.path)),
+      );
       final matchedName = byDir[absolute];
       if (matchedName == null) {
         errors.add(
@@ -313,13 +317,14 @@ PublishPlan planPublishOrder(DependencyGraph graph, List<String> targets) {
   // stable regardless of the order deps happen to appear in a pubspec.
   final neighbors = <String, List<String>>{
     for (final n in reachable)
-      n: (graph
-          .outgoing(n)
-          .map((e) => e.to)
-          .where(reachable.contains)
-          .toSet()
-          .toList()
-        ..sort()),
+      n:
+          (graph
+              .outgoing(n)
+              .map((e) => e.to)
+              .where(reachable.contains)
+              .toSet()
+              .toList()
+            ..sort()),
   };
 
   // 3. Tarjan's strongly-connected-components algorithm.

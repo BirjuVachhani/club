@@ -1,3 +1,4 @@
+import 'sites/site_api.dart';
 import 'dart:io';
 
 import 'package:club_core/club_core.dart';
@@ -54,6 +55,7 @@ Handler buildHandler({
   required DownloadService downloadService,
   required MetadataStore metadataStore,
   required BlobStore blobStore,
+  required SiteArchiveStore siteStore,
   required SearchIndex searchIndex,
   required SetupApi setupApi,
   String? staticFilesPath,
@@ -112,6 +114,8 @@ Handler buildHandler({
     packageService: packageService,
     metadataStore: metadataStore,
     blobStore: blobStore,
+    siteStore: siteStore,
+    publishService: publishService,
     visibilityService: visibilityService,
     packageGroupService: packageGroupService,
   );
@@ -135,6 +139,8 @@ Handler buildHandler({
     authService: authService,
     metadataStore: metadataStore,
     blobStore: blobStore,
+    siteStore: siteStore,
+    publishService: publishService,
     searchIndex: searchIndex,
     serverUrl: serverUrlOverride ?? Uri.parse('http://localhost:8080'),
     config: config,
@@ -179,6 +185,7 @@ Handler buildHandler({
       .add(legalApi.router.call)
       .add(setupApi.router.call)
       .add(pubApi.router.call)
+      .add(SiteApi(config, metadataStore, settingsStore).router.call)
       .add(authApi.router.call)
       .add(oauthApi.router.call)
       // Ahead of packageAdminApi so `/api/packages/<pkg>/visibility` is
@@ -318,7 +325,9 @@ Handler buildHandler({
   //   4. auth + CSRF
   //   5. setup guard
   final pipeline = Pipeline()
-      .addMiddleware(securityHeadersMiddleware())
+      .addMiddleware(
+        securityHeadersMiddleware(siteRunnerUrl: config.siteRunnerUrl),
+      )
       .addMiddleware(loggingMiddleware())
       .addMiddleware(errorMiddleware())
       .addMiddleware(
@@ -377,5 +386,21 @@ Handler buildHandler({
       )
       .addHandler(apiHandler);
 
-  return pipeline;
+  return (request) {
+    // Runner assets must never execute on the authenticated Club origin.
+    if (request.url.path.startsWith('site-runner/') ||
+        request.url.path.startsWith('content/')) {
+      return Response.notFound('Not found');
+    }
+    final runner = config.siteRunnerUrl == null
+        ? null
+        : Uri.parse(config.siteRunnerUrl!);
+    final source = Uri.tryParse(
+      request.headers['origin'] ?? request.headers['referer'] ?? '',
+    );
+    if (runner != null && source?.host == runner.host) {
+      return Response.forbidden('Runner requests cannot access Club.');
+    }
+    return pipeline(request);
+  };
 }

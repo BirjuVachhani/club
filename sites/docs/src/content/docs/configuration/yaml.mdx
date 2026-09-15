@@ -81,6 +81,27 @@ s3_bucket: club-packages
   Use the flat top-level keys exactly as listed in the [key-mapping table](#yaml-key-to-environment-variable-mapping) below. Nesting keys under `db:`, `blob:`, or `search:` sections is **not** reliably honoured by the loader: only `db_backend`, `blob_backend`, and `blob_path` are also recognised when nested as `db.backend` / `blob.backend` / `blob.path`. All other keys (`sqlite_path`, `postgres_url`, the `s3_*` / `gcs_*` keys, `meilisearch_url`, `meilisearch_key`) must be top-level flat keys.
 </Aside>
 
+## Package sites
+
+Server-side site configuration uses top-level keys:
+
+```yaml
+site_runner_url: https://preview.example.net
+site_runner_port: 8081
+sites_path: /data/sites
+max_sites: 20
+max_site_archive_bytes: 104857600
+max_sites_total_bytes: 524288000
+max_site_expanded_bytes: 524288000
+max_site_entries: 10000
+```
+
+Omit `site_runner_url` if you do not need archived browser previews. When set,
+it requires `server_url` with a different hostname and a separate listener port.
+See [runner deployment](/configuration/storage/#browser-previews) before enabling it.
+These server keys are distinct from the publisher's `sites` map in
+[`club.yaml`](/guides/package-sites/#configure-your-sites).
+
 ## Full Annotated Example
 
 ```yaml
@@ -277,6 +298,14 @@ Each flat top-level YAML key maps to its corresponding environment variable:
 | `meilisearch_key` | `MEILISEARCH_KEY` |
 | `temp_dir` | `TEMP_DIR` |
 | `max_upload_bytes` | `MAX_UPLOAD_BYTES` |
+| `sites_path` | `SITES_PATH` |
+| `site_runner_url` | `SITE_RUNNER_URL` |
+| `site_runner_port` | `SITE_RUNNER_PORT` |
+| `max_sites` | `MAX_SITES` |
+| `max_site_archive_bytes` | `MAX_SITE_ARCHIVE_BYTES` |
+| `max_sites_total_bytes` | `MAX_SITES_TOTAL_BYTES` |
+| `max_site_expanded_bytes` | `MAX_SITE_EXPANDED_BYTES` |
+| `max_site_entries` | `MAX_SITE_ENTRIES` |
 | `dartdoc_backend` | `DARTDOC_BACKEND` |
 | `dartdoc_path` | `DARTDOC_PATH` |
 | `dartdoc_cache_max_memory_mb` | `DARTDOC_CACHE_MAX_MEMORY_MB` |

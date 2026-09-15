@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Opaque preview probe</title>
+<style>body{margin:0;font:16px system-ui}header{padding:12px}iframe{width:100%;height:85vh;border:0}</style>
+<header><input type="file" accept=".gz" aria-label="Site archive"><span id="status">Choose a site archive</span></header>
+<script type="module">
+import { unpack } from '/static/site-runner/untar.js';
+const bootstrap = (await Promise.all(['parser.js','runtime.js'].map(async name => (await fetch('/static/site-runner/'+name)).text()))).join('\n');
+document.querySelector('input').onchange=async event=>{
+  const status=document.querySelector('#status');status.textContent='Preparing';
+  try {
+    const files=[];await unpack(await event.target.files[0].arrayBuffer(),async(name,bytes)=>files.push([name,bytes]));
+    document.querySelector('iframe')?.remove();
+    const frame=document.createElement('iframe');frame.sandbox='allow-scripts allow-forms';
+    const channel=new MessageChannel();
+    channel.port1.onmessage=event=>{status.textContent=JSON.stringify(event.data);};
+    frame.onload=()=>{frame.contentWindow.postMessage('install','*',[channel.port2]);channel.port1.postMessage(files);};
+    frame.srcdoc='<script>'+bootstrap.replaceAll('</script','<\\/script')+'<\/script>';
+    document.body.append(frame);
+  } catch(error){status.textContent=String(error);}
+};
+</script>

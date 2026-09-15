@@ -42,6 +42,12 @@ class PublishCommand extends ClubCommand {
         help: 'Publish without confirmation if there are no errors.',
       )
       ..addFlag(
+        'yes',
+        abbr: 'y',
+        negatable: false,
+        help: 'Accept publish confirmations without enabling --force.',
+      )
+      ..addFlag(
         'skip-validation',
         negatable: false,
         help:
@@ -315,9 +321,10 @@ class PublishCommand extends ClubCommand {
     if (versionOverride == null &&
         offerVersionStep &&
         !(results['force'] as bool) &&
+        !(results['yes'] as bool) &&
         isInteractive &&
         !isCI) {
-      // --force means "stop asking me things", and CI has nobody to ask.
+      // --force and --yes keep the detected version; CI has nobody to ask.
       try {
         versionOverride = await promptPublishVersion(
           isAuto: isAuto,
@@ -355,6 +362,7 @@ class PublishCommand extends ClubCommand {
         targets: results.rest,
         dryRun: results['dry-run'] as bool,
         force: results['force'] as bool,
+        yes: results['yes'] as bool,
         skipValidation: results['skip-validation'] as bool,
         ignoreWarnings: results['ignore-warnings'] as bool,
         enhanced: results['enhanced'] as bool,
@@ -386,6 +394,7 @@ class PublishCommand extends ClubCommand {
       directory: directory,
       dryRun: results['dry-run'] as bool,
       force: results['force'] as bool,
+      yes: results['yes'] as bool,
       skipValidation:
           (results['skip-validation'] as bool) ||
           results['from-archive'] != null,

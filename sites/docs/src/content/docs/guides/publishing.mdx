@@ -10,6 +10,10 @@ Publishing to club works just like publishing to pub.dev. You have two options:
 - **`club publish`** — the native club CLI command. Runs ~25 client-side validators, works **without** `publish_to:` in your pubspec, and supports CI-friendly flags like `--from-archive`, `--to-archive`, and `--server`.
 - **`dart pub publish`** — the standard Dart tool. Requires `publish_to:` to be set in `pubspec.yaml`.
 
+For demos, static documentation, or external website links on a package page,
+use [Package Sites](/guides/package-sites/). Site targets are configured in
+`club.yaml` and attached by `club publish`, not `dart pub publish`.
+
 Under the hood both use the [Pub Repository Spec v2](https://github.com/dart-lang/pub/blob/master/doc/repository-spec-v2.md) that pub.dev implements.
 
 <Aside type="tip" title="Publishing without modifying pubspec.yaml">

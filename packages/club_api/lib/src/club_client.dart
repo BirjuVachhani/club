@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+import 'site_attachment.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:club_core/club_core.dart';
 
@@ -207,12 +210,17 @@ class ClubClient {
 
   /// Publish a package from a tarball file path.
   /// Handles the full 3-step upload flow.
-  Future<String> publishFile(String filePath, {bool force = false}) async {
+  Future<String> publishFile(
+    String filePath, {
+    bool force = false,
+    List<SiteAttachment>? sites,
+  }) async {
     final file = File(filePath);
     return publish(
       file.openRead(),
       length: await file.length(),
       force: force,
+      sites: sites,
     );
   }
 
@@ -225,9 +233,21 @@ class ClubClient {
     Stream<List<int>> tarballBytes, {
     int? length,
     bool force = false,
+    List<SiteAttachment>? sites,
   }) async {
     // Step 1: Get upload URL
     final uploadInfo = await _get('/api/packages/versions/new');
+    if (sites != null && uploadInfo['sites_version'] != 1) {
+      throw const FormatException(
+        'This server does not support site uploads. Upgrade the server first.',
+      );
+    }
+    if (sites?.any((site) => site.url != null) == true &&
+        uploadInfo['site_urls'] != true) {
+      throw const FormatException(
+        'This server does not support URL site targets. Upgrade the server first.',
+      );
+    }
     final uploadUrl = uploadInfo['url'] as String;
     final fields = Map<String, String>.from(
       (uploadInfo['fields'] as Map).cast<String, String>(),
@@ -262,12 +282,84 @@ class ClubClient {
       );
     }
 
+    if (sites != null) {
+      final manifest = <Map<String, dynamic>>[];
+      final rawLimits = uploadInfo['site_limits'];
+      int limit(String key, int fallback) =>
+          rawLimits is Map && rawLimits[key] is int
+          ? rawLimits[key] as int
+          : fallback;
+      if (sites.length > limit('count', 20)) {
+        throw const FormatException(
+          'Too many site attachments for this server.',
+        );
+      }
+      final names = <String>{};
+      var totalSize = 0;
+      for (var i = 0; i < sites.length; i++) {
+        final site = sites[i];
+        if (!SiteUpload.validName(site.name) ||
+            !names.add(site.name.toLowerCase())) {
+          throw const FormatException(
+            'Invalid or duplicate site attachment name.',
+          );
+        }
+        if (site.label != null &&
+            (site.label!.trim().isEmpty || site.label!.length > 200)) {
+          throw const FormatException('Invalid site label.');
+        }
+        if (site.url != null) {
+          if (site.file != null || !SiteUpload.validUrl(site.url!)) {
+            throw const FormatException('Invalid URL site target.');
+          }
+          manifest.add({
+            'name': site.name,
+            'url': site.url,
+            if (site.label != null) 'label': site.label,
+          });
+          continue;
+        }
+        final file = site.file;
+        if (file == null) {
+          throw const FormatException('A site needs a file or URL.');
+        }
+        final size = await file.length();
+        totalSize += size;
+        if (size > limit('archive_bytes', 100 * 1024 * 1024) ||
+            totalSize > limit('total_bytes', 500 * 1024 * 1024)) {
+          throw const FormatException(
+            'Site attachments exceed this server\'s upload limits.',
+          );
+        }
+        final digest = await sha256.bind(file.openRead()).first;
+        manifest.add({
+          'name': site.name,
+          'part': 'site_$i',
+          if (site.label != null) 'label': site.label,
+          'length': size,
+          'sha256': digest.toString(),
+        });
+        request.files.add(
+          http.MultipartFile(
+            'site_$i',
+            file.openRead(),
+            size,
+            filename: '${site.name}.tar.gz',
+          ),
+        );
+      }
+      request.fields['sites_manifest'] = jsonEncode({
+        'version': 1,
+        'sites': manifest,
+      });
+    }
     final uploadRes = await _http.send(request);
 
     // Step 3: Finalize (follow the redirect URL)
     String finalizeUrl;
     if (uploadRes.statusCode == 302 || uploadRes.statusCode == 303) {
       finalizeUrl = uploadRes.headers['location'] ?? '';
+      await uploadRes.stream.drain<void>();
     } else if (uploadRes.statusCode == 200) {
       // Some implementations return 200 with the finalize URL in body
       final body = await uploadRes.stream.bytesToString();

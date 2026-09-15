@@ -94,8 +94,10 @@ echo ""
 docker run -d \
   --name "${CONTAINER_NAME}" \
   -p "${PORT}:8080" \
+  -p "${SITE_RUNNER_PORT:-8081}:8081" \
   -v "${VOLUME_NAME}:/data" \
   -e "SERVER_URL=http://localhost:${PORT}" \
+  -e "SITE_RUNNER_URL=http://127.0.0.1:${SITE_RUNNER_PORT:-8081}" \
   -e "JWT_SECRET=${JWT_SECRET}" \
   -e "ADMIN_EMAIL=${ADMIN_EMAIL}" \
   -e "ADMIN_PASSWORD=${ADMIN_PASSWORD}" \

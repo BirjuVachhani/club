@@ -36,6 +36,7 @@ class AutoPublishOptions {
     required this.targets,
     this.dryRun = false,
     this.force = false,
+    this.yes = false,
     this.skipValidation = false,
     this.ignoreWarnings = false,
     this.enhanced = false,
@@ -51,6 +52,7 @@ class AutoPublishOptions {
   final List<String> targets;
   final bool dryRun;
   final bool force;
+  final bool yes;
   final bool skipValidation;
   final bool ignoreWarnings;
   final bool enhanced;
@@ -228,7 +230,7 @@ class AutoPublishRunner {
     }
 
     // ── Confirm ──────────────────────────────────────────────────────────
-    if (!options.dryRun && !options.force && !isCI) {
+    if (!options.dryRun && !options.yes && !options.force && !isCI) {
       info('');
       if (deferred.isNotEmpty) {
         detail(
@@ -251,7 +253,7 @@ class AutoPublishRunner {
         }
       } on NonInteractiveError catch (e) {
         error(e.message);
-        hint('Pass --force to skip this prompt.');
+        hint('Pass --yes to skip this prompt.');
         return ExitCodes.config;
       }
     }
@@ -296,6 +298,7 @@ class AutoPublishRunner {
         PublishOptions(
           directory: pkg.directory,
           force: action == PackageAction.overwrite,
+          yes: options.yes,
           skipValidation: options.skipValidation,
           ignoreWarnings: options.ignoreWarnings,
           enhanced: options.enhanced,

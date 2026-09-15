@@ -1,0 +1,20 @@
+sites:
+  # Name/ID of the Target. Demo is a default name. This becomes path for this site.
+  # e.g. https://myclub.birju.dev/packages/thinking_orbs/site/demo
+  demo:
+    label: Live demo
+    # Optional: Command to build the target if building is required.
+    # If given then this will be run first.
+    # If not provided then output dir must exist
+    build: cd example && flutter build web --release
+    # Required: Output directory where the files to be hosted are located.
+    # This must contain an index.html file and the contained site must be a static site.
+    # If build param is given then it will be run first. If not given then this directory must
+    # exist.
+    output: example/build/web
+
+  homepage:
+    label: Website
+    # Redirect to an existing site instead of building and uploading one.
+    # Use url alone, without build or output.
+    url: https://example.com

@@ -6,7 +6,7 @@
 ///   2. Resolve the publish target server.
 ///   3. Build the tarball (or load from `--from-archive`).
 ///   4. Run validators (skip with `--skip-validation` or `--from-archive`).
-///   5. Confirm with the user (skip with `--force` or `--dry-run`).
+///   5. Confirm with the user (skip with `--yes`, `--force`, or `--dry-run`).
 ///   6. Upload (skip if `--dry-run` or `--to-archive`).
 ///   7. Print result.
 ///
@@ -14,17 +14,21 @@
 /// unit-tested without spinning up the whole pipeline.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:club_api/club_api.dart';
 import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart' as semver;
+import 'package:tar/tar.dart';
 
 import '../util/exit_codes.dart';
 import '../util/log.dart';
 import '../util/prompt.dart';
 import '../util/url.dart';
 import 'archive_extractor.dart';
+import 'club_configs.dart';
+import 'site_builder.dart';
 import 'isolated_resolution.dart';
 import 'pr_version.dart';
 import 'pubspec_reader.dart';
@@ -42,6 +46,7 @@ class PublishOptions {
     required this.directory,
     this.dryRun = false,
     this.force = false,
+    this.yes = false,
     this.skipValidation = false,
     this.ignoreWarnings = false,
     this.toArchive,
@@ -58,6 +63,9 @@ class PublishOptions {
   final String directory;
   final bool dryRun;
   final bool force;
+
+  /// Accept confirmations without enabling version overwrites.
+  final bool yes;
   final bool skipValidation;
 
   /// When true, warnings do not block publish even without `--force`.
@@ -129,13 +137,44 @@ class PublishRunner {
     // file is never read or mutated.
     PackagePubspec readWith(String? versionOverride) =>
         options.pubspecOverride != null
-            ? parsePubspec(
-                pkgDir,
-                options.pubspecOverride!,
-                versionOverride: versionOverride,
-              )
-            : readPubspec(pkgDir, versionOverride: versionOverride);
+        ? parsePubspec(
+            pkgDir,
+            options.pubspecOverride!,
+            versionOverride: versionOverride,
+          )
+        : readPubspec(pkgDir, versionOverride: versionOverride);
 
+    final configFile = File(p.join(pkgDir, 'club.yaml'));
+    final siteConfig = await configFile.exists()
+        ? ClubConfigs.fromYaml(await configFile.readAsString())
+        : null;
+    if (siteConfig != null &&
+        (options.toArchive != null || options.fromArchive != null)) {
+      throw const FormatException(
+        'Sites are not supported with --to-archive or --from-archive. Use normal publish.',
+      );
+    }
+    if (options.fromArchive != null) {
+      final reader = TarReader(
+        File(options.fromArchive!).openRead().transform(gzip.decoder),
+      );
+      try {
+        while (await reader.moveNext()) {
+          if (reader.current.name == 'club.yaml') {
+            final source = await utf8.decoder
+                .bind(reader.current.contents)
+                .join();
+            if (ClubConfigs.fromYaml(source) != null) {
+              throw const FormatException(
+                'The supplied archive declares sites. Publish the source package instead.',
+              );
+            }
+          }
+        }
+      } finally {
+        await reader.cancel();
+      }
+    }
     var pubspec = readWith(options.versionOverride);
 
     // A PR publish derives its version from the package's own: the base
@@ -229,6 +268,7 @@ class PublishRunner {
     // alive through validation so AnalyzeValidator can run against a tree
     // that is both resolved and byte-identical to what ships.
     Directory? resolvedDir;
+    PreparedSites? preparedSites;
 
     try {
       // ── Version collision pre-check ─────────────────────────────────────
@@ -253,7 +293,7 @@ class PublishRunner {
           return ExitCodes.data;
         }
 
-        // -f still requires a human confirmation on an interactive TTY —
+        // -f still requires confirmation on an interactive TTY without -y:
         // forcing over a shipped release is rarely what someone actually
         // wants, and the flag is often set by muscle memory. CI jobs and
         // non-interactive shells skip the extra prompt: passing -f from
@@ -262,7 +302,7 @@ class PublishRunner {
           '${pubspec.name} ${pubspec.version} is already published to '
           '${displayServer(server.url)}.',
         );
-        if (isInteractive && !isCI) {
+        if (!options.yes && isInteractive && !isCI) {
           info('');
           final ok = await confirm(
             'Overwrite the existing ${cyan(pubspec.version)} on '
@@ -273,7 +313,7 @@ class PublishRunner {
             info('Aborted.');
             return ExitCodes.config;
           }
-        } else {
+        } else if (!options.yes) {
           detail(
             gray(
               isCI
@@ -284,6 +324,10 @@ class PublishRunner {
             ),
           );
         }
+      }
+
+      if (siteConfig != null) {
+        preparedSites = await prepareSites(pkgDir, siteConfig);
       }
 
       // ── Build / load tarball ──────────────────────────────────────────────
@@ -409,17 +453,17 @@ class PublishRunner {
       }
 
       // ── Confirm ───────────────────────────────────────────────────────────
-      // Skip the prompt when --force is set OR when CI is detected — a
+      // Skip the prompt with --yes, --force, or CI detection. A
       // CI job running `club publish` on every merge is an explicit
       // (scripted) consent to publish, matching `dart pub publish`'s
       // behaviour of treating CI environments as pre-confirmed.
-      if (!options.force && !isCI) {
+      if (!options.yes && !options.force && !isCI) {
         final ok = await _confirmPublish(server, pubspec);
         if (!ok) {
           info('Aborted.');
           return ExitCodes.config;
         }
-      } else if (isCI && !options.force) {
+      } else if (isCI && !options.force && !options.yes) {
         detail(
           gray('CI environment detected; skipping confirmation prompt.'),
         );
@@ -431,6 +475,7 @@ class PublishRunner {
       final message = await client.publishFile(
         tarball.path,
         force: options.force,
+        sites: preparedSites?.attachments,
       );
       sw.stop();
       detail('${gray('Server:')} $message');
@@ -450,6 +495,7 @@ class PublishRunner {
       return ExitCodes.success;
     } finally {
       client.close();
+      await preparedSites?.dispose();
       disposeIsolatedResolution(resolvedDir);
       if (weCreatedTempTarball && builtTarball != null) {
         try {
@@ -525,13 +571,15 @@ class PublishRunner {
   }
 
   Future<bool> _confirmIgnoreWarnings() async {
-    // In CI we treat the *absence* of `--force` + `--ignore-warnings` as
-    // a real signal (the operator didn't opt in), so we still refuse —
+    if (options.yes) return true;
+
+    // In CI the absence of --yes, --force, or --ignore-warnings means
+    // the operator did not opt in, so we still refuse:
     // unlike the top-level publish confirmation, the purpose here is to
     // protect against silently shipping code that validators flagged.
     if (!isInteractive) {
       error(
-        'Validators reported warnings. Pass --force to publish anyway, '
+        'Validators reported warnings. Pass --yes or --force to publish anyway, '
         'or fix the warnings first.',
       );
       return false;
@@ -547,8 +595,10 @@ class PublishRunner {
     PackagePubspec pubspec,
   ) async {
     if (!isInteractive) {
-      error('Refusing to publish in a non-interactive shell without --force.');
-      hint('Pass --force to skip this confirmation.');
+      error(
+        'Refusing to publish in a non-interactive shell without --yes or --force.',
+      );
+      hint('Pass --yes to skip this confirmation.');
       return false;
     }
     table(

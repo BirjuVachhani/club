@@ -16,6 +16,7 @@
     { href: '/admin/publishers', label: 'Publishers' },
     { href: '/admin/settings/sdk', label: 'Scoring' },
     { href: '/admin/settings/visibility', label: 'Public packages' },
+    { href: '/admin/settings/sites', label: 'Sites' },
     { href: '/admin/settings/legal', label: 'Legal' },
     { href: '/admin/settings/ownership', label: 'Ownership' },
   ];
