@@ -51,6 +51,11 @@ class PublicPackageAccess {
   /// such a registry.
   static const _reservedFirstSegments = {'versions', 'archives'};
 
+  // Keep the package boundary identical to PubApi's archive route.
+  static final _archivePath = RegExp(
+    r'^/api/archives/([a-z][a-z0-9_]*)-[^/]+\.tar\.gz$',
+  );
+
   /// Collection reads that are safe without credentials *because the
   /// handler filters them*, not because of anything about the path.
   ///
@@ -132,9 +137,21 @@ class PublicPackageAccess {
       return null;
     }
 
-    // Tarball download. Handled by the caller via [archiveCandidates],
-    // because the split between package and version is ambiguous.
-    if (path.startsWith('/api/archives/')) return null;
+    if (path.startsWith('/api/archives/')) {
+      return _archivePath.firstMatch(path)?.group(1);
+    }
+
+    // Legacy tarball URLs redirect to the same gated archive route.
+    if (path.startsWith('/packages/') && path.endsWith('.tar.gz')) {
+      final parts = path.substring('/packages/'.length).split('/');
+      if (parts.length == 3 &&
+          parts[0].isNotEmpty &&
+          parts[1] == 'versions' &&
+          parts[2].length > '.tar.gz'.length) {
+        return parts[0];
+      }
+      return null;
+    }
 
     // Group details and their scoped package lists are collection reads.
     // Return a sentinel package only to signal eligibility; authMiddleware
@@ -212,54 +229,10 @@ class PublicPackageAccess {
     return null;
   }
 
-  /// Every way `<package>-<version>.tar.gz` could split.
-  ///
-  /// `foo-bar-1.0.0.tar.gz` is (`foo-bar`, `1.0.0`) or (`foo`,
-  /// `bar-1.0.0`) and the filename alone cannot say which. If this class
-  /// picked one split and `shelf_router`'s regex picked the other, the
-  /// result would be either a false 401 or, far worse, a bypass: the gate
-  /// approving a public `foo` while the router served a private `foo-bar`.
-  ///
-  /// So every candidate must be public. Returns an empty set for a path
-  /// that is not an archive request at all.
-  static Set<String> archiveCandidates(String path, String method) {
-    final m = method.toUpperCase();
-    if (m != 'GET' && m != 'HEAD') return const {};
-
-    String? filename;
-    if (path.startsWith('/api/archives/') && path.endsWith('.tar.gz')) {
-      filename = path.substring('/api/archives/'.length);
-    } else if (path.startsWith('/packages/') && path.endsWith('.tar.gz')) {
-      // Legacy: /packages/<pkg>/versions/<version>.tar.gz. This one is
-      // unambiguous, and it is the single pub-spec route the auth
-      // middleware never sees (no `/api/` prefix). It 303s to the gated
-      // URL, so it is covered in practice, but returning the name here
-      // keeps the two paths consistent.
-      final parts = path.substring('/packages/'.length).split('/');
-      if (parts.length == 3 && parts[1] == 'versions' && parts[0].isNotEmpty) {
-        return {parts[0]};
-      }
-      return const {};
-    }
-    if (filename == null) return const {};
-
-    final stem = filename.substring(0, filename.length - '.tar.gz'.length);
-    final candidates = <String>{};
-    for (var i = 0; i < stem.length; i++) {
-      if (stem[i] != '-') continue;
-      final pkg = stem.substring(0, i);
-      final version = stem.substring(i + 1);
-      if (pkg.isEmpty || version.isEmpty) continue;
-      candidates.add(pkg);
-    }
-    return candidates;
-  }
-
   /// Whether this request may proceed without credentials.
   ///
   /// Fails closed at every step: master switch off, unrecognised path
-  /// shape, unknown package, or any candidate split not public all mean
-  /// no.
+  /// shape, unknown package, or private package all mean no.
   Future<bool> allows(Request request) async {
     final path = '/${request.url.path}';
     final method = request.method;
@@ -281,15 +254,6 @@ class PublicPackageAccess {
       final packages =
           parts.length == 2 && parts.first.isNotEmpty && parts[1] == 'packages';
       if (detail || packages) return _isEnabled();
-    }
-
-    final archive = archiveCandidates(path, method);
-    if (archive.isNotEmpty) {
-      if (!await _isEnabled()) return false;
-      for (final candidate in archive) {
-        if (!await _isPublic(candidate)) return false;
-      }
-      return true;
     }
 
     final pkg = packageForAnonymousRead(path, method);

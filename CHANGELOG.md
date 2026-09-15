@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- Package archive downloads support prereleases and hyphenated build metadata, including anonymous public-package access.
 - Upload handling validates session ownership and state, enforces streaming byte limits, and rejects duplicate uploads and finalization.
 - Expired upload files and site attachments are cleaned up automatically.
 - Package deletion removes private sites and recovery files before name reuse and serializes with publication.

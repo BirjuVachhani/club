@@ -42,7 +42,11 @@ class PubApi {
 
     router.get('/api/packages/<package>', _listVersions);
     router.get('/api/packages/<package>/versions/<version>', _getVersion);
-    router.get('/api/archives/<package>-<version>.tar.gz', _downloadArchive);
+    // Package names cannot contain hyphens; version suffixes can.
+    router.get(
+      '/api/archives/<package|[a-z][a-z0-9_]*>-<version>.tar.gz',
+      _downloadArchive,
+    );
     router.get(
       '/packages/<package>/versions/<version>.tar.gz',
       _legacyRedirect,
@@ -120,6 +124,11 @@ class PubApi {
     String package,
     String version,
   ) async {
+    // Only published version shapes may reach storage, never decoded paths.
+    if (!VersionValidator.isValid(version)) {
+      throw NotFoundException.version(package, version);
+    }
+
     // Record the download without blocking the response.
     unawaited(
       downloadService

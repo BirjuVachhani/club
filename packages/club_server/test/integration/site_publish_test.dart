@@ -11,6 +11,7 @@ import 'package:club_server/src/api/package_admin_api.dart';
 import 'package:club_server/src/middleware/public_package_access.dart';
 import 'package:club_server/src/update/update_checker.dart';
 import 'package:club_server/src/middleware/auth_middleware.dart';
+import 'package:club_server/src/middleware/error_middleware.dart';
 import 'package:club_server/src/sites/archive_validator.dart';
 import 'package:club_server/src/sites/site_api.dart';
 import 'package:club_server/src/config/app_config.dart';
@@ -373,6 +374,187 @@ void main() {
       );
     });
   }
+
+  group('published package archives', () {
+    test('encoded archive paths never expose another package', () async {
+      await publisher.finalize(await upload(), 'user');
+      await metadata.updatePackage(
+        'test_package',
+        const PackageCompanion(
+          name: 'test_package',
+          visibility: PackageVisibility.public,
+        ),
+      );
+      await blobs.put('private_package', '1.0.0', Stream.value([4, 5, 6]));
+      final token = await auth.createPersonalAccessToken(
+        userId: 'user',
+        name: 'Archive traversal regression',
+      );
+      final handler = errorMiddleware()(
+        authMiddleware(
+          auth,
+          publicPackageAccess: PublicPackageAccess(
+            store: metadata,
+            isEnabled: () async => true,
+          ),
+        )(api.router.call),
+      );
+      for (final pathVersion in [
+        '..%2fprivate_package%2f1.0.0',
+        '..%2Fprivate_package%2F1.0.0',
+        '..%5cprivate_package%5c1.0.0',
+      ]) {
+        final uri = Uri.parse(
+          'http://localhost/api/archives/test_package-$pathVersion.tar.gz',
+        );
+        expect((await handler(Request('GET', uri))).statusCode, 401);
+        expect(
+          (await handler(
+            Request(
+              'GET',
+              uri,
+              headers: {'authorization': 'Bearer ${token.rawSecret}'},
+            ),
+          )).statusCode,
+          404,
+          reason: 'Even authenticated requests must reject decoded paths.',
+        );
+      }
+      expect(
+        (await handler(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/archives/unknown_package-1.0.0-beta.1.tar.gz',
+            ),
+          ),
+        )).statusCode,
+        401,
+      );
+      expect(
+        (await handler(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/archives/test_package-9.9.9-beta.1.tar.gz',
+            ),
+          ),
+        )).statusCode,
+        404,
+      );
+    });
+
+    for (final publishedVersion in [
+      '12.0.7',
+      '12.0.7+build.5',
+      '12.0.7-beta.1',
+      '12.0.7-beta-foo.1',
+      '12.0.7-beta.1+build.5',
+      '12.0.7+build-5',
+    ]) {
+      for (final anonymous in [false, true]) {
+        test('$publishedVersion (anonymous=$anonymous)', () async {
+          version = publishedVersion;
+          await publisher.finalize(await upload(), 'user');
+          expect(await blobs.exists('test_package', version), isTrue);
+
+          var publicEnabled = true;
+          final handler = errorMiddleware()(
+            authMiddleware(
+              auth,
+              publicPackageAccess: PublicPackageAccess(
+                store: metadata,
+                isEnabled: () async => publicEnabled,
+              ),
+            )(api.router.call),
+          );
+          final canonical = Uri.parse(
+            'http://localhost/api/archives/test_package-$version.tar.gz',
+          );
+          expect(
+            (await handler(Request('GET', canonical))).statusCode,
+            401,
+            reason: 'Private archives must still require credentials.',
+          );
+
+          final headers = <String, String>{};
+          if (anonymous) {
+            await metadata.updatePackage(
+              'test_package',
+              const PackageCompanion(
+                name: 'test_package',
+                visibility: PackageVisibility.public,
+              ),
+            );
+          } else {
+            final token = await auth.createPersonalAccessToken(
+              userId: 'user',
+              name: 'Archive regression',
+            );
+            headers['authorization'] = 'Bearer ${token.rawSecret}';
+          }
+          final manifest = await handler(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/packages/test_package/versions/$version',
+              ),
+              headers: headers,
+            ),
+          );
+          expect(manifest.statusCode, 200);
+          final metadataJson = jsonDecode(await manifest.readAsString()) as Map;
+          expect(metadataJson['archive_url'], canonical.toString());
+          final archiveUrl = Uri.parse(metadataJson['archive_url'] as String);
+          final paths = {
+            archiveUrl.path,
+            '/api/archives/test_package-${Uri.encodeComponent(version)}.tar.gz',
+            '/packages/test_package/versions/$version.tar.gz',
+            '/api/packages/test_package/versions/$version/archive.tar.gz',
+          };
+          for (final path in paths) {
+            var response = await handler(
+              Request(
+                'GET',
+                archiveUrl.resolve(path),
+                headers: headers,
+              ),
+            );
+            if (!path.startsWith('/api/archives/')) {
+              expect(response.statusCode, 303);
+              expect(response.headers['location'], archiveUrl.path);
+              response = await handler(
+                Request(
+                  'GET',
+                  archiveUrl.resolve(response.headers['location']!),
+                  headers: headers,
+                ),
+              );
+            }
+            expect(response.statusCode, 200, reason: path);
+            expect(response.headers['content-type'], 'application/gzip');
+            expect(await response.read().expand((chunk) => chunk).toList(), [
+              1,
+              2,
+              3,
+            ]);
+          }
+          final head = await handler(
+            Request('HEAD', archiveUrl, headers: headers),
+          );
+          expect(head.statusCode, 200);
+          expect(await head.read().expand((chunk) => chunk).toList(), isEmpty);
+
+          publicEnabled = false;
+          expect(
+            (await handler(Request('GET', archiveUrl))).statusCode,
+            401,
+            reason: 'Disabling public packages must also gate archives.',
+          );
+        });
+      }
+    }
+  });
 
   test('multipart stores two sites only after package finalization', () async {
     final demo = await archive('demo');

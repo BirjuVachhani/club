@@ -268,80 +268,68 @@ void main() {
     });
   });
 
-  group('archive candidates', () {
-    // The split between package and version is genuinely ambiguous, so
-    // every candidate must be public before the request is allowed. If
-    // this class picked one split and the router picked another, the gate
-    // could approve a public `foo` while the router served a private
-    // `foo-bar`.
-    test('an unambiguous name yields one candidate', () {
-      expect(
-        PublicPackageAccess.archiveCandidates(
-          '/api/archives/mypkg-1.0.0.tar.gz',
-          'GET',
-        ),
-        {'mypkg'},
-      );
-    });
+  group('archive package boundary', () {
+    for (final version in [
+      '1.0.0',
+      '1.0.0-beta.1',
+      '1.0.0-beta-foo.1',
+      '1.0.0-beta.1+build.5',
+      '1.0.0-beta.1%2Bbuild.5',
+      '1.0.0+build-5',
+    ]) {
+      test('$version resolves only to the real package', () {
+        for (final method in ['GET', 'HEAD']) {
+          expect(
+            _pkg('/api/archives/my_pkg-$version.tar.gz', method),
+            'my_pkg',
+          );
+          expect(
+            _pkg('/packages/my_pkg/versions/$version.tar.gz', method),
+            'my_pkg',
+          );
+        }
+      });
+    }
 
-    test('a hyphenated name yields every possible split', () {
-      final candidates = PublicPackageAccess.archiveCandidates(
-        '/api/archives/foo-bar-1.0.0.tar.gz',
-        'GET',
-      );
-      expect(candidates, containsAll(['foo', 'foo-bar']));
-    });
-
-    test('a prerelease version with hyphens still yields the real package', () {
-      final candidates = PublicPackageAccess.archiveCandidates(
-        '/api/archives/mypkg-1.0.0-beta.1.tar.gz',
-        'GET',
-      );
-      expect(candidates, contains('mypkg'));
-    });
-
-    test('the legacy tarball route is unambiguous', () {
-      expect(
-        PublicPackageAccess.archiveCandidates(
-          '/packages/mypkg/versions/1.0.0.tar.gz',
-          'GET',
-        ),
-        {'mypkg'},
-      );
-    });
-
-    test('non-archive paths yield nothing', () {
-      for (final path in [
-        '/api/packages/mypkg',
-        '/api/archives/',
-        '/api/archives/nohyphen.tar.gz',
-        '/api/archives/mypkg-1.0.0.zip',
-        '/packages/mypkg/other/1.0.0.tar.gz',
-      ]) {
-        expect(
-          PublicPackageAccess.archiveCandidates(path, 'GET'),
-          isEmpty,
-          reason: '$path is not an archive request',
-        );
+    test('invalid package names cannot widen the package capture', () {
+      // A hyphen belongs to the version, never to a different package.
+      expect(_pkg('/api/archives/foo-bar-1.0.0.tar.gz'), 'foo');
+      for (final name in ['', '1pkg', 'MyPkg', 'my.pkg', 'my%2Fpkg']) {
+        expect(_pkg('/api/archives/$name-1.0.0.tar.gz'), isNull);
       }
     });
 
-    test('mutations yield nothing', () {
-      expect(
-        PublicPackageAccess.archiveCandidates(
-          '/api/archives/mypkg-1.0.0.tar.gz',
-          'DELETE',
-        ),
-        isEmpty,
-      );
+    test('malformed archive shapes and encoded paths are denied', () {
+      for (final path in [
+        '/api/archives/',
+        '/api/archives/nohyphen.tar.gz',
+        '/api/archives/my_pkg-.tar.gz',
+        '/api/archives/my_pkg-1.0.0.zip',
+        '/api/archives/my_pkg-1.0.0.tar.gz/extra',
+        '/api/archives/my_pkg-1.0.0/extra.tar.gz',
+        '/api/archives/my_pkg-..%2fprivate_pkg%2f1.0.0.tar.gz',
+        '/api/archives/my_pkg-..%2Fprivate_pkg%2F1.0.0.tar.gz',
+        '/api/archives/my_pkg-..%5cprivate_pkg%5c1.0.0.tar.gz',
+        '/api/archives/my_pkg-%zz.tar.gz',
+        '/packages/my_pkg/other/1.0.0.tar.gz',
+        '/packages/my_pkg/versions/.tar.gz',
+        '/packages/my_pkg/versions/..%2fprivate_pkg%2f1.0.0.tar.gz',
+      ]) {
+        expect(_pkg(path), isNull, reason: path);
+      }
     });
 
-    test('a leading or trailing hyphen produces no empty candidate', () {
-      final candidates = PublicPackageAccess.archiveCandidates(
-        '/api/archives/-1.0.0.tar.gz',
-        'GET',
-      );
-      expect(candidates, isNot(contains('')));
+    test('archive mutations are never anonymous', () {
+      for (final method in ['POST', 'PUT', 'PATCH', 'DELETE']) {
+        expect(
+          _pkg('/api/archives/my_pkg-1.0.0-beta.1.tar.gz', method),
+          isNull,
+        );
+        expect(
+          _pkg('/packages/my_pkg/versions/1.0.0-beta.1.tar.gz', method),
+          isNull,
+        );
+      }
     });
   });
 }
