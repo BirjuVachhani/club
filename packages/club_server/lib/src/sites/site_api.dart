@@ -16,8 +16,9 @@ class SiteApi {
   final MetadataStore store;
   final SettingsStore settingsStore;
 
+  // Keep the 0.8.0 setting/API compatible. Only an explicit opt-in enables sites.
   Future<bool> get disableSites async =>
-      await settingsStore.getSetting('disable_sites') == 'true';
+      await settingsStore.getSetting('disable_sites') != 'false';
 
   DecodedRouter get router => DecodedRouter()
     ..get('/api/admin/sites/settings', _getSettings)

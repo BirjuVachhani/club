@@ -30,9 +30,7 @@
         if(!info.sites.includes(site))throw Error('This site has not been published yet.');
         const destination=info.urls?.[site];
         if(destination){const target=new URL(destination);if(!['http:','https:'].includes(target.protocol)||target.username||target.password)throw Error('Invalid site URL.');location.replace(target.href);return;}
-        if(!info.runnerUrl)throw Error('Site previews have not been configured on this server.');
-        const origin=new URL(info.runnerUrl).origin;
-        if(new URL(origin).hostname===location.hostname)throw Error('The preview requires a separate hostname.');
+        const runner=new URL(info.runnerUrl || '/site-runner/index.html',location.origin);
         const owner=get(auth).user?.id ?? 'anonymous';
         const cache=await caches.open('club-site-downloads-'+await digest(owner));
         let cached=await cache.match(endpoint);
@@ -58,14 +56,16 @@
         }
         status='Preparing preview…';progress=undefined;
         const session=crypto.randomUUID();
+        let installed=false;
         handler=event=>{
-          if(event.origin!==origin || event.source!==frame?.contentWindow || event.data?.session!==session)return;
-          if(event.data.type==='ready'){frame!.contentWindow!.postMessage({type:'install',session,bytes,etag},origin,[bytes]);}
+          if(event.origin!=='null' || event.source!==frame?.contentWindow || event.data?.session!==session)return;
+          if(event.data.type==='ready'&&!installed){installed=true;frame!.contentWindow!.postMessage({type:'install',session,bytes,etag},'*',[bytes]);}
           if(event.data.type==='visible'){visible=true;clearTimeout(timer);}
           if(event.data.type==='error'){failure=event.data.message;clearTimeout(timer);}
         };
         window.addEventListener('message',handler);
-        runnerUrl=origin+'/#'+new URLSearchParams({parent:location.origin,session});
+        runner.hash=new URLSearchParams({parent:location.origin,session}).toString();
+        runnerUrl=runner.href;
         timer=setTimeout(()=>{failure='The preview took too long to start. Please try again.';},60000);
       } catch(error) {
         if(!controller.signal.aborted)failure=error instanceof Error?error.message:'Unable to open this preview.';
@@ -88,7 +88,7 @@
       </div>
     </div>
   {/if}
-  {#if runnerUrl}<iframe bind:this={frame} src={runnerUrl} title={`${page.params.site} preview`} sandbox="allow-scripts allow-same-origin allow-forms" referrerpolicy="no-referrer" class:shown={visible && !failure}></iframe>{/if}
+  {#if runnerUrl}<iframe bind:this={frame} src={runnerUrl} title={`${page.params.site} preview`} sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" class:shown={visible && !failure}></iframe>{/if}
 </section>
 <style>
   .preview{position:fixed;inset:0;z-index:40;background:var(--background);color:var(--foreground);display:flex;flex-direction:column}

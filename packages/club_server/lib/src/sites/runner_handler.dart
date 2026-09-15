@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:shelf/shelf.dart';
 
-/// Dedicated listener: no API, credentials, uploaded files, or SPA fallback.
+/// Bundled runtime only: no API, uploaded files, or SPA fallback.
 Handler siteRunnerHandler(String root) => (request) async {
   const allowed = {
     'index.html': 'text/html',
@@ -26,6 +26,19 @@ Handler siteRunnerHandler(String root) => (request) async {
       'cache-control': 'no-cache',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
+      // The loader has an opaque origin even when visited directly. Public
+      // runtime scripts can be read from that origin without sending cookies.
+      'access-control-allow-origin': '*',
+      if (name == 'index.html')
+        'content-security-policy':
+            "sandbox allow-scripts allow-forms; default-src 'none'; "
+            "script-src 'unsafe-inline' 'unsafe-eval' blob: https: http:; "
+            "style-src 'unsafe-inline' blob: https: http:; "
+            "img-src data: blob: https: http:; font-src data: blob: https: http:; "
+            "connect-src blob: https: http: wss: ws:; frame-src blob: https: http:; "
+            "media-src data: blob: https: http:; "
+            "worker-src blob:; base-uri https: http:; form-action https: http:; "
+            "object-src 'none'",
     },
   );
 };

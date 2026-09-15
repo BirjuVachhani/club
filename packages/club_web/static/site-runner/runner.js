@@ -2,7 +2,7 @@ import { unpack } from './untar.js';
 const params = new URLSearchParams(location.hash.slice(1));
 const parentOrigin = params.get('parent');
 const session = params.get('session');
-if (!parentOrigin || new URL(parentOrigin).origin === location.origin || !session) throw Error('Invalid preview context.');
+if (!parentOrigin || !['http:', 'https:'].includes(new URL(parentOrigin).protocol) || !session) throw Error('Invalid preview context.');
 const report = (type, extra = {}) => parent.postMessage({ type, session, ...extra }, parentOrigin);
 let accepting = true;
 window.addEventListener('message', async event => {
@@ -16,7 +16,7 @@ window.addEventListener('message', async event => {
     const files=[];
     await unpack(bytes,async(name,data)=>files.push([name,data]));
     const sources=await Promise.all(['parser.js','runtime.js'].map(async name=>{
-      const response=await fetch(name);
+      const response=await fetch(new URL(name, location.href),{credentials:'omit'});
       if(!response.ok)throw Error('Preview runtime unavailable.');
       return response.text();
     }));
@@ -37,11 +37,4 @@ window.addEventListener('message', async event => {
     addEventListener('pagehide',()=>channel.port1.close(),{once:true});
   } catch(error) { report('error',{message:error instanceof Error?error.message:'Unable to prepare this site.'}); }
 });
-// Retire the previous path-based renderer and its extracted private files.
-try {
-  for(const registration of await navigator.serviceWorker.getRegistrations()) {
-    if(new URL(registration.scope).pathname==='/content/')await registration.unregister();
-  }
-  for(const name of await caches.keys())if(name.startsWith('club-site-'))await caches.delete(name);
-  report('ready');
-} catch { report('error',{message:'Unable to clear the previous preview storage.'}); }
+report('ready');

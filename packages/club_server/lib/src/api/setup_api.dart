@@ -89,10 +89,14 @@ class SetupApi {
       jsonEncode({
         'needsSetup': await _needsSetup(),
         'signupEnabled': signupEnabled,
-        'disableSites': await settingsStore?.getSetting('disable_sites') == 'true',
+        'disableSites':
+            await settingsStore?.getSetting('disable_sites') != 'false',
         'publicBrowsing': await publicBrowsingEnabled(),
       }),
-      headers: {'content-type': 'application/json', 'cache-control': 'no-store'},
+      headers: {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      },
     );
   }
 

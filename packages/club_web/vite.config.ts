@@ -8,6 +8,32 @@ export default defineConfig({
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const url = (request as unknown as { url?: string }).url;
+        if (url && /%(?:2f|5c)/i.test(url.split('?')[0])) {
+          response.statusCode = 404; response.end('Not found'); return;
+        }
+        let pathname: string;
+        try { pathname = new URL(decodeURIComponent(url?.split('?')[0] ?? '/'), 'http://localhost').pathname; }
+        catch { response.statusCode = 404; response.end('Not found'); return; }
+        // SvelteKit serves static files before Vite's regular proxy. Forward
+        // runtime assets here so direct dev visits retain the HTTP sandbox.
+        if (pathname.startsWith('/site-runner/')) {
+          const method = (request as unknown as { method?: string }).method;
+          void (async () => {
+            try {
+              const upstream = await fetch(new URL(pathname, 'http://localhost:8080'), { method });
+              response.statusCode = upstream.status;
+              for (const key of ['content-type', 'cache-control', 'content-security-policy', 'access-control-allow-origin', 'referrer-policy', 'x-content-type-options', 'x-frame-options']) {
+                const value = upstream.headers.get(key);
+                if (value) response.setHeader(key, value);
+              }
+              response.end(new Uint8Array(await upstream.arrayBuffer()));
+            } catch {
+              response.statusCode = 502;
+              response.end('Preview runtime unavailable');
+            }
+          })();
+          return;
+        }
         // Dev-only demo playback: exercise real download progress on localhost.
         // configureServer is never included in the production build.
         if (url && /^\/api\/packages\/club_gallery_demo\/sites\/[^/]+\/archive(?:\?|$)/.test(url)) {
@@ -47,7 +73,7 @@ export default defineConfig({
           })();
           return;
         }
-        if (url?.startsWith('/site-runner/') || url?.startsWith('/content/')) {
+        if (pathname.startsWith('/content/')) {
           response.statusCode = 404; response.end('Not found'); return;
         }
         next();

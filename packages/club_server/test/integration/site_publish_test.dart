@@ -286,6 +286,7 @@ void main() {
             visibility: PackageVisibility.public,
           ),
         );
+        await SqliteSettingsStore(db).setSetting('disable_sites', 'false');
         final handler = authMiddleware(
           auth,
           publicPackageAccess: PublicPackageAccess(
@@ -801,6 +802,12 @@ void main() {
         metadata,
         SqliteSettingsStore(db),
       );
+      final denied = await sites.list(
+        Request('GET', Uri.parse('http://localhost/')),
+        'test_package',
+      );
+      expect(denied.statusCode, 403);
+      await SqliteSettingsStore(db).setSetting('disable_sites', 'false');
       final response = await sites.list(
         Request('GET', Uri.parse('http://localhost/')),
         'test_package',

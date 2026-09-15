@@ -44,7 +44,7 @@ const SIGNED_OUT_ONLY_PREFIXES = ['/login', '/signup'];
 const PUBLIC_BROWSING_PREFIXES = ['/packages', '/publishers', '/groups'];
 
 export const load: LayoutLoad = async ({ url, fetch }) => {
-  if (!browser) return { signupEnabled: false, publicBrowsing: false, disableSites: false };
+  if (!browser) return { signupEnabled: false, publicBrowsing: false, disableSites: true };
 
   const isAuthPath = PUBLIC_PATH_PREFIXES.some((p) =>
     url.pathname.startsWith(p)
@@ -62,12 +62,12 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
 
   let signupEnabled = false;
   let publicBrowsing = false;
-  let disableSites = false;
+  let disableSites = true;
   if (setupRes?.ok) {
     const data = await setupRes.json().catch(() => null);
     if (data) {
       signupEnabled = !!data.signupEnabled;
-      disableSites = data.disableSites === true;
+      disableSites = data.disableSites !== false;
       // Defaults to false, so an older server that doesn't send the
       // field, or a failed request, keeps the login wall.
       publicBrowsing = !!data.publicBrowsing;

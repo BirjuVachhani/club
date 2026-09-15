@@ -1,3 +1,14 @@
+## 0.8.1
+
+### Changed
+
+- Package sites are disabled by default and can be enabled in admin settings.
+
+### Fixed
+
+- Archived site previews use same-host opaque-origin isolation by default without a separate runner hostname.
+- Flutter site previews support standard service-worker startup without bootstrap edits.
+
 ## 0.8.0
 
 ### Added

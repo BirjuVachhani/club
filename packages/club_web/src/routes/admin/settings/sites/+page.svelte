@@ -13,12 +13,12 @@
     catch (e) { error = apiErrorMessage(e, 'Failed to load settings.'); }
   });
 
-  async function save(disableSites: boolean) {
+  async function save(enabled: boolean) {
     busy = true;
     error = '';
     message = '';
     try {
-      settings = await api.put('/api/admin/sites/settings', { disableSites });
+      settings = await api.put('/api/admin/sites/settings', { disableSites: !enabled });
       message = 'Saved.';
       await invalidateAll();
     } catch (e) { error = apiErrorMessage(e, 'Could not save.'); }
@@ -35,10 +35,10 @@
   {#if settings}
     <div class="rounded-[10px] border border-[var(--border)] bg-[var(--card)] p-4">
       <label class="flex cursor-pointer items-start gap-2.5 py-2">
-        <input type="checkbox" checked={settings.disableSites} disabled={busy} onchange={(e) => save(e.currentTarget.checked)} />
+        <input type="checkbox" checked={!settings.disableSites} disabled={busy} onchange={(e) => save(e.currentTarget.checked)} />
         <span class="text-sm">
-          <strong>Disable sites</strong>
-          <span class="mt-1 block text-[var(--muted-foreground)]">Hide Sites in package sidebars and block Club links to archived previews and external sites, including for admins. Off by default. Publishing is unchanged.</span>
+          <strong>Enable sites</strong>
+          <span class="mt-1 block text-[var(--muted-foreground)]">Show Sites in package sidebars and allow Club links to archived previews and external sites. Disabled by default. Publishing is unchanged.</span>
         </span>
       </label>
       <p class="mt-3 text-sm text-[var(--muted-foreground)]">Already opened previews and downloaded files cannot be revoked. External websites remain accessible at their own URLs.</p>

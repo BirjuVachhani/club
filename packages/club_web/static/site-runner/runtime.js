@@ -64,6 +64,17 @@ addEventListener('message', function install(event) {
     function css(text,from) {
       return text.replace(/@import\s+(["'])([^"']+)\1/g,(_,q,url)=>'@import "'+resource(url,from)+'"').replace(/url\(\s*(["']?)([^)'"\s]+)\1\s*\)/g,(_,q,url)=>`url("${resource(url,from)}")`);
     }
+    // Optional PWA setup must reject asynchronously, not throw on the opaque
+    // origin's native getter before Flutter can attach its fallback handler.
+    const serviceWorker=new EventTarget();
+    Object.assign(serviceWorker,{
+      controller:null,
+      getRegistration:async()=>undefined,
+      getRegistrations:async()=>[],
+      register:async()=>{throw new DOMException('Service Workers are unavailable in site previews.','NotSupportedError');},
+      ready:new Promise(()=>{})
+    });
+    Object.defineProperty(navigator,'serviceWorker',{value:serviceWorker,configurable:true});
     // ponytail: virtual history state only; address-bar routing is not emulated.
     let historyState=null;
     Object.defineProperty(history,'state',{get:()=>historyState});

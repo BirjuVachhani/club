@@ -21,7 +21,7 @@ async function open({ disabled = false, metadata, archiveStatus = 403 }) {
     get: () => ({ user: { id: 'user' } }), auth: {},
     AbortController, URL, TextEncoder, Uint8Array, ArrayBuffer, Response, crypto: globalThis.crypto,
     setTimeout, clearTimeout,
-    location: { hostname: 'club.test', replace: url => calls.push(['redirect', url]) },
+    location: { origin: 'https://club.test', hostname: 'club.test', replace: url => calls.push(['redirect', url]) },
     window: { addEventListener: () => calls.push(['runner']), removeEventListener: () => {} },
     caches: { open: async () => {
       calls.push(['cache']);
@@ -68,4 +68,36 @@ test('package sidebar hides Sites when disabled', () => {
   const sidebar = readFileSync(new URL('../src/routes/packages/[pkg]/_PackageView.svelte', import.meta.url), 'utf8');
   assert.ok(sidebar.includes('{#if !page.data.disableSites && siteNames.length}'), 'Sites visibility must honor the global setting');
   assert.ok(sidebar.includes('if (name && !page.data.disableSites) api.get'), 'Disabled sidebars must not request site metadata');
+});
+
+test('default same-host preview reaches archive access check without runner configuration', async () => {
+  const result = await open({ metadata: Response.json({ sites: ['demo'], runnerUrl: null }) });
+  assert.match(result.failure, /Unable to load/, 'Missing runner config must not prevent server revalidation');
+  assert.ok(result.calls.some(c => c[0] === 'fetch' && c[1].endsWith('/archive')), 'Default previews must request the archive');
+  assert.ok(!source.includes('allow-same-origin'), 'No preview frame may regain origin privileges');
+});
+
+test('layout defaults closed when settings are absent or unavailable', async () => {
+  const layout = readFileSync(new URL('../src/routes/+layout.ts', import.meta.url), 'utf8');
+  const code = ts.transpileModule(layout.replace(/^import .*;$/gm, '').replace('export const load:', 'const load:'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None }
+  }).outputText;
+  for (const [browser, data, expected] of [
+    [false, null, true], [true, null, true], [true, {}, true],
+    [true, { disableSites: true }, true], [true, { disableSites: false }, false],
+    [true, { disableSites: 'false' }, true]
+  ]) {
+    const context = vm.createContext({
+      browser, URL, exports: {},
+      auth: { hydrate: () => {} }, serverVersion: { set: () => {} },
+      invalidateAll: () => {}, redirect: () => new Error('Unexpected redirect'),
+      fetch: async () => new Response(''),
+    });
+    vm.runInContext(code, context);
+    const result = await vm.runInContext('load', context)({ url: new URL('https://club.test/login'), fetch: async url => {
+      if (url === '/api/setup/status') return data === null ? null : Response.json(data);
+      return new Response('', { status: 401 });
+    } });
+    assert.equal(result.disableSites, expected, 'Only explicit false may enable site access');
+  }
 });

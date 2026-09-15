@@ -322,8 +322,8 @@ MAX_UPLOAD_BYTES=10485760     # 10 MiB for strict limits
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SITES_PATH` | `/data/sites` | Persistent local archives, URL destinations, and labels, independent of `BLOB_BACKEND` |
-| `SITE_RUNNER_URL` | Unset | Fixed separate HTTPS origin for archived previews; unset means no runner listener |
-| `SITE_RUNNER_PORT` | `8081` | Runner listener port, different from the main server port |
+| `SITE_RUNNER_URL` | Unset | Optional separate HTTPS runner origin; unset uses same-host previews |
+| `SITE_RUNNER_PORT` | `8081` | Optional separate-runner listener port, used only when SITE_RUNNER_URL is set |
 | `MAX_SITES` | `20` | Targets per package, including URL targets |
 | `MAX_SITE_ARCHIVE_BYTES` | `104857600` | Compressed bytes per site archive |
 | `MAX_SITES_TOTAL_BYTES` | `524288000` | Total compressed site bytes per publish |
@@ -331,10 +331,10 @@ MAX_UPLOAD_BYTES=10485760     # 10 MiB for strict limits
 | `MAX_SITE_ENTRIES` | `10000` | Entries per site archive |
 
 See [site storage and runner setup](/configuration/storage/#static-site-archives)
-for deployment requirements and the fixed CLI/browser caps. URL-only targets do
-not need `SITE_RUNNER_URL`. **Disable sites** is a runtime database setting in
-**Admin > Sites**, not an environment variable; it defaults to off and does not
-stop publishing. See [Package Sites](/guides/package-sites/).
+for deployment options and the fixed CLI/browser caps. Neither archived nor
+URL-only targets require `SITE_RUNNER_URL`. **Enable sites** is a runtime database setting in
+**Admin > Sites**, not an environment variable. It is unchecked by default,
+so viewing sites requires administrator opt-in. Publishing is unchanged. See [Package Sites](/guides/package-sites/).
 
 ## Dartdoc
 

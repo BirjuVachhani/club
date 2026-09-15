@@ -1,4 +1,5 @@
 import 'sites/site_api.dart';
+import 'sites/runner_handler.dart';
 import 'dart:io';
 
 import 'package:club_core/club_core.dart';
@@ -386,10 +387,23 @@ Handler buildHandler({
       )
       .addHandler(apiHandler);
 
+  final localRunner = siteRunnerHandler(
+    config.staticFilesPath == null
+        ? 'packages/club_web/static/site-runner'
+        : '${config.staticFilesPath}/site-runner',
+  );
   return (request) {
-    // Runner assets must never execute on the authenticated Club origin.
-    if (request.url.path.startsWith('site-runner/') ||
-        request.url.path.startsWith('content/')) {
+    // shelf_static decodes separators when resolving files. Reject them before
+    // they can bypass the runtime's dedicated HTTP sandbox response.
+    if (hasEncodedTraversal(request.url.path)) {
+      return Response.notFound('Not found');
+    }
+    // Only bundled runtime assets are public here. Uploaded files remain behind
+    // the authenticated archive API. HTML enforces an opaque CSP sandbox.
+    if (request.url.path.startsWith('site-runner/')) {
+      return localRunner(request.change(path: 'site-runner'));
+    }
+    if (request.url.path.startsWith('content/')) {
       return Response.notFound('Not found');
     }
     final runner = config.siteRunnerUrl == null

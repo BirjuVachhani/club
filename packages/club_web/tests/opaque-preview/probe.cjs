@@ -50,10 +50,27 @@ function archive(files) {
         storage: await denied(() => localStorage.setItem('escape', 'yes')),
         caches: await denied(() => caches.keys()),
         cookie: await denied(() => document.cookie),
-        worker: await denied(() => navigator.serviceWorker.getRegistrations())
+        worker: await denied(() => navigator.serviceWorker.register('/sw.js'))
       };
     });
     assert.deepEqual(isolation, { origin: 'null', parent: true, sibling: true, storage: true, caches: true, cookie: true, worker: true }, 'Uploaded code must not access parent, sibling, or origin storage');
+    assert.equal(await frame.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration();
+      return registration === undefined && (await navigator.serviceWorker.getRegistrations()).length === 0;
+    }), true, 'Optional Flutter PWA checks must see no worker without accessing native storage');
+    const pwa = await frame.evaluate(async () => {
+      function loadServiceWorker() {
+        return navigator.serviceWorker.getRegistration().then(registration =>
+          registration || navigator.serviceWorker.register('/flutter_service_worker.js'));
+      }
+      // Flutter attaches catch only after invoking its optional PWA loader.
+      await loadServiceWorker().catch(() => {});
+      let nativeDenied=false;
+      try { Object.getOwnPropertyDescriptor(Navigator.prototype, 'serviceWorker').get.call(navigator); }
+      catch { nativeDenied=true; }
+      return nativeDenied;
+    });
+    assert.equal(pwa, true, 'Default Flutter PWA startup must continue while the native worker API remains denied');
     await frame.getByRole('link', { name: 'Docs', exact: true }).click();
     await frame.waitForFunction(() => document.body.dataset.nested === 'ok');
     console.log('PASS: local HTML/CSS/images/modules/fetch, nested pages, external script, opaque isolation');

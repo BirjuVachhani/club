@@ -8,9 +8,10 @@ page. A site can be a **static build uploaded with the package**, or a **link to
 an existing website**. You can mix both in the same release.
 
 Use `club publish` with a server and CLI that support sites. `dart pub publish`
-does not build or attach the targets in `club.yaml`. For uploaded previews,
-your administrator must also [configure a separate runner hostname](/configuration/storage/#browser-previews).
-URL-only targets do not need a runner.
+does not build or attach the targets in `club.yaml`. With server 0.8.1 or later,
+[archived previews work on your existing Club hostname](/configuration/storage/#browser-previews)
+without additional runner configuration. Sites are disabled by default; an
+administrator must check **Enable sites** under **Admin > Sites**.
 
 ## Configure your sites
 
@@ -168,6 +169,11 @@ packages are enabled. Publishing sites does not itself make a package public.
 
 ## Preview compatibility
 
+Standard Flutter `flutter build web --release` JavaScript/CanvasKit output is
+supported without custom bootstrap edits. Optional Service Worker checks see no
+registration, and registration rejects asynchronously so Flutter can continue
+without PWA support. This does not enable Service Workers inside the sandbox.
+
 An uploaded site is a browser preview, not a general-purpose hosting service.
 Club downloads its archive and runs an in-memory loader inside a sandbox with
 an **opaque origin**. Site content is not served from Club's authenticated origin,
@@ -223,13 +229,14 @@ Administrators can [configure server limits](/configuration/storage/#static-site
 but the CLI and browser also enforce their own fixed preparation/preview limits.
 Increasing a server budget does not increase those client limits.
 
-## Disable sites across the server
+## Enable sites across the server
 
-An administrator can open **Admin > Sites** and turn on **Disable sites**.
-The switch is **off by default**, which means sites are allowed, not disabled.
-An archived preview still needs a configured runner even with the switch off.
+Sites are **disabled by default**. An administrator can open **Admin > Sites**
+and check **Enable sites** to show site links and allow previews and redirects.
+Existing explicitly saved settings are preserved when upgrading.
+Archived previews use the bundled same-host runtime by default.
 
-Changes save immediately. With the switch on:
+Changes save immediately. With the checkbox unchecked:
 
 - Package sidebars hide Sites after the page refreshes or reloads its settings.
 - Club site links to both archived previews and external destinations are blocked.
@@ -237,7 +244,7 @@ Changes save immediately. With the switch on:
   error code `sites_disabled`, including conditional archive requests. Requests
   without required credentials can still return `401` first. Admins have no bypass.
 - Publishing is unchanged. Uploads can still replace the active set, and stored
-  sites are not deleted. Turning the switch off allows access again.
+  sites are not deleted. Checking **Enable sites** allows access again.
 
 No server restart is needed for this setting; access checks read it on each
 request. It is not a remote revocation mechanism: an already-open preview or

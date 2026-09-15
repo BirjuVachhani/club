@@ -30,10 +30,11 @@ void main() {
       'GET',
       Uri.parse('http://localhost/api/setup/status'),
     );
-    for (final disabled in [false, true, false]) {
-      if (disabled || await settings.getSetting('disable_sites') != null) {
-        await settings.setSetting('disable_sites', disabled.toString());
+    for (final value in [null, 'false', 'true', 'invalid', 'false']) {
+      if (value != null) {
+        await settings.setSetting('disable_sites', value);
       }
+      final disabled = value != 'false';
       final response = await api.router.call(request);
       expect(response.statusCode, 200);
       expect(response.headers['cache-control'], 'no-store');
@@ -66,6 +67,25 @@ void main() {
       Uri.parse('http://localhost/api/packages/demo_pkg/sites/demo/archive'),
       headers: {'if-none-match': ?etag},
     );
+    final listingBeforeOptIn = Request(
+      'GET',
+      Uri.parse('http://localhost/api/packages/demo_pkg/sites'),
+    );
+    for (final req in [
+      listingBeforeOptIn,
+      request(),
+      request('*'),
+      request('W/"cached"'),
+    ]) {
+      final denied = await api.router.call(req);
+      expect(denied.statusCode, 403);
+      expect(denied.headers['etag'], isNull);
+      expect(
+        (jsonDecode(await denied.readAsString()) as Map)['error']['code'],
+        'sites_disabled',
+      );
+    }
+    await SqliteSettingsStore(db).setSetting('disable_sites', 'false');
     final first = await api.router.call(request());
     expect(first.statusCode, 200);
     await first.read().drain<void>();
@@ -121,7 +141,7 @@ void main() {
     expect(bad.statusCode, 404);
   });
   test(
-    'site settings default off, validate booleans and require admin',
+    'sites default disabled, preserve explicit settings and require admin',
     () async {
       final db = await ClubDatabase.memory();
       addTearDown(db.close);
@@ -152,16 +172,16 @@ void main() {
       final initial = await api.router.call(
         request('GET', role: UserRole.admin),
       );
-      expect(jsonDecode(await initial.readAsString()), {'disableSites': false});
+      expect(jsonDecode(await initial.readAsString()), {'disableSites': true});
       for (final method in ['GET', 'PUT']) {
         await expectLater(
-          () => api.router.call(request(method, body: {'disableSites': true})),
+          () => api.router.call(request(method, body: {'disableSites': false})),
           throwsA(isA<AuthException>()),
         );
         for (final role in [UserRole.viewer, UserRole.member]) {
           await expectLater(
             () => api.router.call(
-              request(method, role: role, body: {'disableSites': true}),
+              request(method, role: role, body: {'disableSites': false}),
             ),
             throwsA(isA<ForbiddenException>()),
           );
@@ -181,29 +201,32 @@ void main() {
       }
       expect(await settings.getSetting('disable_sites'), isNull);
       for (final role in [UserRole.admin, UserRole.owner]) {
-        final response = await api.router.call(
-          request('PUT', role: role, body: {'disableSites': true}),
-        );
-        expect(jsonDecode(await response.readAsString()), {
-          'disableSites': true,
-        });
-        expect(
-          await SqliteSettingsStore(db).getSetting('disable_sites'),
-          'true',
-        );
+        for (final disabled in [false, true]) {
+          final response = await api.router.call(
+            request('PUT', role: role, body: {'disableSites': disabled}),
+          );
+          expect(jsonDecode(await response.readAsString()), {
+            'disableSites': disabled,
+          });
+          expect(
+            await SqliteSettingsStore(db).getSetting('disable_sites'),
+            disabled.toString(),
+          );
+          final reloaded = SiteApi(
+            AppConfig(jwtSecret: 'x' * 32),
+            SqliteMetadataStore(db),
+            SqliteSettingsStore(db),
+          );
+          expect(await reloaded.disableSites, disabled);
+        }
       }
-      final restored = await api.router.call(
-        request('PUT', role: UserRole.admin, body: {'disableSites': false}),
-      );
-      expect(jsonDecode(await restored.readAsString()), {
-        'disableSites': false,
-      });
     },
   );
   test('runner never serves APIs or arbitrary paths', () async {
     final root = await Directory.systemTemp.createTemp('runner-');
     addTearDown(() => root.delete(recursive: true));
     await File('${root.path}/index.html').writeAsString('runner');
+    await File('${root.path}/runner.js').writeAsString('export {};');
     final handler = siteRunnerHandler(root.path);
     expect(
       (await handler(
@@ -211,9 +234,37 @@ void main() {
       )).statusCode,
       404,
     );
+    final response = await handler(Request('GET', Uri.parse('http://runner/')));
+    expect(response.statusCode, 200);
     expect(
-      (await handler(Request('GET', Uri.parse('http://runner/')))).statusCode,
-      200,
+      response.headers['content-security-policy'],
+      contains('sandbox allow-scripts allow-forms;'),
+    );
+    expect(
+      response.headers['content-security-policy'],
+      isNot(contains('allow-same-origin')),
+    );
+    final script = await handler(
+      Request(
+        'GET',
+        Uri.parse('http://runner/runner.js'),
+        headers: {'origin': 'null'},
+      ),
+    );
+    expect(script.statusCode, 200);
+    expect(script.headers['access-control-allow-origin'], '*');
+    expect(script.headers['access-control-allow-credentials'], isNull);
+    expect(
+      (await handler(
+        Request('GET', Uri.parse('http://runner/content/private/index.html')),
+      )).statusCode,
+      404,
+    );
+    expect(
+      (await handler(
+        Request('GET', Uri.parse('http://runner/sw.js')),
+      )).statusCode,
+      404,
     );
   });
 }

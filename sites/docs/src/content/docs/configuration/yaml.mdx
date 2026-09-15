@@ -86,8 +86,9 @@ s3_bucket: club-packages
 Server-side site configuration uses top-level keys:
 
 ```yaml
-site_runner_url: https://preview.example.net
-site_runner_port: 8081
+# Optional: omit these to use the existing Club hostname.
+# site_runner_url: https://preview.example.net
+# site_runner_port: 8081
 sites_path: /data/sites
 max_sites: 20
 max_site_archive_bytes: 104857600
@@ -96,9 +97,9 @@ max_site_expanded_bytes: 524288000
 max_site_entries: 10000
 ```
 
-Omit `site_runner_url` if you do not need archived browser previews. When set,
+Omit `site_runner_url` to use archived previews on the existing Club hostname. When set,
 it requires `server_url` with a different hostname and a separate listener port.
-See [runner deployment](/configuration/storage/#browser-previews) before enabling it.
+See [runner deployment](/configuration/storage/#browser-previews) for these optional settings.
 These server keys are distinct from the publisher's `sites` map in
 [`club.yaml`](/guides/package-sites/#configure-your-sites).
 

@@ -440,46 +440,34 @@ entries. Increasing server limits does not lift these client caps.
 
 ### Browser previews
 
-Archived previews require **one fixed, separate runner hostname**. There are no
-per-package or per-site subdomains to provision, and wildcard DNS is not required.
-URL-only targets do not need a runner. Without one, archives can still be
-published, but opening a preview reports that previews are not configured.
+As of 0.8.1, archived previews work on the existing Club hostname. No additional
+DNS, subdomains, exposed ports, or runner configuration are required. Club serves
+only its bundled runtime at `/site-runner/`; uploaded sites are still delivered
+as authenticated archives and extracted in the browser.
+
+The runtime HTML carries an HTTP CSP sandbox without `allow-same-origin`, so
+both framed and direct visits have an opaque origin. Preserve that response's
+Content-Security-Policy in your reverse proxy. Do not apply the main dashboard's
+restrictive script/connect CSP to `/site-runner/`: the sandboxed preview needs
+Blob resources and external site assets. Runtime scripts have credential-free
+CORS access; this does not change CORS or authentication on the archive API.
 
 | Environment variable | YAML key | Default |
 | --- | --- | --- |
-| `SITE_RUNNER_URL` | `site_runner_url` | Unset, runner listener not started |
-| `SITE_RUNNER_PORT` | `site_runner_port` | 8081 |
+| `SITE_RUNNER_URL` | `site_runner_url` | Unset, use the bundled same-host runner |
+| `SITE_RUNNER_PORT` | `site_runner_port` | 8081, used only with an explicit runner URL |
 
-For example, add these values to the server's existing configuration:
+Existing separate-runner deployments remain supported. If explicitly set,
+`SITE_RUNNER_URL` must be a separate HTTPS origin (HTTP is permitted only on
+loopback), with no credentials, query, fragment, or path other than `/`.
+The listener port must differ from `LISTEN_PORT`. Route that hostname only to
+the runner listener; do not share Club cookies or grant credentialed API CORS.
+An unset URL starts no extra listener and uses the main Club port instead.
+Restart the server after changing these optional settings.
 
-```yaml
-server_url: https://packages.example.com
-site_runner_url: https://preview.example.net
-site_runner_port: 8081
-sites_path: /data/sites
-```
-
-Use HTTPS, a hostname different from `SERVER_URL`, and a listener port different
-from `LISTEN_PORT`. A different port on the same hostname is not enough.
-`SITE_RUNNER_URL` must be an origin URL: no credentials, query, fragment, or path
-other than `/`. HTTP is accepted only for loopback development. Prefer a separate
-registrable domain, as in the example, over a sibling subdomain.
-
-The Docker image includes the runner assets and exposes ports 8080 and 8081.
-Route the Club hostname to its normal API port and the runner hostname **only**
-to the runner port. If your reverse proxy runs on the host, publish the runner
-port to it, for example `127.0.0.1:8081:8081`. A proxy on the same Docker network
-can use the container's port directly. Docker `EXPOSE` alone does not publish a
-host port. Mount `/data` persistently; if you move `SITES_PATH` elsewhere, mount
-that path too and make it writable by the container's user.
-
-The runner serves only its bundled static files. Do not route its hostname to
-the Club API, expose `/data/sites` directly, or serve runner scripts under the
-Club hostname. Keep Club cookies host-only; never share them with the runner.
-Do not add the runner to `ALLOWED_ORIGINS` or API CORS allowlists. Do not apply
-`X-Frame-Options: SAMEORIGIN`/`DENY` to the runner in your proxy: Club must be able
-to frame it. Any proxy-supplied CSP must allow that framing while retaining the
-separation between hosts. Restart the server after changing runner configuration.
+Keep `/data` on a persistent volume. If `SITES_PATH` is outside `/data`, mount it
+too and make it writable by the container's user. Never expose `/data/sites` or
+serve extracted uploaded files through a static web server.
 
 #### Authentication and cache behavior
 
@@ -492,7 +480,7 @@ content, not Club credentials, and provides no authenticated API proxy.
 The Club page caches compressed downloads in browser Cache Storage, separated
 by signed-in user (or anonymous browsing), and revalidates each opening using the
 archive's SHA-256 ETag. An unchanged archive returns `304`; changed bytes return
-`200` and replace the local copy after verification. Access and **Disable sites**
+`200` and replace the local copy after verification. Access and **Enable sites**
 checks happen before conditional responses. Preserve `ETag` and
 `Cache-Control: private, no-cache` for archive responses; do not place private
 archives in a shared CDN cache or strip their access checks.
@@ -500,14 +488,19 @@ archives in a shared CDN cache or strip their access checks.
 The runner unpacks the archive and passes files to an inner iframe with
 `allow-scripts allow-forms`, without `allow-same-origin`. The uploaded site's
 origin is opaque, isolating it from Club's DOM and origin storage and from other
-preview frames. The outer runner is separate-origin; the uploaded content does
-not inherit that runner's origin. Extracted files stay in memory, and no Service
+preview frames. The outer runtime and uploaded content both have opaque origins, including
+when the runtime is served on the Club hostname. Extracted files stay in memory, and no Service
 Worker serves them. See [preview compatibility](/guides/package-sites/#preview-compatibility)
 before choosing an archived target for an application.
+
+If you used an earlier Service-Worker-based preview prototype, clear that old
+runner origin's browser site data once to remove its workers and extracted
+caches. The opaque runtime cannot access or delete origin storage, and does not
+use those old copies. Ordinary 0.8.0 opaque previews do not create extracted caches.
 
 Cached downloads are subject to browser eviction, not guaranteed offline
 availability. They are also downloaded copies, not remotely revocable data.
 Already-open previews can continue running after an access change. The
-[Disable sites switch](/guides/package-sites/#disable-sites-across-the-server)
-blocks new site reads and Club redirects without deleting sites or stopping
+[Enable sites checkbox](/guides/package-sites/#enable-sites-across-the-server),
+unchecked by default, blocks new site reads and Club redirects when unchecked without deleting sites or stopping
 publishes. External websites remain available at their own URLs.

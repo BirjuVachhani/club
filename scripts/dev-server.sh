@@ -57,7 +57,7 @@ else
 fi
 
 # Dev defaults
-export SITE_RUNNER_URL="${SITE_RUNNER_URL:-http://127.0.0.1:8081}"
+export SITE_RUNNER_URL="${SITE_RUNNER_URL:-}"
 export SITE_RUNNER_PORT="${SITE_RUNNER_PORT:-8081}"
 export SERVER_URL="${SERVER_URL:-http://localhost:8080}"
 # SvelteKit dev server proxies /api to :8080 but keeps the browser's
@@ -88,7 +88,7 @@ trap cleanup EXIT INT TERM
 
 echo "=== club dev server ==="
 echo "  API:      http://localhost:8080"
-echo "  Site runner: ${SITE_RUNNER_URL}"
+echo "  Site runner: ${SITE_RUNNER_URL:-same-host /site-runner/index.html}"
 echo "  Web UI:   http://localhost:5173 (SvelteKit HMR)"
 if [ "$USE_DUMMY" = true ]; then
   echo "  Mode:     dummy (pre-seeded with real packages)"
