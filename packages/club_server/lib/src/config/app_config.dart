@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:club_core/club_core.dart' show SiteLimits;
 
 import 'package:yaml/yaml.dart';
 
@@ -88,6 +89,10 @@ class AppConfig {
     this.meilisearchUrl,
     this.meilisearchKey,
     this.tempDir = '/data/tmp/uploads',
+    this.sitesPath = '/data/sites',
+    this.siteRunnerUrl,
+    this.siteRunnerPort = 8081,
+    this.siteLimits = const SiteLimits(),
     this.maxUploadBytes = 100 * 1024 * 1024,
     this.staticFilesPath,
     this.dartdocPath = '/data/cache/dartdoc',
@@ -132,6 +137,10 @@ class AppConfig {
 
   // Upload
   final String tempDir;
+  final String sitesPath;
+  final String? siteRunnerUrl;
+  final int siteRunnerPort;
+  final SiteLimits siteLimits;
   final int maxUploadBytes;
 
   // Static files (SvelteKit build output)
@@ -279,6 +288,30 @@ class AppConfig {
       meilisearchKey:
           env[EnvKeys.meilisearchKey] ?? yaml['meilisearch_key']?.toString(),
       tempDir: str(EnvKeys.tempDir, 'temp_dir', '/data/tmp/uploads'),
+      sitesPath: str(EnvKeys.sitesPath, 'sites_path', '/data/sites'),
+      siteRunnerUrl: str(EnvKeys.siteRunnerUrl, 'site_runner_url').isEmpty
+          ? null
+          : str(EnvKeys.siteRunnerUrl, 'site_runner_url'),
+      siteRunnerPort: integer(EnvKeys.siteRunnerPort, 'site_runner_port', 8081),
+      siteLimits: SiteLimits(
+        count: integer('MAX_SITES', 'max_sites', 20),
+        archiveBytes: integer(
+          'MAX_SITE_ARCHIVE_BYTES',
+          'max_site_archive_bytes',
+          100 * 1024 * 1024,
+        ),
+        totalBytes: integer(
+          'MAX_SITES_TOTAL_BYTES',
+          'max_sites_total_bytes',
+          500 * 1024 * 1024,
+        ),
+        expandedBytes: integer(
+          'MAX_SITE_EXPANDED_BYTES',
+          'max_site_expanded_bytes',
+          500 * 1024 * 1024,
+        ),
+        entries: integer('MAX_SITE_ENTRIES', 'max_site_entries', 10000),
+      ),
       maxUploadBytes: integer(
         EnvKeys.maxUploadBytes,
         'max_upload_bytes',
@@ -376,19 +409,49 @@ class AppConfig {
       blobBackend: _parseBlobBackend(blob['backend'] as String?),
       blobPath: blob['path'] as String? ?? '/tmp/club-test-packages',
       tempDir: map['temp_dir'] as String? ?? '/tmp/club-test-uploads',
+      sitesPath: map['sites_path'] as String? ?? '/tmp/club-test-sites',
+      siteRunnerUrl: map['site_runner_url'] as String?,
+      siteRunnerPort: map['site_runner_port'] as int? ?? 8081,
+      siteLimits: SiteLimits(
+        count: map['max_sites'] as int? ?? 20,
+        archiveBytes:
+            map['max_site_archive_bytes'] as int? ?? 100 * 1024 * 1024,
+        totalBytes: map['max_sites_total_bytes'] as int? ?? 500 * 1024 * 1024,
+        expandedBytes:
+            map['max_site_expanded_bytes'] as int? ?? 500 * 1024 * 1024,
+        entries: map['max_site_entries'] as int? ?? 10000,
+      ),
       maxUploadBytes: map['max_upload_bytes'] as int? ?? 100 * 1024 * 1024,
       staticFilesPath: map['static_files_path'] as String?,
       dartdocPath: map['dartdoc_path'] as String? ?? '/data/cache/dartdoc',
       dartdocBackend: _parseDartdocBackend(
         map['dartdoc_backend'] as String?,
       ),
-      dartdocCacheMaxMemoryMb:
-          map['dartdoc_cache_max_memory_mb'] as int? ?? 64,
+      dartdocCacheMaxMemoryMb: map['dartdoc_cache_max_memory_mb'] as int? ?? 64,
     );
   }
 
   /// Validate required fields. Throws [StateError] if misconfigured.
   void validate() {
+    if (siteRunnerUrl != null) {
+      final runner = Uri.tryParse(siteRunnerUrl!);
+      if (runner == null ||
+          !runner.hasAuthority ||
+          runner.userInfo.isNotEmpty ||
+          runner.hasQuery ||
+          runner.hasFragment ||
+          (runner.path != '' && runner.path != '/') ||
+          !['https', 'http'].contains(runner.scheme) ||
+          (runner.scheme == 'http' &&
+              !['localhost', '127.0.0.1', '[::1]'].contains(runner.host)) ||
+          serverUrl == null ||
+          runner.host == serverUrl!.host ||
+          siteRunnerPort == port) {
+        throw StateError(
+          'SITE_RUNNER_URL requires a separate hostname, HTTPS (except loopback), SERVER_URL, and a separate SITE_RUNNER_PORT.',
+        );
+      }
+    }
     if (jwtSecret.isEmpty) {
       throw StateError('JWT_SECRET is required.');
     }

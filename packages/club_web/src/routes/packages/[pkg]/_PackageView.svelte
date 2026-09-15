@@ -19,6 +19,21 @@
 
   // Only used by the not-found state, to echo back the name from the URL
   // that failed to resolve. The detail view itself never reads route params.
+  let siteNames = $state<string[]>([]);
+  let siteLabels = $state<Record<string, string>>({});
+  let sitesDialog = $state<HTMLDialogElement>();
+  $effect(() => {
+    const name = pkg?.name;
+    let cancelled = false;
+    siteNames = [];
+    siteLabels = {};
+    sitesDialog?.close();
+    if (name && !page.data.disableSites) api.get<{ sites: string[]; labels?: Record<string, string> }>(`/api/packages/${encodeURIComponent(name)}/sites`)
+      .then(result => { if (!cancelled) { siteNames = result.sites; siteLabels = result.labels ?? {}; } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  });
+
   let missingName = $derived(page.params.pkg ?? "");
 
   interface Props {
@@ -1729,6 +1744,20 @@
         </div>
       {/if}
 
+      {#if !page.data.disableSites && siteNames.length}
+        <div class="sb-section">
+          <h4>Sites</h4>
+          <ul class="sb-links">
+            {#each siteNames.slice(0, 5) as site}
+              <li><a href={`/packages/${encodeURIComponent(pkg.name)}/site/${encodeURIComponent(site)}`} target="_blank" rel="noopener noreferrer">{siteLabels[site] ?? site}</a></li>
+            {/each}
+          </ul>
+          {#if siteNames.length > 5}
+            <button class="sites-more" onclick={() => sitesDialog?.showModal()}>More ({siteNames.length - 5})</button>
+          {/if}
+        </div>
+      {/if}
+
       <div class="sb-section">
         <h4>Weekly Downloads</h4>
         {#if sidebarDownloadsLoading}
@@ -1790,6 +1819,8 @@
           </div>
         </div>
       {/if}
+
+
 
       {#if dartdocStatus?.status === "completed" || pkg.documentation}
         <div class="sb-section">
@@ -2084,7 +2115,27 @@
   </div>
 {/snippet}
 
+<dialog bind:this={sitesDialog} class="sites-dialog" aria-labelledby="sites-dialog-title" onclick={(event) => { if (event.target === event.currentTarget) sitesDialog?.close(); }} onkeydown={(event) => { if (event.key === 'Escape') sitesDialog?.close(); }}>
+  <div class="sites-dialog-content">
+    <h2 id="sites-dialog-title">Sites</h2>
+    <ul class="sb-links">
+      {#each siteNames as site}
+        <li><a onclick={() => sitesDialog?.close()} href={`/packages/${encodeURIComponent(pkg.name)}/site/${encodeURIComponent(site)}`} target="_blank" rel="noopener noreferrer">{siteLabels[site] ?? site}</a></li>
+      {/each}
+    </ul>
+    <button class="sites-more" onclick={() => sitesDialog?.close()}>Close</button>
+  </div>
+</dialog>
+
 <style>
+  .sites-more { margin-top: 12px; color: var(--primary); background: transparent; border: 0; cursor: pointer; font: inherit; }
+  .sites-more:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+  .sites-dialog { padding: 0; width: min(440px, calc(100vw - 32px)); max-height: 80vh; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: var(--foreground); }
+  .sites-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+  .sites-dialog-content { padding: 24px; }
+  .sites-dialog h2 { margin: 0 0 20px; font-size: 22px; }
+  .sites-dialog li { padding-block: 6px; overflow-wrap: anywhere; }
+
   .pkg-page {
     width: 100%;
     max-width: 100%;

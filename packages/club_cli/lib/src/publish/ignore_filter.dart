@@ -33,12 +33,10 @@ const _basicIgnoreRules = [
 /// Decides which files under a package root ship in the published tarball.
 class IgnoreFilter {
   IgnoreFilter._({
-    required String repoRoot,
-    required String beneath,
-    required bool caseInsensitive,
-  }) : _repoRoot = repoRoot,
-       _beneath = beneath,
-       _caseInsensitive = caseInsensitive;
+    required this._repoRoot,
+    required this._beneath,
+    required this._caseInsensitive,
+  });
 
   /// Absolute path used as the root for ignore-rule resolution. Equal to
   /// the enclosing git repo root when the package is in a git repo,

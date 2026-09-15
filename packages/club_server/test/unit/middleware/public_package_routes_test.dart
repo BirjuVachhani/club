@@ -34,6 +34,8 @@ void main() {
       '/api/packages/my_pkg/permissions',
       '/api/packages/my_pkg/dartdoc-status',
       '/api/packages/my_pkg/list-info',
+      '/api/packages/my_pkg/sites',
+      '/api/packages/my_pkg/sites/demo/archive',
       // assets the rendered README and carousel point at
       '/api/packages/my_pkg/versions/1.0.0/screenshots/0.png',
       '/api/packages/my_pkg/versions/1.0.0/readme-assets/0.png',

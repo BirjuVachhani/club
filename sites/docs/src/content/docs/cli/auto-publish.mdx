@@ -214,6 +214,7 @@ multi-package controls:
 | `--auto` | Switch into multi-package mode. Required to enable everything below. |
 | `--dry-run`, `-n` | Print the full plan and exit without publishing anything. Source files are not touched in dry-run either. |
 | `--force`, `-f` | Skip the final apply confirmation. **Does not** automatically force-publish over existing versions — that's controlled by `--on-conflict`. |
+| `--yes`, `-y` | Accept workspace, per-package, and warning confirmations. Does not select targets or change `--on-conflict`; provide those explicitly for unattended publishing. |
 | `--directory <path>`, `-C` | Workspace root to discover from. Defaults to the current directory. |
 | `--server <host>`, `-s` | Target server (e.g. `myclub.birju.dev`). Accepts a full URL too. Same rules as `club publish`. |
 | `--on-conflict <mode>` | How to handle packages whose local version is already published. `prompt` (default) / `overwrite` / `skip` / `abort`. |

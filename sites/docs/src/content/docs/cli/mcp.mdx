@@ -1,6 +1,6 @@
 ---
 title: club mcp
-description: Run a stdio Model Context Protocol server so AI clients (Claude Desktop, Cursor, Cline, Continue, Zed) can browse, search, and reason about packages on a club server.
+description: Run a stdio Model Context Protocol server so AI clients (Claude Code, Claude Desktop, Codex, Cursor, Gemini CLI, Cline, Continue, Zed) can browse, search, and reason about packages on a club server.
 sidebar:
   order: 8
 ---
@@ -8,8 +8,9 @@ sidebar:
 import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
 
 `club mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io)
-server over stdio. Once configured in your AI client (Claude Desktop,
-Cursor, Cline, Continue, Zed, …), your assistant can search packages on a
+server over stdio. Once configured in your AI client (Claude Code,
+Claude Desktop, Codex, Cursor, Gemini CLI, Cline, Continue, Zed, …),
+your assistant can search packages on a
 club server, fetch readmes and changelogs, inspect pubspecs and
 dependencies, view scoring reports, and produce ready-to-paste
 `pubspec.yaml` snippets — all against your private registry, with your
@@ -136,6 +137,110 @@ supports MCP works. Below are the most common ones.
 
   Restart Claude Desktop. The `club` server appears in the MCP indicator
   with all its tools available.
+  </TabItem>
+  <TabItem label="Claude Code">
+  Register the server with `claude mcp add`. Everything after `--` is the
+  command Claude Code spawns:
+
+  ```bash
+  claude mcp add club -- club mcp
+  ```
+
+  Flags go in the same place:
+
+  ```bash
+  claude mcp add club -- club mcp --server myclub.birju.dev
+  ```
+
+  `--scope` controls where the entry is written:
+
+  | Scope | Flag | Where it lives |
+  |-------|------|----------------|
+  | Local (default) | `--scope local` | Your own settings, this project only |
+  | Project | `--scope project` | `.mcp.json` in the project root, shareable via git |
+  | User | `--scope user` | Your own settings, every project |
+
+  Project scope writes a plain `.mcp.json` you can also edit by hand:
+
+  ```json
+  {
+    "mcpServers": {
+      "club": {
+        "command": "club",
+        "args": ["mcp"]
+      }
+    }
+  }
+  ```
+
+  Run `/mcp` inside a Claude Code session to confirm `club` is connected
+  and see its tools.
+
+  <Aside type="caution" title="Don't commit tokens">
+  `.mcp.json` is meant to be checked in. Keep `--token` out of it and let
+  each teammate run `club login` instead.
+  </Aside>
+  </TabItem>
+  <TabItem label="Codex">
+  Codex CLI keeps MCP servers in `~/.codex/config.toml`. It uses TOML
+  tables, and the key is `mcp_servers` (snake_case), not `mcpServers`:
+
+  ```toml
+  [mcp_servers.club]
+  command = "club"
+  args = ["mcp"]
+  ```
+
+  Pinning a server works the same way:
+
+  ```toml
+  [mcp_servers.club]
+  command = "club"
+  args = ["mcp", "--server", "myclub.birju.dev"]
+  ```
+
+  To keep the token out of the args list, pass it through the
+  environment instead:
+
+  ```toml
+  [mcp_servers.club]
+  command = "club"
+  args = ["mcp", "--server", "myclub.birju.dev"]
+  env = { CLUB_TOKEN = "club_pat_..." }
+  ```
+
+  Or let Codex write the entry for you:
+
+  ```bash
+  codex mcp add club -- club mcp --server myclub.birju.dev
+  ```
+
+  Check it with `codex mcp list`, then start a new Codex session to pick
+  up the change.
+  </TabItem>
+  <TabItem label="Gemini CLI">
+  Gemini CLI reads `~/.gemini/settings.json` globally, or
+  `.gemini/settings.json` in the project root:
+
+  ```json
+  {
+    "mcpServers": {
+      "club": {
+        "command": "club",
+        "args": ["mcp"]
+      }
+    }
+  }
+  ```
+
+  Or add it from the terminal:
+
+  ```bash
+  gemini mcp add club club mcp
+  ```
+
+  Run `gemini mcp list` to confirm registration, and `/mcp` inside a
+  session to see the connected server and its tools.
   </TabItem>
   <TabItem label="Cursor">
   Cursor reads `.cursor/mcp.json` in the project root or

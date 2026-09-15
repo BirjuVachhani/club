@@ -55,13 +55,14 @@ Uploading to myclub.birju.dev...
 The core flag set mirrors `dart pub publish` (matched against the
 [upstream `LishCommand`](https://github.com/dart-lang/pub/blob/master/lib/src/command/lish.dart)),
 plus club-specific additions (`--server`, `--version`, `--enhanced`,
-`--from-git`, `--ref`, `--auto`).
+`--from-git`, `--ref`, `--auto`, `--yes`).
 
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--directory <path>` | `-C` | Run as if `<path>` is the package directory. Useful for monorepos. |
 | `--dry-run` | `-n` | Validate without uploading. Exits non-zero on errors (and warnings unless `--ignore-warnings`). |
-| `--force` | `-f` | Skip confirmation prompts. Required in CI when there is no TTY. |
+| `--force` | `-f` | Allow overwriting an existing version and skip warning/final publish confirmations. Overwrites still ask for confirmation in an interactive terminal unless `--yes` is also set. |
+| `--yes` | `-y` | Accept publish and warning confirmations without enabling force overwrites. With `--from-git`, keep the detected version unless `--version` is set. |
 | `--skip-validation` | | Bypass all 25 client-side validators. The server still validates. |
 | `--ignore-warnings` | | With `--dry-run` only: do not exit non-zero on warnings. |
 | `--to-archive <path>` | | Write the produced `.tar.gz` to `<path>` instead of uploading. |
@@ -72,6 +73,12 @@ plus club-specific additions (`--server`, `--version`, `--enhanced`,
 | `--from-git <url>` | | Clone a git repository and publish it as a package. Accepts an https or SSH git URL, or a GitHub pull request URL (which publishes the PR head as `X.Y.Z-pr<n>`). The repo is cloned under `~/.club/clones/` and removed after a successful publish. See [Publishing from Git](/cli/publish-from-git/). |
 | `--ref <ref>` | | Git branch, tag, or full commit SHA to check out. Only valid with `--from-git`, and not with a pull request URL. Defaults to the remote default branch. |
 | `--auto` | | Switch into multi-package mode for monorepos. See [`club publish --auto`](/cli/auto-publish/). |
+
+`--yes` also skips the workspace and per-package publish confirmations under
+`--auto`. It does not choose a server, workspace targets, or conflict policy:
+provide `--server`, package names, and `--on-conflict` when those choices
+would otherwise require input. `--yes` never bypasses validation errors or
+the `--dry-run` warning policy.
 
 ## How the target server is resolved
 
@@ -87,7 +94,7 @@ plus club-specific additions (`--server`, `--version`, `--enhanced`,
 2. **`publish_to:` in pubspec.yaml**, when present and not `none`. The URL
    must be in your logged-in credentials.
 3. **Auto-pick from logged-in servers**:
-   - 1 server: used automatically (with confirmation, unless `--force`).
+   - 1 server: used automatically (with confirmation, unless `--yes` or `--force`).
    - 2+ servers: an arrow-key TUI picker appears (in CI, this fails with
      a clear error directing you to use `--server`).
    - 0 servers: exits with a hint to run `club login <host>`.
@@ -178,7 +185,7 @@ Validators are grouped by severity:
 
 - **Errors** block publish unconditionally. Pass `--skip-validation` to
   bypass (or fix the issue).
-- **Warnings** require interactive confirmation, or `--force` in CI.
+- **Warnings** require interactive confirmation, `--yes`, or `--force`.
 - **Hints** are informational only and never block.
 
 The full list of validators (in run order):
@@ -332,7 +339,7 @@ You have not run `club login` yet. Do that first.
 ### `Cannot prompt in a non-interactive shell.`
 
 You are in CI (or piping output) but the runner needs to confirm
-something. Pass `--force` (and/or `--server <host>` if there are multiple
+something. Pass `--yes` (and/or `--server <host>` if there are multiple
 logins).
 
 ### `Found N error(s).`
@@ -372,6 +379,37 @@ You are on a club version older than 0.5.0. Publishing a package from a
 pub workspace whose root is a Flutter app used to run `dart pub get` at
 the workspace root, which cannot solve Flutter SDK dependencies.
 Upgrade, or pass `--skip-validation` on the old version.
+
+## Package sites
+
+Attach demos, documentation, or external links by adding a `sites` map to
+`club.yaml` beside your package's `pubspec.yaml`:
+
+```yaml
+sites:
+  demo:
+    label: Try the demo
+    build: cd example && flutter build web --release
+    output: example/build/web
+  docs:
+    url: https://docs.example.com/my-package/
+```
+
+`club publish` prepares the targets automatically. `--dry-run` still runs builds;
+`--skip-validation` does not skip site checks. Declared sites cannot be used with
+`--to-archive` or `--from-archive`.
+
+Only the latest non-retracted stable publish updates the active site set.
+A supplied map replaces the whole set; `sites: {}` clears it. Omitting `sites`
+leaves the existing set unchanged. Republishing an existing private version
+requires `--force`, even when the package bytes are unchanged. Public versions
+cannot be force-overwritten.
+
+See [Package Sites](/guides/package-sites/) for configuration, labels, limits,
+release behavior, browser compatibility, and the **Admin > Sites** access switch.
+For archived previews, administrators must also configure the
+[separate runner hostname](/configuration/storage/#browser-previews).
+URL-only targets do not require a runner.
 
 ## Implementation notes
 

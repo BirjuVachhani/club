@@ -396,3 +396,118 @@ SEARCH_BACKEND=meilisearch
 ```
 
 Full external stack for maximum scalability, concurrency, and search quality.
+
+
+## Static-site archives
+
+[Package sites](/guides/package-sites/) use local filesystem storage independently
+of `BLOB_BACKEND`. This applies even when package blobs use S3 or GCS. The default
+root is `/data/sites`, with one active set per package:
+
+```text
+sites/<package>/<site>/
+  site.tar.gz     # Archived target
+  redirect.json   # URL target, instead of site.tar.gz
+  metadata.json   # Optional display label
+```
+
+Keep `SITES_PATH` on a persistent volume and include it in backups alongside the
+database and package blobs. Archive and URL-target metadata are primary data,
+not regenerable caches. Use a single server process for this directory; sharing
+it between multiple replicas is not supported. Leave disk headroom for uploads,
+the new site set, and the previous set during replacement. Stop publishing while
+backing up or restoring the directory so that a replacement cannot race the copy.
+
+The server validates archives without executing their content. It stages a
+complete replacement, restores the previous set on promotion failure, and
+recovers interrupted promotions at startup. Files are unpacked for rendering in
+the browser, not served as extracted HTML from the API host.
+
+| Environment variable | YAML key | Default |
+| --- | --- | --- |
+| `SITES_PATH` | `sites_path` | `/data/sites` |
+| `MAX_SITES` | `max_sites` | 20 |
+| `MAX_SITE_ARCHIVE_BYTES` | `max_site_archive_bytes` | 104857600 (100 MiB) |
+| `MAX_SITES_TOTAL_BYTES` | `max_sites_total_bytes` | 524288000 (500 MiB) |
+| `MAX_SITE_EXPANDED_BYTES` | `max_site_expanded_bytes` | 524288000 (500 MiB, including tar headers and padding) |
+| `MAX_SITE_ENTRIES` | `max_site_entries` | 10000 |
+
+The package archive retains its separate `MAX_UPLOAD_BYTES` budget. Site manifests
+are limited to 64 KiB. URL targets count toward the site count and manifest limit,
+not archive-byte budgets. The CLI also enforces the default preparation budgets;
+the browser caps an archive at 100 MiB compressed, 500 MiB expanded, and 10,000 tar
+entries. Increasing server limits does not lift these client caps.
+
+### Browser previews
+
+Archived previews require **one fixed, separate runner hostname**. There are no
+per-package or per-site subdomains to provision, and wildcard DNS is not required.
+URL-only targets do not need a runner. Without one, archives can still be
+published, but opening a preview reports that previews are not configured.
+
+| Environment variable | YAML key | Default |
+| --- | --- | --- |
+| `SITE_RUNNER_URL` | `site_runner_url` | Unset, runner listener not started |
+| `SITE_RUNNER_PORT` | `site_runner_port` | 8081 |
+
+For example, add these values to the server's existing configuration:
+
+```yaml
+server_url: https://packages.example.com
+site_runner_url: https://preview.example.net
+site_runner_port: 8081
+sites_path: /data/sites
+```
+
+Use HTTPS, a hostname different from `SERVER_URL`, and a listener port different
+from `LISTEN_PORT`. A different port on the same hostname is not enough.
+`SITE_RUNNER_URL` must be an origin URL: no credentials, query, fragment, or path
+other than `/`. HTTP is accepted only for loopback development. Prefer a separate
+registrable domain, as in the example, over a sibling subdomain.
+
+The Docker image includes the runner assets and exposes ports 8080 and 8081.
+Route the Club hostname to its normal API port and the runner hostname **only**
+to the runner port. If your reverse proxy runs on the host, publish the runner
+port to it, for example `127.0.0.1:8081:8081`. A proxy on the same Docker network
+can use the container's port directly. Docker `EXPOSE` alone does not publish a
+host port. Mount `/data` persistently; if you move `SITES_PATH` elsewhere, mount
+that path too and make it writable by the container's user.
+
+The runner serves only its bundled static files. Do not route its hostname to
+the Club API, expose `/data/sites` directly, or serve runner scripts under the
+Club hostname. Keep Club cookies host-only; never share them with the runner.
+Do not add the runner to `ALLOWED_ORIGINS` or API CORS allowlists. Do not apply
+`X-Frame-Options: SAMEORIGIN`/`DENY` to the runner in your proxy: Club must be able
+to frame it. Any proxy-supplied CSP must allow that framing while retaining the
+separation between hosts. Restart the server after changing runner configuration.
+
+#### Authentication and cache behavior
+
+The Club page requests `/api/packages/<package>/sites` and, for an archive target,
+`/api/packages/<package>/sites/<site>/archive` through the normal access checks.
+Private packages require authentication. Anonymous site reads are allowed only
+for public packages when public packages are enabled. The runner receives site
+content, not Club credentials, and provides no authenticated API proxy.
+
+The Club page caches compressed downloads in browser Cache Storage, separated
+by signed-in user (or anonymous browsing), and revalidates each opening using the
+archive's SHA-256 ETag. An unchanged archive returns `304`; changed bytes return
+`200` and replace the local copy after verification. Access and **Disable sites**
+checks happen before conditional responses. Preserve `ETag` and
+`Cache-Control: private, no-cache` for archive responses; do not place private
+archives in a shared CDN cache or strip their access checks.
+
+The runner unpacks the archive and passes files to an inner iframe with
+`allow-scripts allow-forms`, without `allow-same-origin`. The uploaded site's
+origin is opaque, isolating it from Club's DOM and origin storage and from other
+preview frames. The outer runner is separate-origin; the uploaded content does
+not inherit that runner's origin. Extracted files stay in memory, and no Service
+Worker serves them. See [preview compatibility](/guides/package-sites/#preview-compatibility)
+before choosing an archived target for an application.
+
+Cached downloads are subject to browser eviction, not guaranteed offline
+availability. They are also downloaded copies, not remotely revocable data.
+Already-open previews can continue running after an access change. The
+[Disable sites switch](/guides/package-sites/#disable-sites-across-the-server)
+blocks new site reads and Club redirects without deleting sites or stopping
+publishes. External websites remain available at their own URLs.

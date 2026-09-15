@@ -23,13 +23,14 @@ set -e
 #   /data/tmp/          ephemeral (uploads etc.)   (TEMP_DIR)
 TEMP_DIR="${TEMP_DIR:-/data/tmp/uploads}"
 BLOB_PATH="${BLOB_PATH:-/data/blobs}"
+SITES_PATH="${SITES_PATH:-/data/sites}"
 DARTDOC_PATH="${DARTDOC_PATH:-/data/cache/dartdoc}"
 SDK_BASE_DIR="${SDK_BASE_DIR:-/data/cache/sdks}"
 PUB_CACHE_DIR="/data/cache/pub-cache"
 DB_DIR="/data/db"
 LOGS_DIR="${LOGS_DIR:-/data/logs}"
 
-mkdir -p "$TEMP_DIR" "$BLOB_PATH" "$DARTDOC_PATH" "$SDK_BASE_DIR" \
+mkdir -p "$SITES_PATH" "$TEMP_DIR" "$BLOB_PATH" "$DARTDOC_PATH" "$SDK_BASE_DIR" \
     "$PUB_CACHE_DIR" "$DB_DIR" "$LOGS_DIR" /data
 
 # If we're root, relax perms on the paths touched by both the server and

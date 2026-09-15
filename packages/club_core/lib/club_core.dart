@@ -66,3 +66,5 @@ export 'src/validation/version_validator.dart';
 
 // Exceptions
 export 'src/exceptions.dart';
+export 'src/models/site_upload.dart';
+export 'src/repositories/site_archive_store.dart';

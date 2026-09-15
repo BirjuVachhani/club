@@ -10,7 +10,7 @@ import 'package:shelf/shelf.dart';
 /// The CSP is deliberately strict: `default-src 'self'` with no inline
 /// script or style. SvelteKit's static build output complies — if we
 /// later need inline styles, switch to hash-based or nonce-based allow.
-Middleware securityHeadersMiddleware() {
+Middleware securityHeadersMiddleware({String? siteRunnerUrl}) {
   // SvelteKit's adapter-static emits a small inline bootstrap script
   // that kicks off hydration; there's no per-request context so nonces
   // aren't an option, and the hash changes per build so pinning it here
@@ -93,13 +93,13 @@ Middleware securityHeadersMiddleware() {
       // are not secret and must stay cacheable.
       final needsDefaultCacheControl =
           response.headers['cache-control'] == null &&
-          (path.startsWith('/api/') ||
-              path.startsWith('/oauth/') ||
-              isDocs);
+          (path.startsWith('/api/') || path.startsWith('/oauth/') || isDocs);
 
       return response.change(
         headers: {
-          'content-security-policy': isDocs ? dartdocCsp : csp,
+          'content-security-policy': isDocs
+              ? dartdocCsp
+              : '$csp; frame-src \'self\' ${siteRunnerUrl == null ? '' : Uri.parse(siteRunnerUrl).origin}',
           'x-content-type-options': 'nosniff',
           'x-frame-options': 'DENY',
           'referrer-policy': 'strict-origin-when-cross-origin',

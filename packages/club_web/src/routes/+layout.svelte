@@ -44,7 +44,7 @@
 
   // Bare pages — no header, footer, or chrome
   const bareRoutes = ['/setup', '/login', '/oauth/consent'];
-  let isBare = $derived(bareRoutes.some((r) => page.url.pathname.startsWith(r)));
+  let isBare = $derived(bareRoutes.some((r) => page.url.pathname.startsWith(r)) || /^\/packages\/[^/]+\/site\/[^/]+\/?$/.test(page.url.pathname));
   let isHome = $derived(page.url.pathname === '/');
 
   let currentTheme = $state<'light' | 'dark'>('light');

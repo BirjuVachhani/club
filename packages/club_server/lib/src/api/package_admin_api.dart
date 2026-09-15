@@ -13,6 +13,8 @@ class PackageAdminApi {
     required this.packageService,
     required this.metadataStore,
     required this.blobStore,
+    required this.siteStore,
+    required this.publishService,
     required this.visibilityService,
     required this.packageGroupService,
   });
@@ -20,6 +22,8 @@ class PackageAdminApi {
   final PackageService packageService;
   final MetadataStore metadataStore;
   final BlobStore blobStore;
+  final SiteArchiveStore siteStore;
+  final PublishService publishService;
   final VisibilityService visibilityService;
   final PackageGroupService packageGroupService;
 
@@ -474,47 +478,54 @@ class PackageAdminApi {
     return _json({'entries': entries});
   }
 
-  Future<Response> _deletePackage(Request request, String package) async {
-    final user = requireAuthUser(request);
-    final canAdmin = await packageService.isPackageAdmin(package, user.userId);
-    if (!canAdmin) throw ForbiddenException.notUploader(package);
+  Future<Response> _deletePackage(Request request, String package) =>
+      publishService.withPackageLock(package, () async {
+        final user = requireAuthUser(request);
+        final canAdmin = await packageService.isPackageAdmin(
+          package,
+          user.userId,
+        );
+        if (!canAdmin) throw ForbiddenException.notUploader(package);
 
-    // Deleting a package that public packages depend on is the same
-    // breakage as making it private, with no undo at all. Same check,
-    // and the caller has to say explicitly that they accept it.
-    await _guardBreakage(
-      request,
-      package,
-      action: 'Deleting $package',
-    );
+        // Deleting a package that public packages depend on is the same
+        // breakage as making it private, with no undo at all. Same check,
+        // and the caller has to say explicitly that they accept it.
+        await _guardBreakage(
+          request,
+          package,
+          action: 'Deleting $package',
+        );
 
-    final versions = await metadataStore.listVersions(
-      package,
-      scope: VisibilityScope.trustedInternal,
-    );
-    for (final v in versions) {
-      await blobStore.delete(package, v.version);
-    }
-    await metadataStore.deletePackage(package);
+        // Fail closed: do not release the name while private site data remains.
+        await siteStore.deletePackage(package);
 
-    // Same staleness fix as the admin delete path: dependents now point at
-    // a row that is gone, and the recompute treats that as blocking.
-    await metadataStore.recomputePublicResolvable(
-      await metadataStore.packagesDependingOn({package}),
-    );
+        final versions = await metadataStore.listVersions(
+          package,
+          scope: VisibilityScope.trustedInternal,
+        );
+        for (final v in versions) {
+          await blobStore.delete(package, v.version);
+        }
+        await metadataStore.deletePackage(package);
 
-    await metadataStore.appendAuditLog(
-      AuditLogCompanion(
-        id: packageService.generateId(),
-        kind: AuditKind.packageDeleted,
-        agentId: user.userId,
-        packageName: package,
-        summary: 'Package $package deleted by ${user.email}.',
-      ),
-    );
+        // Same staleness fix as the admin delete path: dependents now point at
+        // a row that is gone, and the recompute treats that as blocking.
+        await metadataStore.recomputePublicResolvable(
+          await metadataStore.packagesDependingOn({package}),
+        );
 
-    return _json({'status': 'ok'});
-  }
+        await metadataStore.appendAuditLog(
+          AuditLogCompanion(
+            id: packageService.generateId(),
+            kind: AuditKind.packageDeleted,
+            agentId: user.userId,
+            packageName: package,
+            summary: 'Package $package deleted by ${user.email}.',
+          ),
+        );
+
+        return _json({'status': 'ok'});
+      });
 
   Response _json(Object data) => Response.ok(
     jsonEncode(data),

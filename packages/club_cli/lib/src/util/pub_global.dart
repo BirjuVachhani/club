@@ -49,7 +49,7 @@ Future<int> _runInherited(List<String> args) async {
       args,
       mode: ProcessStartMode.inheritStdio,
     );
-    return process.exitCode;
+    return await process.exitCode;
   } on ProcessException {
     error('Could not locate `dart` on PATH.');
     hint('Install the Dart SDK: https://dart.dev/get-dart');

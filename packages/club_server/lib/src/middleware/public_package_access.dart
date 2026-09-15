@@ -164,6 +164,7 @@ class PublicPackageAccess {
         'likes',
         'permissions',
         'dartdoc-status',
+        'sites',
         'list-info',
         // Deliberately absent, and each for a reason:
         //   uploaders:     emails and user ids
@@ -183,6 +184,11 @@ class PublicPackageAccess {
 
     // /api/packages/<pkg>/versions/<version>/<suffix>
     if (parts.length == 4) {
+      if (parts[1] == 'sites' &&
+          SiteUpload.validName(parts[2]) &&
+          parts[3] == 'archive') {
+        return pkg;
+      }
       if (parts[1] != 'versions' || parts[2].isEmpty) return null;
       const allowed = {
         'score',

@@ -20,7 +20,7 @@ class HomebrewResult {
 }
 
 class HomebrewUpgrader {
-  HomebrewUpgrader({String executable = 'brew'}) : _executable = executable;
+  HomebrewUpgrader({this._executable = 'brew'});
 
   final String _executable;
 

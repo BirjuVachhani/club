@@ -23,16 +23,12 @@ import 'upgrade_options.dart';
 class UpgradeRunner {
   UpgradeRunner(
     this.options, {
-    ReleaseResolver? resolver,
-    InstallerScript? installer,
-    InstallLocation? location,
-    String? target,
-    HomebrewUpgrader? homebrew,
-  }) : _resolver = resolver,
-       _installer = installer,
-       _location = location,
-       _target = target,
-       _homebrew = homebrew;
+    this._resolver,
+    this._installer,
+    this._location,
+    this._target,
+    this._homebrew,
+  });
 
   final UpgradeOptions options;
   final ReleaseResolver? _resolver;

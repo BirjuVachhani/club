@@ -53,10 +53,9 @@ enum RegistryMode { pinned, discovered }
 class ServerRegistry {
   ServerRegistry._({
     required this.mode,
-    required Map<String, RegisteredServer> servers,
-    required String activeUrl,
-  }) : _servers = servers,
-       _activeUrl = activeUrl;
+    required this._servers,
+    required this._activeUrl,
+  });
 
   /// Pinned mode — exactly one server, optionally with a flag-supplied token.
   factory ServerRegistry.pinned({
@@ -67,7 +66,8 @@ class ServerRegistry {
     if (resolvedToken == null || resolvedToken.isEmpty) {
       throw ServerRegistryError(
         'Not logged in to ${displayServer(serverUrl)}.',
-        hint: 'Run `club login ${displayServer(serverUrl)}` or pass '
+        hint:
+            'Run `club login ${displayServer(serverUrl)}` or pass '
             '--token <pat>.',
       );
     }
@@ -188,8 +188,7 @@ class ServerRegistry {
     if (isPinned) {
       throw ServerRegistryError(
         'Cannot switch active server in pinned mode.',
-        hint:
-            'Restart `club mcp` without --server to enable server switching.',
+        hint: 'Restart `club mcp` without --server to enable server switching.',
       );
     }
     final canonical = parseServerInput(serverUrl);

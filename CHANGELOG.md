@@ -1,3 +1,28 @@
+## 0.8.0
+
+### Added
+
+- `club publish -y` accepts publish confirmations without enabling force overwrites.
+
+- Package sites attach static demos, documentation, and external website links with optional display labels to package pages.
+- `club publish` builds and validates named site targets from `club.yaml`, and the client SDK supports site attachments.
+- Archived sites open in isolated browser previews with download progress and revalidated local caching.
+- Administrators can disable site access and configure persistent site storage, upload limits, and a separate preview runner origin.
+- Package site documentation covers publishing, preview compatibility, deployment, and backups.
+- MCP setup instructions cover Claude Code, Codex, and Gemini CLI.
+
+### Changed
+
+- Site sets follow the latest non-retracted stable release, with explicit replacement and clearing on publish.
+- The CLI requires Dart 3.13 or later when building from source.
+
+### Fixed
+
+- Upload handling validates session ownership and state, enforces streaming byte limits, and rejects duplicate uploads and finalization.
+- Expired upload files and site attachments are cleaned up automatically.
+- Package deletion removes private sites and recovery files before name reuse and serializes with publication.
+- Docker health checks use the installed curl client and report unhealthy HTTP responses correctly.
+
 ## 0.7.1
 
 ### Added

@@ -1,0 +1,245 @@
+---
+title: Package Sites
+description: Attach static demos, documentation, and external website links to a package with club.yaml.
+---
+
+Package sites put demos, documentation, and other useful links on your package
+page. A site can be a **static build uploaded with the package**, or a **link to
+an existing website**. You can mix both in the same release.
+
+Use `club publish` with a server and CLI that support sites. `dart pub publish`
+does not build or attach the targets in `club.yaml`. For uploaded previews,
+your administrator must also [configure a separate runner hostname](/configuration/storage/#browser-previews).
+URL-only targets do not need a runner.
+
+## Configure your sites
+
+Create `club.yaml` beside the package's `pubspec.yaml`. This is the publisher's
+configuration, not the server's `/etc/club/config.yaml`.
+
+```yaml
+sites:
+  demo:
+    label: Interactive demo
+    build: |
+      cd example
+      flutter build web --release
+    output: example/build/web
+  docs:
+    label: Documentation
+    output: generated-docs
+  website:
+    label: Project website
+    url: https://example.com/my-package
+```
+
+This example builds a Flutter web demo, uploads already-generated documentation,
+and links to an external website. Install the build tools and dependencies on
+the machine running `club publish`; the Club server does not run these commands.
+
+### Names and labels
+
+`sites` must be a map of names to target configurations, not a list.
+
+- Names start with an ASCII letter and contain only letters, digits, `_`, or `-`.
+  The maximum is 128 characters.
+- Names must be unique ignoring case: `demo` and `Demo` cannot coexist.
+- The name identifies the site in its Club URL. Changing `label` does not change
+  that URL.
+- `label` is optional. When omitted or set to `null`, the name is displayed as
+  written. A non-null label must be a nonblank string of at most 200 characters.
+- The only target fields are `label`, `output`, `build`, and `url`. Unknown fields
+  are rejected.
+
+### Uploaded static builds
+
+An archive target needs `output`, a nonblank directory path. Relative paths are
+resolved from the package root; absolute paths are also accepted.
+
+`build` is an optional shell-command string. Without it, the output must already
+exist. Multiple commands can use YAML's `|` block syntax, as above. Builds run
+sequentially from the package root, then all outputs are validated and archived.
+A failed build stops the publish before that package is uploaded.
+
+The CLI uses `SHELL` when set, otherwise `/bin/sh` on Unix or `COMSPEC` (falling
+back to `cmd.exe`) on Windows. POSIX shells run with fail-fast behavior;
+PowerShell and Windows command scripts are also supported. Review build commands
+before publishing unfamiliar source: they run with your account's permissions.
+
+Each output must contain a regular `index.html` at its root. All regular files
+under that directory are included in its separate `.tar.gz` attachment. Symlinks,
+special files, and unsafe archive paths are rejected. Package ignore rules do
+not filter these site attachments, so use a dedicated output directory and do
+not put secrets or private source files in it.
+
+### Existing websites
+
+For a URL-only target, specify `url` instead of `output`:
+
+```yaml
+sites:
+  docs:
+    url: https://docs.example.com/my-package/
+```
+
+The URL must be absolute HTTP or HTTPS with a hostname. Embedded credentials,
+whitespace, control characters, and backslashes are rejected. A URL target cannot
+contain `build` or `output`, even if those fields are empty.
+
+Club stores the destination, not a copy of the website. Opening the Club site
+link checks access and then redirects in the browser. There is no archive
+download or preview iframe for that target, and Club does not fetch the
+destination server-side. The website's own availability, authentication, and
+privacy policies still apply. Use a URL target when your app needs capabilities
+that the [archived preview](#preview-compatibility) does not support.
+
+## Publish and update
+
+From the package directory:
+
+```bash
+club publish --dry-run
+club publish
+```
+
+Sites are discovered automatically; there is no separate site-upload flag.
+[`club publish --auto`](/cli/auto-publish/) prepares sites separately for each
+package it publishes, using that package's `club.yaml`.
+
+| Option | Effect on sites |
+| --- | --- |
+| `--dry-run` | Runs builds and validates archives, but uploads nothing. It still performs the normal existing-version precheck. |
+| `--skip-validation` | Skips package validators, not site configuration, build, archive, or server checks. |
+| `-f`, `--force` | Allows an existing private package version to be republished. Site processing runs again even if package bytes are unchanged. |
+| `--to-archive`, `--from-archive` | Not supported when sites are declared, including URL-only targets or `sites: {}`. Publish from source instead. |
+
+`--dry-run` cannot be combined with `--force`. To dry-run changes after a version
+has shipped, use an unpublished version. Forced overwrites still prompt for
+confirmation in an interactive terminal outside CI. Public package versions
+cannot be force-overwritten, even by admins; publish a new version instead.
+
+The CLI checks server support before uploading the package. URL targets require
+URL-target support in addition to basic site-upload support. A dry run is a local
+preparation check, not proof that the server accepts your sites or that the
+browser can render them.
+
+### Which release updates the sites?
+
+Sites are **one active set per package**, not a site history per version. Only a
+publish of the latest non-retracted stable version can replace that set.
+
+| Publish contents | Active sites |
+| --- | --- |
+| Latest stable release with a `sites` map | Replaced with exactly that map, including labels and URL destinations. |
+| Older stable version or any prerelease with sites | Validated, but not activated or retained as a versioned preview. |
+| `sites: {}` on an eligible stable publish | All active sites are removed. |
+| No `club.yaml`, or no `sites` key in it | Existing sites remain unchanged, even on a newer stable release. |
+
+For example, publishing `1.1.0` with only `demo` removes a previously active
+`docs` target. Publishing `2.0.0-beta.1` does not replace the `1.1.0` sites.
+A first release that is only a prerelease does not activate sites either.
+
+To replace sites without changing a private package's version, update its
+configuration or build output and run `club publish --force`. This is a package
+republish, not a site-only update. It still must be the latest eligible stable
+release. Retraction does not restore an older site set automatically.
+
+Site preparation failures leave the active set alone. The server prepares a
+complete replacement before promoting it and can restore the previous set if
+promotion fails. However, package publishing and site replacement are not a
+single transaction: a failed publish may already have written package data.
+Check the reported result before retrying an existing version.
+
+## Open a site
+
+Open `/packages/<package>/site/<name>` on your Club server, or use **Sites** in
+the package sidebar above **Weekly Downloads**. Links are sorted by site name,
+not by label. The first five appear in the sidebar; **More** shows a dialog with
+all sites. Both sidebar and dialog links open in a new tab.
+
+Archived targets show a loading screen while Club downloads, verifies, and
+prepares the preview. URL targets redirect to their configured destination
+without a preview. Share the Club URL when you want the link to follow future
+updates to the package's active site target.
+
+Sites follow the server's package-access policy. Private packages require sign-in;
+a public package's sites and archives can be read anonymously when public
+packages are enabled. Publishing sites does not itself make a package public.
+
+## Preview compatibility
+
+An uploaded site is a browser preview, not a general-purpose hosting service.
+Club downloads its archive and runs an in-memory loader inside a sandbox with
+an **opaque origin**. Site content is not served from Club's authenticated origin,
+and extracted files are not served through a Service Worker.
+
+The loader handles common local HTML resources, CSS URLs and imports, JavaScript
+module imports, local `fetch`/XMLHttpRequest reads, and links between archived
+HTML pages. Plain multi-page sites and Flutter JavaScript/CanvasKit builds are
+good starting points, but test your actual build after publishing.
+
+Important limitations:
+
+- No SSR, server-side functions, or server process. Local `fetch` supports reads,
+  not a writable backend.
+- Site-owned Service Workers, cookies, localStorage, and IndexedDB are not
+  available as normal origin storage inside the opaque preview.
+- History state is emulated; address-bar routing, deep links, and browser
+  back/forward navigation are not equivalent to a normal website.
+- Circular module dependencies report an error. Import maps, arbitrary workers,
+  dynamic HTML insertion, responsive image source sets, and threaded or Wasm
+  Flutter builds are not generally supported.
+- Pages are inserted into an already-loaded document. Scripts that wait only
+  for `DOMContentLoaded` or the window `load` event may not initialize.
+  Fragment links do not behave like normal in-page anchor navigation.
+- External resources and APIs remain external. They must accept the browser's
+  CORS rules, including `Origin: null` where applicable. Club does not proxy
+  authenticated API requests for your site.
+- The sandbox is not an offline firewall: outbound requests and forms can still
+  contact external services. Do not assume uploaded content has no network access.
+
+Use a current browser with JavaScript, Web Crypto, Cache Storage, and gzip
+`DecompressionStream` support. Browsers may evict cached archives or restrict
+storage. Large sites also need enough browser memory to unpack and render.
+
+## Size limits
+
+Default budgets are:
+
+| Budget | Limit |
+| --- | --- |
+| Targets per package, including URLs | 20 |
+| Compressed archive per site | 100 MiB |
+| Total compressed site archives per publish | 500 MiB |
+| Expanded archive per site | 500 MiB |
+| Files/entries per site | 10,000 |
+| Upload manifest | 64 KiB |
+
+The server counts tar headers and padding toward the expanded limit, so leave
+headroom below it. URL targets count toward the target and manifest limits but
+have no archive bytes. The package archive has its own upload budget.
+
+Administrators can [configure server limits](/configuration/storage/#static-site-archives),
+but the CLI and browser also enforce their own fixed preparation/preview limits.
+Increasing a server budget does not increase those client limits.
+
+## Disable sites across the server
+
+An administrator can open **Admin > Sites** and turn on **Disable sites**.
+The switch is **off by default**, which means sites are allowed, not disabled.
+An archived preview still needs a configured runner even with the switch off.
+
+Changes save immediately. With the switch on:
+
+- Package sidebars hide Sites after the page refreshes or reloads its settings.
+- Club site links to both archived previews and external destinations are blocked.
+- Site listing and archive requests that pass authentication return `403` with
+  error code `sites_disabled`, including conditional archive requests. Requests
+  without required credentials can still return `401` first. Admins have no bypass.
+- Publishing is unchanged. Uploads can still replace the active set, and stored
+  sites are not deleted. Turning the switch off allows access again.
+
+No server restart is needed for this setting; access checks read it on each
+request. It is not a remote revocation mechanism: an already-open preview or
+already-downloaded archive cannot be taken back. Other open tabs do not receive
+a live settings push, and an external website remains reachable at its own URL.

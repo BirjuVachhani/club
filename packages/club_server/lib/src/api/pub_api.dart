@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:crypto/crypto.dart';
 import 'package:mime/mime.dart';
 import 'package:club_core/club_core.dart';
 import 'package:shelf/shelf.dart';
@@ -165,7 +166,7 @@ class PubApi {
   }
 
   Future<Response> _receiveUpload(Request request) async {
-    requireAuthUser(request);
+    final user = requireAuthUser(request);
 
     final contentType = request.headers['content-type'] ?? '';
     String? uploadId;
@@ -178,19 +179,28 @@ class PubApi {
       uploadId = await _handleMultipartUpload(request, boundary);
     } else {
       uploadId = request.url.queryParameters['upload_id'];
-      if (uploadId != null) {
-        final session = await publishService.lookupSession(uploadId);
-        if (session != null) {
-          await _streamBodyToFile(request.read(), session.tempPath);
-        }
+      if (uploadId == null) {
+        throw const InvalidInputException('Missing upload_id.');
+      }
+      final session = await publishService.lookupSession(uploadId);
+      if (session == null) {
+        throw const InvalidInputException('Unknown upload session.');
+      }
+      _validateReceivingSession(session, user.userId);
+      if (!_receiving.add(uploadId)) {
+        throw const InvalidInputException('Upload is already being received.');
+      }
+      try {
+        await _streamBodyToFile(request.read(), session.tempPath);
+        await publishService.markReceived(uploadId);
+      } finally {
+        _receiving.remove(uploadId);
       }
     }
 
     if (uploadId == null || uploadId.isEmpty) {
       throw const InvalidInputException('Missing upload_id.');
     }
-
-    await publishService.markReceived(uploadId);
 
     // Must be an absolute URL — dart pub client doesn't resolve relative redirects
     final base = _baseUrl(request);
@@ -403,55 +413,193 @@ class PubApi {
 
   String? _extractBoundary(String contentType) {
     final match = RegExp(r'boundary=(.+)').firstMatch(contentType);
-    return match?.group(1)?.trim();
+    return match?.group(1)?.split(';').first.trim().replaceAll('"', '');
   }
 
-  /// Parse multipart form data using MimeMultipartTransformer.
+  final Set<String> _receiving = {};
+
+  void _validateReceivingSession(UploadSession session, String userId) {
+    if (session.userId != userId) {
+      throw const ForbiddenException('Upload session belongs to another user.');
+    }
+    if (session.isExpired || session.state != UploadState.pending) {
+      throw const InvalidInputException(
+        'Upload session is expired or no longer pending.',
+      );
+    }
+  }
+
+  /// Stream multipart data into request-local scratch before associating it
+  /// with an authenticated session. Filenames supplied by clients are ignored.
   Future<String?> _handleMultipartUpload(
     Request request,
     String boundary,
   ) async {
-    final transformer = MimeMultipartTransformer(boundary);
-    final parts = await transformer.bind(request.read()).toList();
-
+    final user = requireAuthUser(request);
+    await Directory(publishService.tempDir).create(recursive: true);
+    final scratch = await Directory(
+      publishService.tempDir,
+    ).createTemp('receiving-');
     String? uploadId;
-    List<int>? fileBytes;
-
-    for (final part in parts) {
-      final disposition = part.headers['content-disposition'] ?? '';
-      final bytes = await part.fold<List<int>>(
-        <int>[],
-        (acc, chunk) => acc..addAll(chunk),
-      );
-
-      if (disposition.contains('name="upload_id"')) {
-        uploadId = utf8.decode(bytes).trim();
-      } else if (disposition.contains('name="file"') ||
-          disposition.contains('filename=')) {
-        fileBytes = bytes;
+    var locked = false;
+    final fields = <String, String>{};
+    final files = <String, File>{};
+    final names = <String>{};
+    var total = 0;
+    Stream<List<int>> bounded() async* {
+      await for (final chunk in request.read()) {
+        total += chunk.length;
+        if (total >
+            publishService.maxUploadBytes +
+                publishService.siteLimits.totalBytes +
+                128 * 1024) {
+          throw const InvalidInputException('Upload exceeds total byte limit.');
+        }
+        yield chunk;
       }
     }
 
-    if (uploadId == null) return null;
-
-    if (fileBytes != null) {
+    try {
+      await for (final part in MimeMultipartTransformer(
+        boundary,
+      ).bind(bounded())) {
+        final disposition = part.headers['content-disposition'] ?? '';
+        final name = RegExp(
+          r'(?:^|;)\s*name="([^"]+)"',
+        ).firstMatch(disposition)?.group(1);
+        if (name == null || !names.add(name)) {
+          throw const InvalidInputException(
+            'Missing or duplicate multipart part name.',
+          );
+        }
+        if (name == 'upload_id' || name == 'sites_manifest') {
+          final bytes = <int>[];
+          await for (final chunk in part) {
+            if (bytes.length + chunk.length >
+                (name == 'upload_id' ? 256 : 64 * 1024)) {
+              throw const InvalidInputException(
+                'Upload field exceeds size limit.',
+              );
+            }
+            bytes.addAll(chunk);
+          }
+          fields[name] = utf8.decode(bytes);
+        } else if (name == 'file' || RegExp(r'^site_[0-9]+$').hasMatch(name)) {
+          if (files.length >= publishService.siteLimits.count + 1) {
+            throw const InvalidInputException('Too many upload files.');
+          }
+          final file = File('${scratch.path}/$name');
+          final sink = file.openWrite();
+          var size = 0;
+          try {
+            await for (final chunk in part) {
+              size += chunk.length;
+              final limit = name == 'file'
+                  ? publishService.maxUploadBytes
+                  : publishService.siteLimits.archiveBytes;
+              if (size > limit) {
+                throw const InvalidInputException(
+                  'Upload file exceeds size limit.',
+                );
+              }
+              sink.add(chunk);
+            }
+            await sink.flush();
+          } finally {
+            await sink.close();
+          }
+          files[name] = file;
+        } else {
+          throw const InvalidInputException('Unknown upload part.');
+        }
+      }
+      uploadId = fields['upload_id']?.trim();
+      if (uploadId == null || !files.containsKey('file')) {
+        throw const InvalidInputException(
+          'Upload requires upload_id and package file.',
+        );
+      }
       final session = await publishService.lookupSession(uploadId);
-      if (session != null) {
-        final file = File(session.tempPath);
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes(fileBytes);
+      if (session == null) {
+        throw const InvalidInputException('Unknown upload session.');
       }
+      _validateReceivingSession(session, user.userId);
+      if (!_receiving.add(uploadId)) {
+        throw const InvalidInputException('Upload is already being received.');
+      }
+      locked = true;
+      final manifest = fields['sites_manifest'];
+      final sites = manifest == null
+          ? null
+          : SiteUpload.parse(jsonDecode(manifest), publishService.siteLimits);
+      if (sites != null && publishService.siteStore == null) {
+        throw const InvalidInputException('Site publishing is not configured.');
+      }
+      final expected = {
+        'file',
+        ...?sites?.where((s) => s.url == null).map((s) => s.part!),
+      };
+      if (expected.length != files.length ||
+          !expected.every(files.containsKey)) {
+        throw const InvalidInputException(
+          'Site manifest does not match uploaded files.',
+        );
+      }
+      for (final site in sites ?? <SiteUpload>[]) {
+        if (site.url != null) continue;
+        final file = files[site.part]!;
+        if (await file.length() != site.length ||
+            (await sha256.bind(file.openRead()).first).toString() !=
+                site.sha256) {
+          throw const InvalidInputException(
+            'Site archive length or digest mismatch.',
+          );
+        }
+      }
+      final siteDir = Directory('${session.tempPath}.sites');
+      try {
+        if (sites != null) {
+          await siteDir.create();
+          for (final site in sites) {
+            if (site.url != null) continue;
+            await files[site.part]!.rename('${siteDir.path}/${site.part}');
+          }
+          await File(
+            '${siteDir.path}/manifest.json',
+          ).writeAsString(manifest!, flush: true);
+        }
+        await files['file']!.rename(session.tempPath);
+        await publishService.markReceived(uploadId);
+      } catch (_) {
+        if (await siteDir.exists()) await siteDir.delete(recursive: true);
+        rethrow;
+      }
+      return uploadId;
+    } finally {
+      if (locked) _receiving.remove(uploadId);
+      await scratch.delete(recursive: true);
     }
-
-    return uploadId;
   }
 
   Future<void> _streamBodyToFile(Stream<List<int>> stream, String path) async {
     final file = File(path);
     await file.parent.create(recursive: true);
     final sink = file.openWrite();
-    await for (final chunk in stream) {
-      sink.add(chunk);
+    var size = 0;
+    try {
+      await for (final chunk in stream) {
+        size += chunk.length;
+        if (size > publishService.maxUploadBytes) {
+          throw const InvalidInputException(
+            'Package upload exceeds size limit.',
+          );
+        }
+        sink.add(chunk);
+      }
+    } catch (_) {
+      await sink.close();
+      if (await file.exists()) await file.delete();
+      rethrow;
     }
     await sink.flush();
     await sink.close();

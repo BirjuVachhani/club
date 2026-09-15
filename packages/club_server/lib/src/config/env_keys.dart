@@ -85,6 +85,9 @@ abstract final class EnvKeys {
 
   // Upload
   static const tempDir = 'TEMP_DIR';
+  static const sitesPath = 'SITES_PATH';
+  static const siteRunnerUrl = 'SITE_RUNNER_URL';
+  static const siteRunnerPort = 'SITE_RUNNER_PORT';
   static const maxUploadBytes = 'MAX_UPLOAD_BYTES';
 
   // Static files

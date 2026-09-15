@@ -163,6 +163,7 @@ The `/data` volume inside the container holds all persistent state, grouped by d
 │       └── dartdoc/latest/           # only present with DARTDOC_BACKEND=blob
 │           ├── blob
 │           └── index.json
+├── sites/               # Primary state: archives, URL destinations, labels
 ├── cache/               # 🟡 Safe to wipe — fully regenerable
 │   ├── dartdoc/         #    Rendered dartdoc trees (DARTDOC_BACKEND=filesystem)
 │   ├── sdks/            #    Flutter/Dart SDK installs (SDK_BASE_DIR)
@@ -173,7 +174,7 @@ The `/data` volume inside the container holds all persistent state, grouped by d
     └── uploads/
 ```
 
-The `🔒` tiers (`db/`, `blobs/`) are all you need to back up. The `🟡` cache is re-derivable on next boot — for `dartdoc`, on the next scoring run per package; for SDKs/pub-cache, automatically. The `🟢` tiers hold only observability or in-flight data.
+Back up all three primary tiers: `db/`, `blobs/`, and `sites/`. Site data stays local even with S3 or GCS blobs. Include your configured `SITES_PATH` if it is outside `/data`. The cache is re-derivable on next boot: for `dartdoc`, on the next scoring run per package; for SDKs/pub-cache, automatically. The `🟢` tiers hold only observability or in-flight data.
 
 ### Why the volume has an explicit `name:`
 
@@ -228,7 +229,7 @@ docker exec club du -sh /data/
 ```
 
 Before a major change, you can always take a quick snapshot — see the
-[Backups](#backups) section below.
+[Backups](#backing-up) section below.
 
 ### Using a bind mount
 
@@ -333,7 +334,7 @@ docker exec club ls -la /data/db/club.db
 
 ### Backing up
 
-The runtime image is minimal and does **not** include the `sqlite3` CLI. Run backups either via a short-lived sidecar container or by snapshotting the whole `/data` volume.
+The runtime image is minimal and does **not** include the `sqlite3` CLI. Run backups either via a short-lived sidecar container or by snapshotting the whole `/data` volume. Pause publishing for the entire database, blob, and site backup.
 
 ```bash
 # SQLite online backup via a sidecar alpine container that shares the volume
@@ -344,20 +345,21 @@ docker run --rm --volumes-from club -v "$PWD:/backup" alpine:latest sh -c '
 
 # Package tarballs + screenshots (direct copy of the blobs tier)
 docker cp club:/data/blobs ./blobs-backup/
+docker cp club:/data/sites ./sites-backup/
 
-# Or snapshot only the primary tiers at once (db + blobs). `cache/` is
-# re-derivable so skipping it makes the tarball much smaller.
+# Or stop the server before copying SQLite files directly.
+# Snapshot all primary tiers; regenerable caches can be skipped.
+docker compose stop club
 docker run --rm -v club_data:/data -v "$PWD:/backup" \
   alpine:latest tar czf /backup/club-data-$(date +%Y%m%d).tar.gz \
-  -C /data db blobs
+  -C /data db blobs sites
+docker compose start club
 ```
 
 <Aside type="tip">
-  Set up a cron job for automated daily backups. Volume snapshots of just the primary tiers are the simplest robust option:
-  ```bash
-  0 2 * * * docker run --rm -v club_data:/data -v /opt/backups:/backup alpine:latest \
-    tar czf /backup/club-$(date +\%Y\%m\%d).tar.gz -C /data db blobs
-  ```
+  For automated backups, use the [backup script](/operations/backup/#full-backup-script)
+  with publishing paused for the entire backup. Direct SQLite file copies
+  require the server to be stopped; do not schedule a live tar copy of `db/`.
 </Aside>
 
 ### Restoring from backup
@@ -371,6 +373,9 @@ docker cp club-backup.db club:/data/db/club.db
 
 # Restore blobs tier (tarballs + screenshots + any blob-mode dartdoc)
 docker cp blobs-backup/. club:/data/blobs/
+
+# Restore active site archives, URL destinations, and labels
+docker cp sites-backup/. club:/data/sites/
 
 # Start the server
 docker compose start club

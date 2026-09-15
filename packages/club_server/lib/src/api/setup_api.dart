@@ -24,6 +24,7 @@ class SetupApi {
     required this.metadataStore,
     this.signupEnabled = false,
     this.trustProxy = false,
+    this.settingsStore,
     Future<bool> Function()? publicBrowsingEnabled,
   }) : publicBrowsingEnabled = publicBrowsingEnabled ?? _neverPublic,
        _setupCode = _generateCode();
@@ -34,6 +35,7 @@ class SetupApi {
 
   final AuthService authService;
   final MetadataStore metadataStore;
+  final SettingsStore? settingsStore;
 
   /// Mirrors [AppConfig.signupEnabled]. Surfaced via `/api/setup/status`
   /// so the web UI can show/hide the "Create account" link.
@@ -87,9 +89,10 @@ class SetupApi {
       jsonEncode({
         'needsSetup': await _needsSetup(),
         'signupEnabled': signupEnabled,
+        'disableSites': await settingsStore?.getSetting('disable_sites') == 'true',
         'publicBrowsing': await publicBrowsingEnabled(),
       }),
-      headers: {'content-type': 'application/json'},
+      headers: {'content-type': 'application/json', 'cache-control': 'no-store'},
     );
   }
 

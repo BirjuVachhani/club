@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:club_server/src/sites/runner_handler.dart';
 
 import 'package:club_server/src/bootstrap.dart';
 import 'package:club_server/src/config/app_config.dart';
@@ -38,13 +39,29 @@ Future<void> _run(List<String> args) async {
     config.port,
   );
 
+  final runner = config.siteRunnerUrl == null
+      ? null
+      : await shelf_io.serve(
+          siteRunnerHandler(
+            Directory('${config.staticFilesPath}/site-runner').existsSync()
+                ? '${config.staticFilesPath}/site-runner'
+                : 'packages/club_web/static/site-runner',
+          ),
+          config.host,
+          config.siteRunnerPort,
+        );
+  // Dart adds SAMEORIGIN by default; this listener is intentionally framed
+  // by the separate Club origin. Its only content is the credential-free runner.
+  runner?.defaultResponseHeaders.removeAll('x-frame-options');
   _printStartupInfo(config, server);
+  if (runner != null) stdout.writeln('Site runner: ${config.siteRunnerUrl}');
 
   // Graceful shutdown
   ProcessSignal.sigterm.watch().listen((_) async {
     // ignore: avoid_print
     print('Shutting down...');
     await server.close();
+    await runner?.close(force: true);
     // Stop scheduled work before closing stores, so a sweep can't fire
     // mid-shutdown against a half-closed DB.
     await result.scheduler.close();
@@ -58,6 +75,7 @@ Future<void> _run(List<String> args) async {
     // ignore: avoid_print
     print('Shutting down...');
     await server.close();
+    await runner?.close(force: true);
     // Stop scheduled work before closing stores, so a sweep can't fire
     // mid-shutdown against a half-closed DB.
     await result.scheduler.close();

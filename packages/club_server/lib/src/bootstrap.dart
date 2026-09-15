@@ -30,6 +30,7 @@ import 'scoring/sandbox.dart';
 import 'scoring/scoring_logger.dart';
 import 'scoring/scoring_service.dart';
 import 'sdk/sdk_manager.dart';
+import 'sites/archive_validator.dart';
 import 'update/update_checker.dart';
 
 final _bootstrapLogger = Logger('Bootstrap');
@@ -255,6 +256,8 @@ Future<BootstrapResult> bootstrap(
       ? null
       : normaliseDependencyOrigin(config.serverUrl!.toString());
 
+  final siteStore = FilesystemSiteArchiveStore(rootPath: config.sitesPath);
+  await siteStore.open();
   final publishService = PublishService(
     store: metadataStore,
     blobStore: blobStore,
@@ -262,6 +265,9 @@ Future<BootstrapResult> bootstrap(
     generateId: () => _uuid.v4(),
     tempDir: config.tempDir,
     maxUploadBytes: config.maxUploadBytes,
+    siteStore: siteStore,
+    siteLimits: config.siteLimits,
+    validateSiteArchive: validateSiteArchive,
     extractArchive: (file) => _extractArchive(file, policy: readerPolicy),
     onVersionPublished: (pkg, version) => scoringService.enqueue(pkg, version),
     selfOrigin: selfOrigin,
@@ -329,6 +335,7 @@ Future<BootstrapResult> bootstrap(
   // ── Setup API (onboarding) ──────────────────────────────────
 
   final setupApi = SetupApi(
+    settingsStore: settingsStore,
     authService: authService,
     metadataStore: metadataStore,
     signupEnabled: config.signupEnabled,
@@ -375,6 +382,7 @@ Future<BootstrapResult> bootstrap(
     downloadService: downloadService,
     metadataStore: metadataStore,
     blobStore: blobStore,
+    siteStore: siteStore,
     searchIndex: searchIndex,
     setupApi: setupApi,
     staticFilesPath: config.staticFilesPath,
@@ -402,6 +410,11 @@ Future<BootstrapResult> bootstrap(
   // in-memory buckets) own their own timers; only work that spans
   // components or the database lives here.
   final scheduler = Scheduler([
+    ScheduledTask(
+      name: 'uploads:cleanup',
+      schedule: '*/15 * * * *',
+      run: publishService.cleanupExpiredSessions,
+    ),
     ScheduledTask(
       name: 'publisher-verifications:sweep',
       // Hourly at :00. Expired rows are inert (upsert-on-start replaces
