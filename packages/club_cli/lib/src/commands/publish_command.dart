@@ -91,7 +91,7 @@ class PublishCommand extends ClubCommand {
         help:
             'Override the version being published. Must be valid semver. '
             'Rewrites the version in the tarball pubspec.yaml without '
-            'modifying source files.',
+            'modifying source files. With --auto, applies only to selected packages.',
         valueHelp: 'version',
       )
       ..addFlag(
@@ -108,15 +108,15 @@ class PublishCommand extends ClubCommand {
         'auto',
         negatable: false,
         help:
-            'Discover the workspace, rewrite path/workspace deps to '
-            'hosted refs, and publish every package in topological order. '
+            'Discover the workspace, rewrite internal deps to hosted refs, '
+            'and publish only selected packages in dependency order. '
             'Positional args (or an interactive picker if none) select '
-            'the leaf targets; transitive workspace deps are pulled in.',
+            'packages; unselected direct deps must already be published.',
       )
       ..addOption(
         'on-conflict',
         help:
-            'How to handle packages whose local version is already '
+            'How to handle selected packages whose effective version is already '
             'published (only used with --auto).',
         valueHelp: 'mode',
         defaultsTo: 'prompt',
@@ -226,8 +226,10 @@ class PublishCommand extends ClubCommand {
 
       if (source.isPullRequest && gitRef != null) {
         error('--ref cannot be combined with a pull request URL.');
-        hint('The PR URL already selects the commit to publish '
-            '(refs/pull/${source.pullRequest}/head).');
+        hint(
+          'The PR URL already selects the commit to publish '
+          '(refs/pull/${source.pullRequest}/head).',
+        );
         exitCode = ExitCodes.config;
         return;
       }
@@ -354,9 +356,9 @@ class PublishCommand extends ClubCommand {
       }
       final onConflict =
           parseOnConflictMode(results['on-conflict'] as String) ??
-              OnConflictMode.prompt;
-      final treeStyle = parseTreeStyle(results['tree'] as String) ??
-          TreeStyle.stacked;
+          OnConflictMode.prompt;
+      final treeStyle =
+          parseTreeStyle(results['tree'] as String) ?? TreeStyle.stacked;
       final autoOptions = AutoPublishOptions(
         directory: directory,
         targets: results.rest,

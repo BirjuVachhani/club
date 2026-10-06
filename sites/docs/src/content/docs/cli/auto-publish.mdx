@@ -1,6 +1,6 @@
 ---
 title: club publish --auto
-description: Discover every package in a Dart monorepo, resolve their inter-package dependencies, and publish them to a club server in topological order — with in-memory pubspec rewrites that never touch source files.
+description: Publish selected Dart workspace packages with in-memory dependency rewrites that never touch source files.
 sidebar:
   label: Publishing multiple packages
   order: 6
@@ -12,13 +12,18 @@ import { Steps, Tabs, TabItem, Aside, Code, CardGrid, Card, LinkCard } from '@as
 multi-package mode designed for Dart monorepos and pub workspaces. In one
 command it:
 
-1. Discovers every publishable package in the workspace.
-2. Lets you pick one or more **leaf** targets (or accepts them as
-   positional args).
-3. Computes the transitive closure of internal dependencies.
-4. Resolves each package's local-vs-server version state.
-5. Rewrites every internal-dep entry to a hosted reference **in memory**.
-6. Publishes every package in topological order, in a single run.
+1. Discovers publishable packages in the workspace.
+2. Lets you explicitly select packages in a picker or as positional args.
+3. Orders selected packages by their internal dependencies.
+4. Resolves selected-package conflicts and verifies unselected direct dependencies.
+5. Rewrites selected packages' internal-dep entries to hosted refs **in memory**.
+6. Publishes only selected, non-skipped packages in dependency order.
+
+Unselected direct dependencies are reused only when their exact local versions
+already exist on the target server. They never prompt for overwrite or get
+uploaded, regardless of `--on-conflict`. Missing versions or failed lookups
+stop the run before any upload. Unrelated packages and local dependencies
+behind reused packages are not checked for publishing.
 
 The single most important guarantee:
 
@@ -49,7 +54,7 @@ so the terminal output maps to a concrete dep graph:
        ┌──────┴──────┐
        ▼             ▼
    ┌─────────┐   ┌─────────┐
-   │  pkg_a  │   │  pkg_b  │   ◀ user-selected targets
+   │  pkg_a  │   │  pkg_b  │
    │ v0.5.0  │   │ v0.3.0  │
    └─────────┘   └─────────┘
 
@@ -58,7 +63,7 @@ core_interface. `--auto` detects every internal-dep shape (path:,
 workspace-shadowed hosted-by-name, and explicit hosted) and rewrites
 them all in memory.
 
-Publish order (topological, leaves first):
+Publish order when all four packages are selected:
   1. core_interface  →  2. core  →  3. pkg_a  +  4. pkg_b
 ```
 
@@ -84,10 +89,11 @@ club publish --auto
 
 The CLI walks you through discovery, target selection (interactive
 multi-select picker), version conflict resolution, a full plan preview
-with tarball sizes, one final confirmation, then publishes every package
-in dependency order.
+with tarball sizes, one final confirmation, then publishes only selected
+packages in dependency order.
 
-To skip the picker and target specific leaves:
+To skip the picker and select specific packages (their unselected direct
+dependencies must already exist upstream at their local versions):
 
 ```bash
 club publish --auto pkg_a pkg_b
@@ -99,7 +105,7 @@ To preview the plan without uploading:
 club publish --auto --dry-run
 ```
 
-A typical successful run looks like:
+A run with all four packages explicitly selected looks like:
 
 ```text
 🚀  club publish --auto
@@ -114,10 +120,10 @@ Measuring tarballs ────────────────────�
    measuring pkg_b…
 
 Publish stack (top-to-bottom) ───────────────────────────────
-  ▶ [1] core_interface  1.0.0  ✓ publish    · 4.5 KiB
+  ▶ [1] core_interface ◀ target  1.0.0  ✓ publish    · 4.5 KiB
        depended on by  → core, pkg_a, pkg_b
 
-  ▶ [2] core            1.2.0  ✓ publish    · 12.3 KiB
+  ▶ [2] core ◀ target  1.2.0  ✓ publish    · 12.3 KiB
        depends on      ↑ core_interface ^1.0.0
        depended on by  → pkg_a, pkg_b
 
@@ -186,7 +192,7 @@ workspace.
    package whose pubspec needs rewriting, the new content is built using
    [`yaml_edit`](https://pub.dev/packages/yaml_edit) and held in memory.
 
-3. **Publishes each package in topological order.** Calls the same
+3. **Publishes each selected, non-skipped package in dependency order.** Calls the same
    `PublishRunner` that `club publish` uses, passing the override string
    so that:
    - The validators see the rewritten dep shape (no path-dep error).
@@ -217,22 +223,21 @@ multi-package controls:
 | `--yes`, `-y` | Accept workspace, per-package, and warning confirmations. Does not select targets or change `--on-conflict`; provide those explicitly for unattended publishing. |
 | `--directory <path>`, `-C` | Workspace root to discover from. Defaults to the current directory. |
 | `--server <host>`, `-s` | Target server (e.g. `myclub.birju.dev`). Accepts a full URL too. Same rules as `club publish`. |
-| `--on-conflict <mode>` | How to handle packages whose local version is already published. `prompt` (default) / `overwrite` / `skip` / `abort`. |
+| `--on-conflict <mode>` | How to handle selected packages whose effective version is already published. `prompt` (default) / `overwrite` / `skip` / `abort`. |
 | `--tree <style>` | Visual style for the dependency tree. `stacked` (default) or `nested`. |
 | `--no-tree` | Suppress the dependency tree section. |
 | `--skip-validation` | Bypass the 25 client-side validators per package. |
 | `--ignore-warnings` | With `--dry-run`: do not exit non-zero on warnings. |
-| `--enhanced`, `-e` | Club extras (stricter size limit, enhanced analyzer rules, extra leak patterns). Applied to every package in the chain. |
-| `--version <semver>` | Publish **every** package in the closure as this one version, instead of each using its own. Rewritten internal constraints point at it too, so the stack resolves against itself. |
+| `--enhanced`, `-e` | Club extras (stricter size limit, enhanced analyzer rules, extra leak patterns). Applied to each selected package being published. |
+| `--version <semver>` | Override **selected packages only**. References to selected packages use that version; unselected dependencies keep their local versions. |
 
 The single-package flags `--to-archive` and `--from-archive` are **not
 compatible** with `--auto` and produce a usage error if combined.
 
-<Aside type="caution" title="--version applies to the whole stack">
-Under `--auto`, `--version` is not "the version of the package I named",
-it is the version of every package that gets published. A package whose
-version is already correct is republished under the new number along
-with everything else.
+<Aside type="caution" title="--version applies only to selected packages">
+Selecting only `pkg_a` with `--version 2.0.0` publishes `pkg_a 2.0.0`
+while keeping its references to `core ^1.2.0` and `core_interface ^1.0.0`.
+Those exact dependency versions must already exist on the target server.
 </Aside>
 
 ### Positional arguments
@@ -244,15 +249,20 @@ picker shows all discovered packages.
 club publish --auto pkg_a pkg_b
 ```
 
-You don't have to list transitive deps — they're pulled in
-automatically.
+Dependencies are not selected automatically. To publish the entire example
+workspace, name all four packages:
+
+```bash
+club publish --auto core_interface core pkg_a pkg_b
+```
 
 ## Version conflict resolution
 
 Same model as [`club prepare`](/cli/prepare/#version-conflict-resolution).
-For every package in the closure, `--auto` queries the server's package
-endpoint and detects when a local version is already published. You
-have three options per conflict:
+Only selected packages are checked for conflicts at their effective version
+(after any `--version` override or PR suffix). Unselected direct dependencies
+are checked only for exact local-version availability and never prompt.
+For a selected package with a conflict, you have three options:
 
 | Option | Behaviour |
 |--------|-----------|
@@ -323,7 +333,7 @@ will be flagged here without any upload attempt being made.
     [ ] core     1.2.0
     [ ] core_interface 1.0.0
 
-  Publish 4 packages to myclub.birju.dev? (source pubspec.yaml
+  Publish 2 packages to myclub.birju.dev? (source pubspec.yaml
   files will not be modified) [y/N] y
   ```
   </TabItem>
@@ -344,7 +354,7 @@ will be flagged here without any upload attempt being made.
     pkg_a pkg_b
   ```
 
-  Skip the apply confirmation. Force-publish every conflict.
+  Skip the apply confirmation. Force-publish every selected-package conflict.
   </TabItem>
   <TabItem label="Reuse existing">
   ```bash
@@ -353,9 +363,9 @@ will be flagged here without any upload attempt being made.
     pkg_a
   ```
 
-  If `core_interface 1.0.0` is already on the server, don't republish
-  it. Just rewrite + publish `pkg_a` (and any other non-skipped
-  packages in its closure) referencing the existing `^1.0.0`.
+  If `pkg_a 0.5.0` is already published, skip its upload. Otherwise publish
+  only `pkg_a`, referencing `core ^1.2.0` and `core_interface ^1.0.0`.
+  Those unselected dependency versions must already exist upstream.
   </TabItem>
   <TabItem label="Abort on conflict">
   ```bash
@@ -473,7 +483,8 @@ other as a dependency in their released versions. Pub's version solver has no
 acyclic requirement, so `--auto` publishes such packages as a group rather
 than refusing the workspace.
 
-Cycle members are flagged up front and badged in the publish stack:
+Explicitly select every cycle member you intend to publish. With all three
+packages below selected, cycle members are flagged in the publish stack:
 
 ```text
 ⚠ 1 dependency cycle in the closure:
@@ -542,7 +553,8 @@ version being uploaded.
 ## Failure handling
 
 If a per-package publish fails mid-chain, `--auto` aborts immediately
-and prints which packages were already on the server:
+and prints which packages were already on the server. For a run with all
+four example packages selected:
 
 ```text
 [3/4] Publishing pkg_a ──────────────────────────────────────
@@ -563,7 +575,8 @@ Re-running `--auto` is safe:
 |------|---------|
 | `0` | Success — every package in the chain was published. |
 | `65` | Data error — unknown target, validation failed, external path dep, self-dependency, a per-package upload failed, or a cycle member failed post-publish verification. |
-| `66` | No input — no publishable packages discovered. |
+| `66` | No input: no publishable packages discovered. |
+| `69` | Unavailable: published-version lookup failed. |
 | `78` | Config — server resolution failed, user aborted, conflict in non-interactive shell. |
 | Other | Forwarded from the per-package `PublishRunner` if it failed with a non-standard code. |
 
@@ -571,7 +584,7 @@ Re-running `--auto` is safe:
 
 | Aspect | `club publish` | `club publish --auto` |
 |--------|-----------------|----------------------|
-| Number of packages | One | All targets + transitive workspace deps |
+| Number of packages | One | Only explicitly selected packages |
 | Path/workspace deps | Hard error (DependencyValidator) | Rewritten in-memory to hosted refs |
 | Source pubspec.yaml | Untouched | Untouched |
 | Topological order | N/A | Yes — leaves first |

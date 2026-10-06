@@ -15,11 +15,11 @@ the standard fix is tedious: rewrite each pubspec by hand to use hosted
 references, publish in dependency order, then revert. Club ships two
 commands that automate this:
 
-- [`club prepare`](/cli/prepare/) — rewrites the on-disk pubspecs in
-  topological order, but does **not** publish.
-- [`club publish --auto`](/cli/auto-publish/) — does the same rewriting
-  **virtually in-memory** and publishes every package in one run, with
-  source files left exactly as they were before.
+- [`club prepare`](/cli/prepare/): rewrites selected packages' on-disk
+  pubspecs in dependency order, but does **not** publish.
+- [`club publish --auto`](/cli/auto-publish/): does the same rewriting
+  **in memory** and publishes only selected packages, with source files
+  left exactly as they were before.
 
 This guide is the end-to-end story.
 
@@ -81,16 +81,14 @@ When you target `pkg_a` and `pkg_b`:
 
 <Steps>
 
-1. Walk the workspace, find every `pubspec.yaml` with a `name:` field.
-2. Identify which discovered packages each target package depends on
-   (transitively). The closure includes the targets and every internal
-   dep.
-3. Topologically sort the closure — leaves first, dependents last. In
-   the example above, that yields:
-   `core_interface`, `core`, `pkg_a`, `pkg_b`.
-4. For each non-leaf package, rewrite its `dependencies` /
-   `dev_dependencies` entries that point at workspace members so they
-   become hosted references against the target server:
+1. Discover workspace packages so internal dependencies can be identified.
+2. Inspect selected packages' direct `dependencies` and `dev_dependencies`,
+   without adding those dependencies to the selection.
+3. Require `core 1.2.0` and `core_interface 1.0.0` to exist upstream.
+   Missing versions or failed lookups stop before publication or local edits.
+   These unselected dependencies never prompt for overwrite or get uploaded.
+4. Rewrite internal references only in `pkg_a` and `pkg_b` to the target
+   server, using the dependencies' local versions:
 
    ```yaml
    # before
@@ -103,11 +101,21 @@ When you target `pkg_a` and `pkg_b`:
      version: ^1.0.0
    ```
 
-5. Publish each package in topological order. `core_interface` first,
-   then `core` (which now references `core_interface ^1.0.0` from the
-   server), then `pkg_a` and `pkg_b`.
+5. Publish only `pkg_a` and `pkg_b`, or prepare only their local pubspecs.
+   Unrelated packages and local dependencies behind reused packages are
+   not checked for publishing.
 
 </Steps>
+
+To publish or prepare dependencies too, select them explicitly:
+
+```bash
+club publish --auto core_interface core pkg_a pkg_b
+club prepare core_interface core pkg_a pkg_b
+```
+
+With all four selected, `core_interface` publishes first, then `core`,
+then `pkg_a` and `pkg_b`.
 
 Topological order is critical: by the time package N is uploaded, every
 hosted dep it references is already on the server, so the validator's
@@ -163,10 +171,10 @@ the `DependencyValidator` behaviour in standard `club publish`.
 
 ## Version conflicts
 
-Before any rewrite is computed, both commands query the server for
-every package's current published versions. For each package whose
-**local** pubspec version is already on the server, you have three
-options:
+Both commands check selected packages for conflicts at their effective
+versions. `--on-conflict` applies only to that selection. Unselected direct
+dependencies are reused at their exact local versions and never uploaded
+or presented as conflicts. Selected-package conflicts have three options:
 
 | Option | What it does |
 |--------|--------------|
@@ -219,7 +227,7 @@ The two commands share the same dependency analysis. They differ in
 One command, source files never touched, no commit churn:
 
 ```bash
-$ club publish --auto pkg_a pkg_b
+$ club publish --auto core_interface core pkg_a pkg_b
 🚀  club publish --auto
    ...
 Publish 4 packages to https://club.example.com? [y/N] y
@@ -246,7 +254,7 @@ or review:
 
 ```bash
 # 1. Rewrite the on-disk pubspecs in topological order.
-club prepare pkg_a pkg_b
+club prepare core_interface core pkg_a pkg_b
 
 # 2. Inspect the diff.
 git diff packages/
@@ -255,8 +263,7 @@ git diff packages/
 git add packages/*/pubspec.yaml
 git commit -m "Prepare release"
 
-# 4. Publish each package — order doesn't matter at this point because
-#    the pubspecs all reference hosted versions.
+# 4. Publish selected packages in dependency order.
 cd packages/core_interface && club publish -f
 cd ../core && club publish -f
 cd ../pkg_a && club publish -f

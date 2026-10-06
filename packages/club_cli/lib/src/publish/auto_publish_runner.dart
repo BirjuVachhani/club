@@ -1,7 +1,7 @@
 /// End-to-end orchestration of `club publish --auto`.
 ///
 /// Reuses the prep pipeline from `prepare_engine.dart` to discover, plan,
-/// and resolve version conflicts for every package in the closure, then
+/// and resolve version conflicts for selected packages, then
 /// runs the existing [PublishRunner] for each package in topological order.
 ///
 /// **Source files are never modified.** For every package with planned
@@ -69,17 +69,16 @@ class AutoPublishOptions {
   /// Pull request this stack is being published from
   /// (`--from-git <pr-url> --auto`).
   ///
-  /// Every package in the closure is published as `X.Y.Z-pr<n>`, and
-  /// because the suffix is applied at discovery the rewritten sibling
-  /// constraints point at the prerelease too (`^X.Y.Z-pr<n>`), so the stack
-  /// resolves against itself rather than against the released versions.
+  /// Selected packages publish as `X.Y.Z-pr<n>`. References to selected
+  /// siblings use their prerelease versions; unselected dependencies retain
+  /// their local versions and must already be published.
   final int? pullRequest;
 
-  /// One version to publish every package in the closure as, from
+  /// One version to publish every selected package as, from
   /// `--version` or the interactive version step.
   ///
-  /// Applied at discovery, so the rewritten sibling constraints all become
-  /// `^<versionOverride>` and the stack resolves against itself. Takes
+  /// References to selected siblings use `^<versionOverride>` while
+  /// unselected dependencies retain their local versions. Takes
   /// precedence over [pullRequest]: an explicit version is used verbatim,
   /// with no `-pr<n>` suffix added on top.
   final String? versionOverride;
@@ -98,7 +97,8 @@ class AutoPublishRunner {
           targets: options.targets,
           serverFlag: options.serverFlag,
           onConflict: options.onConflict,
-          headerLabel: '🚀  ${bold('club publish --auto')}'
+          headerLabel:
+              '🚀  ${bold('club publish --auto')}'
               '${options.pullRequest == null ? '' : gray(' (PR #${options.pullRequest})')}',
           dryRunLabel: options.dryRun,
           versionOverride: options.versionOverride,
@@ -106,8 +106,8 @@ class AutoPublishRunner {
           // default for when the user did not name one.
           versionSuffix:
               options.versionOverride != null || options.pullRequest == null
-                  ? null
-                  : prSuffix(options.pullRequest!),
+              ? null
+              : prSuffix(options.pullRequest!),
         ),
       );
     } on PrepareEngineError catch (e) {
@@ -115,13 +115,16 @@ class AutoPublishRunner {
     }
 
     // ── Publish order ────────────────────────────────────────────────────
+    final selected = ws.targets.toSet();
     final publishOrder = [
       for (final name in ws.order)
-        if (ws.resolution.actions[name] != PackageAction.skip) name,
+        if (selected.contains(name) &&
+            ws.resolution.actions[name] != PackageAction.skip)
+          name,
     ];
     if (publishOrder.isEmpty) {
       info('');
-      success('Every package in the closure is marked skip. Nothing to do.');
+      success('Every selected package is marked skip. Nothing to do.');
       return ExitCodes.success;
     }
 
@@ -354,7 +357,10 @@ class AutoPublishRunner {
         },
       );
       failedVerification.addAll(
-        [for (final r in results) if (!r.ok) r.packageName],
+        [
+          for (final r in results)
+            if (!r.ok) r.packageName,
+        ],
       );
       if (failedVerification.isEmpty) {
         detail(

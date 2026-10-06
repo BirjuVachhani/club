@@ -16,6 +16,7 @@ import 'dart:io';
 import 'package:club_api/club_api.dart';
 import 'package:path/path.dart' as p;
 
+import '../publish/pr_version.dart';
 import '../publish/pubspec_reader.dart';
 import '../publish/server_resolver.dart';
 import '../util/exit_codes.dart';
@@ -62,11 +63,11 @@ class WorkspaceInputs {
   /// knows the run will not touch disk.
   final bool dryRunLabel;
 
-  /// Prerelease identifier applied to every discovered package's version,
+  /// Prerelease identifier applied to every selected package's version,
   /// e.g. `pr2` for a pull request publish. Null for a normal run.
   final String? versionSuffix;
 
-  /// One version to use for every discovered package, replacing whatever
+  /// One version to use for every selected package, replacing whatever
   /// their pubspecs declare. Takes precedence over [versionSuffix].
   final String? versionOverride;
 }
@@ -136,11 +137,7 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
   // ── Discovery ────────────────────────────────────────────────────────────
   final Map<String, DiscoveredPackage> packages;
   try {
-    packages = discoverPackages(
-      rootDir,
-      versionSuffix: inputs.versionSuffix,
-      versionOverride: inputs.versionOverride,
-    );
+    packages = discoverPackages(rootDir);
   } on FormatException catch (e) {
     error(e.message);
     throw PrepareEngineError(ExitCodes.data);
@@ -191,8 +188,26 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
     throw PrepareEngineError(ExitCodes.config);
   }
 
+  final selected = targets.toSet();
+  if (inputs.versionOverride != null || inputs.versionSuffix != null) {
+    for (final name in targets) {
+      final pkg = packages[name]!;
+      packages[name] = DiscoveredPackage(
+        directory: pkg.directory,
+        pubspecPath: pkg.pubspecPath,
+        pubspec: pkg.pubspec,
+        rawYaml: pkg.rawYaml,
+        versionOverride:
+            inputs.versionOverride ??
+            (pkg.version == null
+                ? null
+                : applyPrereleaseSuffix(pkg.version!, inputs.versionSuffix!)),
+      );
+    }
+  }
+
   // ── Graph + topo order ──────────────────────────────────────────────────
-  final graph = buildDependencyGraph(packages);
+  final graph = buildDependencyGraph(packages, sources: selected);
   if (graph.errors.isNotEmpty) {
     for (final err in graph.errors) {
       error(err.message);
@@ -257,11 +272,42 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
       order: order,
       serverUrl: server.url,
     );
+    final published = {for (final conflict in conflicts) conflict.packageName};
+    final dependencies = order.where((name) => !selected.contains(name));
+    final missing = dependencies.where((name) => !published.contains(name));
+    if (missing.isNotEmpty) {
+      for (final name in missing) {
+        final pkg = packages[name]!;
+        final dependents = graph.edges
+            .where((edge) => edge.to == name)
+            .map((edge) => edge.from)
+            .toSet();
+        error(
+          '${pkg.name} ${pkg.version ?? "(no version)"} is required by '
+          '${dependents.join(', ')} but is not published to '
+          '${displayServer(server.url)}.',
+        );
+      }
+      hint(
+        'Select ${missing.join(', ')} explicitly to include '
+        '${missing.length == 1 ? 'it' : 'them'}, or publish '
+        '${missing.length == 1 ? 'it' : 'them'} separately first.',
+      );
+      throw PrepareEngineError(ExitCodes.data);
+    }
     resolution = await resolveConflicts(
-      order: order,
-      conflicts: conflicts,
+      order: order.where(selected.contains).toList(),
+      conflicts: conflicts
+          .where((conflict) => selected.contains(conflict.packageName))
+          .toList(),
       mode: inputs.onConflict,
     );
+    for (final name in dependencies) {
+      resolution.actions[name] = PackageAction.skip;
+    }
+  } on VersionCheckError catch (e) {
+    error(e.toString());
+    throw PrepareEngineError(ExitCodes.unavailable);
   } on NonInteractiveError catch (e) {
     error(e.message);
     throw PrepareEngineError(ExitCodes.config);
@@ -287,7 +333,7 @@ Future<PreparedWorkspace> prepareWorkspace(WorkspaceInputs inputs) async {
     error(e.toString());
     hint(
       'Add a `version:` field to ${e.packageNames.length == 1 ? "that "
-          "package's" : "each of those packages'"} pubspec.yaml before '
+                "package's" : "each of those packages'"} pubspec.yaml before '
       'preparing dependents.',
     );
     throw PrepareEngineError(ExitCodes.data);

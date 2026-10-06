@@ -57,7 +57,10 @@ int posOf(List<String> order, String name) {
 void main() {
   group('acyclic graphs', () {
     test('orders dependencies before dependents', () {
-      final g = graphFor({'app': ['core'], 'core': []});
+      final g = graphFor({
+        'app': ['core'],
+        'core': [],
+      });
       final plan = planPublishOrder(g.graph, ['app']);
 
       expect(plan.order, ['core', 'app']);
@@ -130,7 +133,11 @@ void main() {
     });
 
     test('groups a three-package cycle as one component', () {
-      final g = graphFor({'a': ['b'], 'b': ['c'], 'c': ['a']});
+      final g = graphFor({
+        'a': ['b'],
+        'b': ['c'],
+        'c': ['a'],
+      });
       final plan = planPublishOrder(g.graph, ['a']);
 
       expect(plan.cycles, hasLength(1));
@@ -170,8 +177,13 @@ void main() {
       // b depends on a, and a dev-depends back on b. Both sections ship in
       // the published pubspec, so this is a real cycle.
       final g = graphFor(
-        {'a': [], 'b': ['a']},
-        devDeps: {'a': ['b']},
+        {
+          'a': [],
+          'b': ['a'],
+        },
+        devDeps: {
+          'a': ['b'],
+        },
       );
       final plan = planPublishOrder(g.graph, ['b']);
 
@@ -225,7 +237,10 @@ void main() {
     });
 
     test('an all-cycle closure still produces a complete order', () {
-      final g = graphFor({'a': ['b'], 'b': ['a']});
+      final g = graphFor({
+        'a': ['b'],
+        'b': ['a'],
+      });
       final plan = planPublishOrder(g.graph, ['a']);
 
       expect(plan.order, ['a', 'b']);
@@ -235,9 +250,31 @@ void main() {
     });
   });
 
+  test('scoped graph groups only selected cycle members', () {
+    final g = graphFor({
+      'a': ['b'],
+      'b': ['a'],
+    });
+    final selectedOnly = buildDependencyGraph(g.packages, sources: ['a']);
+    final single = planPublishOrder(selectedOnly, ['a']);
+    expect(single.order, ['b', 'a']);
+    expect(single.cycles, isEmpty);
+    expect(selectedOnly.outgoing('b'), isEmpty);
+
+    final both = planPublishOrder(
+      buildDependencyGraph(g.packages, sources: ['a', 'b']),
+      ['a', 'b'],
+    );
+    expect(both.cycles, [
+      ['a', 'b'],
+    ]);
+  });
+
   group('self-dependency', () {
     test('is a graph error rather than a cycle group', () {
-      final g = graphFor({'a': ['a']});
+      final g = graphFor({
+        'a': ['a'],
+      });
 
       expect(g.graph.errors, hasLength(1));
       expect(g.graph.errors.single.message, contains('depend on itself'));
@@ -250,7 +287,12 @@ void main() {
     });
 
     test('is caught in dev_dependencies too', () {
-      final g = graphFor({'a': []}, devDeps: {'a': ['a']});
+      final g = graphFor(
+        {'a': []},
+        devDeps: {
+          'a': ['a'],
+        },
+      );
 
       expect(g.graph.errors, hasLength(1));
       expect(g.graph.errors.single.message, contains('dev_dependencies.a'));

@@ -97,8 +97,9 @@ club setup
 cd my_package/
 club publish
 
-# 3b. Or, in a monorepo: publish a leaf and every workspace dep it transitively
-#     references, in topological order. Source files are not modified.
+# 3b. Or publish selected workspace packages in dependency order.
+#     Unselected direct deps must already exist upstream at their local versions.
+#     Source files are not modified.
 club publish --auto pkg_a pkg_b
 ```
 

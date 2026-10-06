@@ -1,8 +1,8 @@
 /// `club prepare` command.
 ///
 /// Discovers all publishable packages under the working directory, lets the
-/// user pick targets, then rewrites every internal-dep entry in the
-/// closure's pubspec.yaml files to a `hosted: <url>, version: ^<ver>` form.
+/// user pick targets, then rewrites internal-dep entries only in selected
+/// packages' pubspec.yaml files to a `hosted: <url>, version: ^<ver>` form.
 /// This sets up the workspace for a subsequent ordered publish without
 /// actually publishing anything.
 library;
@@ -39,14 +39,16 @@ class PrepareCommand extends ClubCommand {
       ..addOption(
         'server',
         abbr: 's',
-        help: 'Target server host (e.g. myclub.birju.dev). Accepts a full '
+        help:
+            'Target server host (e.g. myclub.birju.dev). Accepts a full '
             'URL too. The canonical URL is written into rewritten dep '
             'entries. Must be a server you have logged in to.',
         valueHelp: 'host',
       )
       ..addOption(
         'on-conflict',
-        help: 'How to handle packages whose local version is already '
+        help:
+            'How to handle selected packages whose local version is already '
             'published.',
         valueHelp: 'mode',
         defaultsTo: 'prompt',
@@ -81,7 +83,7 @@ class PrepareCommand extends ClubCommand {
 
   @override
   String get description =>
-      'Rewrite path / workspace deps in a monorepo to hosted refs in '
+      'Rewrite internal deps in selected packages to hosted refs in '
       'publish order.';
 
   @override
@@ -94,10 +96,11 @@ class PrepareCommand extends ClubCommand {
     final results = argResults!;
     // `defaultsTo` on each option guarantees a non-null value, but the
     // typed parser still validates the string and yields a typed enum.
-    final onConflict = parseOnConflictMode(results['on-conflict'] as String) ??
+    final onConflict =
+        parseOnConflictMode(results['on-conflict'] as String) ??
         OnConflictMode.prompt;
-    final treeStyle = parseTreeStyle(results['tree'] as String) ??
-        TreeStyle.stacked;
+    final treeStyle =
+        parseTreeStyle(results['tree'] as String) ?? TreeStyle.stacked;
     final options = PrepareOptions(
       directory: (results['directory'] as String?) ?? '',
       targets: results.rest,

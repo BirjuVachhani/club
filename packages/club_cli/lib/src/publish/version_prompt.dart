@@ -40,7 +40,7 @@ String? versionFormatError(String raw) {
 /// [detected] is the version the publish would use if nothing is entered.
 /// Pass null in `--auto` mode, where each package has its own version and
 /// there is no single default to show; a value entered there applies to
-/// every package in the stack.
+/// every selected package.
 Future<String?> promptPublishVersion({
   required bool isAuto,
   String? detected,
@@ -49,12 +49,16 @@ Future<String?> promptPublishVersion({
   heading('Version');
 
   if (isAuto) {
-    detail('every package publishes with its own version');
+    detail('each selected package publishes with its own version');
     if (pullRequest != null) {
       detail(gray('suffixed for PR #$pullRequest, e.g. 1.2.0-pr$pullRequest'));
     }
-    detail(gray('enter a version to publish the whole stack as that '
-        'version instead'));
+    detail(
+      gray(
+        'enter a version to publish selected packages as that '
+        'version instead',
+      ),
+    );
   } else if (detected != null) {
     detail(
       'detected: ${cyan(detected)}'
@@ -63,16 +67,20 @@ Future<String?> promptPublishVersion({
   }
 
   final answer = await askText(
-    isAuto ? '   Publish all packages as' : '   Publish as',
+    isAuto ? '   Publish selected packages as' : '   Publish as',
     defaultValue: detected,
     validate: versionFormatError,
   );
 
   final choice = normalizeVersionChoice(answer, detected);
   if (choice == null) {
-    detail(gray(isAuto
-        ? 'keeping each package\'s own version'
-        : 'keeping the detected version'));
+    detail(
+      gray(
+        isAuto
+            ? 'keeping each package\'s own version'
+            : 'keeping the detected version',
+      ),
+    );
   } else {
     detail('publishing as ${cyan(choice)}');
   }

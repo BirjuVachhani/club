@@ -124,7 +124,14 @@ class GraphError {
 }
 
 /// Build a [DependencyGraph] from a discovered package set.
-DependencyGraph buildDependencyGraph(Map<String, DiscoveredPackage> packages) {
+///
+/// When [sources] is provided, scan only those packages' declarations. Other
+/// discovered packages can be dependency targets but remain leaves: their
+/// published versions, not their local manifests, will be reused.
+DependencyGraph buildDependencyGraph(
+  Map<String, DiscoveredPackage> packages, {
+  Iterable<String>? sources,
+}) {
   final edges = <DependencyEdge>[];
   final errors = <GraphError>[];
 
@@ -135,7 +142,8 @@ DependencyGraph buildDependencyGraph(Map<String, DiscoveredPackage> packages) {
     for (final entry in packages.entries) entry.value.directory: entry.key,
   };
 
-  for (final pkg in packages.values) {
+  for (final name in sources ?? packages.keys) {
+    final pkg = packages[name]!;
     _scanSection(
       pkg: pkg,
       section: DepSection.dependencies,

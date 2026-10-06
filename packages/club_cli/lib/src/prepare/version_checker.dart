@@ -1,10 +1,8 @@
-/// Queries the target club server to discover which packages in the
-/// publish closure already have their local version published.
+/// Queries the target club server for published local versions.
 ///
-/// One concurrent request per package via `client.listVersions`. A 404 / network
-/// error is treated as "package does not exist on server" (no conflict),
-/// matching the existing behaviour in publish_runner.dart's
-/// `_fetchPublishedVersions`.
+/// One concurrent request per package via `client.listVersions`. Only a 404
+/// means the package is absent; other failures must not authorize publication
+/// or be mistaken for an unavailable dependency.
 library;
 
 import 'package:club_api/club_api.dart';
@@ -22,6 +20,18 @@ class VersionConflict {
   final String packageName;
   final String localVersion;
   final String serverUrl;
+}
+
+/// A lookup failed without establishing whether the package is published.
+class VersionCheckError implements Exception {
+  VersionCheckError(this.packageName, this.cause);
+
+  final String packageName;
+  final Object cause;
+
+  @override
+  String toString() =>
+      'Could not verify published versions of $packageName: $cause';
 }
 
 /// Concurrently fetch published-version sets and return the conflict list
@@ -57,10 +67,9 @@ Future<VersionConflict?> _checkOne(
       localVersion: localVersion,
       serverUrl: serverUrl,
     );
-  } catch (_) {
-    // Package not found on server (404) or network hiccup. Mirrors the
-    // pre-publish check in publish_runner — treat as "no conflict" so the
-    // publish path can attempt the upload and surface the real error.
+  } on ClubNotFoundException {
     return null;
+  } catch (e) {
+    throw VersionCheckError(pkg.name, e);
   }
 }

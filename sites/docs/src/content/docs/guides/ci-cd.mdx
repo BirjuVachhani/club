@@ -173,9 +173,9 @@ jobs:
             --on-conflict abort \\
             --server https://club.example.com`} lang="yaml" title=".github/workflows/publish.yml" />
 
-  Targets `pkg_a` and `pkg_b` plus their transitive workspace deps,
-  publishing in topological order. Source `pubspec.yaml` files are
-  never modified — rewrites happen in-memory only. See
+  Publishes only selected `pkg_a` and `pkg_b` in dependency order.
+  Unselected direct dependencies must already exist upstream at their exact
+  local versions. Source files are never modified; rewrites stay in memory. See
   [`club publish --auto`](/cli/auto-publish/) for full flag details.
   </TabItem>
   <TabItem label="dart pub publish">

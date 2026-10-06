@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- Publish and prepare operate only on explicitly selected packages.
 - Site previews support clipboard copying while keeping clipboard reads blocked.
 - Runtime errors after a site loads no longer replace the preview with an error screen.
 - Sandboxed previews no longer emit spurious base-URI policy warnings.

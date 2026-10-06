@@ -58,7 +58,7 @@ Publish a package that lives in a subdirectory of the repo:
 club publish --from-git https://github.com/your-org/your-monorepo -C packages/foo
 ```
 
-Publish every package of a monorepo in topological order:
+Select packages from a monorepo and publish them in dependency order:
 
 ```bash
 club publish --from-git https://github.com/your-org/your-monorepo --auto
@@ -159,8 +159,8 @@ untouched.
 
 <Tabs>
   <TabItem label="--auto (recommended)">
-  Publish every package in a workspace-style monorepo in topological
-  order, with in-memory dependency rewrites, in a single command:
+  Publish selected packages in a workspace-style monorepo in dependency
+  order, with in-memory rewrites, in a single command:
 
   ```bash
   club publish --from-git https://github.com/your-org/your-monorepo --auto
@@ -169,7 +169,7 @@ untouched.
   The full [`--auto`](/cli/auto-publish/) pipeline runs against the
   clone: discovery walks the cloned tree, the dependency graph and
   topo order are computed, internal `path:` deps are rewritten in
-  memory, and every package is published in order. Target a specific
+  memory, and only selected packages are published in order. Target a specific
   subset by passing package names as positional args:
 
   ```bash
@@ -307,16 +307,16 @@ club publish --from-git https://gitlab.com/group/repo \
 
 ### Monorepos
 
-A PR against a monorepo composes with `--auto`, and the whole stack is
-suffixed together:
+A PR against a monorepo composes with `--auto`. Only explicitly selected
+packages receive the PR suffix:
 
 ```bash
 club publish --from-git https://github.com/your-org/your-monorepo/pull/7 --auto
 ```
 
-Every package in the closure publishes as `X.Y.Z-pr7`, **and the
-rewritten internal constraints point at the prereleases too**. If
-`pkg_a` depends on `pkg_b`, `pkg_a` is published with:
+Selected packages publish as `X.Y.Z-pr7`, and references to selected
+siblings use their prereleases too. If both `pkg_a` and its dependency
+`pkg_b` are selected, `pkg_a` is published with:
 
 ```yaml
 dependencies:
@@ -325,10 +325,10 @@ dependencies:
     version: ^1.2.0-pr7
 ```
 
-So the published stack resolves against itself rather than falling back
-to the last released versions of its siblings. The rewrite preview
-printed before the upload shows the exact constraints, so you can check
-this before anything is sent.
+If only `pkg_a` is selected, its reference to unselected `pkg_b` stays
+`^1.2.0`, and `pkg_b 1.2.0` must already exist on the target server.
+Unselected dependencies are never uploaded or assigned a PR suffix.
+The rewrite preview shows the exact constraints before any upload.
 
 <Aside type="caution" title="Re-publishing a PR stack needs --on-conflict overwrite">
 For a single package, `--force` re-publishes. Under `--auto`, `--force`
@@ -397,19 +397,12 @@ club publish --from-git https://github.com/your-org/your-package/pull/2 \
 ### With `--auto`
 
 In a monorepo there is no single detected version to offer, so the step
-asks whether to publish the whole stack as one version:
+asks for an optional version override for the selected packages.
 
-```text
-Version ─────────────────────────────────────────────────────
-   every package publishes with its own version
-   suffixed for PR #7, e.g. 1.2.0-pr7
-   enter a version to publish the whole stack as that version instead
-   Publish all packages as: 
-```
-
-Enter nothing and each package keeps its own version. Enter `2.0.0` and
-every package in the closure publishes as `2.0.0`, with the rewritten
-internal constraints pointing at it:
+Enter nothing and each selected package keeps its own version, with the
+PR suffix when applicable. Enter `2.0.0` and every selected package
+publishes as `2.0.0`. References to selected packages use `^2.0.0`;
+unselected dependencies keep their local versions. When `pkg_b` is selected:
 
 ```yaml
 dependencies:
@@ -418,10 +411,10 @@ dependencies:
     version: ^2.0.0
 ```
 
-<Aside type="note" title="--version now works with --auto">
-Passing `--version` alongside `--auto` used to be rejected. It now
-applies that one version to every package in the stack, from git or
-locally, which is the same thing the prompt does.
+<Aside type="note" title="--version applies only to selected packages">
+Passing `--version` alongside `--auto` overrides only selected packages,
+from git or locally. Unselected dependencies keep their local versions
+and must already exist upstream.
 </Aside>
 
 ## Reuse and the clone cache
@@ -496,7 +489,7 @@ additions and one restriction.
 | `--auto` | Run multi-package discovery + topological publish over the clone. See [`club publish --auto`](/cli/auto-publish/). |
 | `--dry-run`, `-n` | Clone (or reuse), validate, and bail before uploading. The clone is still removed on success. |
 | `--force`, `-f` | Skip confirmation prompts (including the version step), force-publish existing versions. Required to re-publish an updated PR. |
-| `--version <semver>` | Publish as this version, skipping the version step. Applies to every package under `--auto`. Validated before cloning. |
+| `--version <semver>` | Publish as this version, skipping the version step. Applies only to selected packages under `--auto`. Validated before cloning. |
 | `--ref` without `--from-git` | Rejected with a config error. |
 | `--ref` with a PR URL | Rejected with a config error. The PR URL already selects the commit. |
 | `--from-archive` | **Not compatible** with `--from-git` (the archive is already built; there is nothing to clone). |
@@ -552,7 +545,7 @@ standard flow.
   See [Pull requests](#pull-requests) for the versioning rules.
   </TabItem>
   <TabItem label="Monorepo (auto)">
-  Publish every package in a Dart workspace monorepo:
+  Select packages to publish from a Dart workspace monorepo:
 
   ```bash
   club publish --from-git https://github.com/your-org/your-monorepo \
