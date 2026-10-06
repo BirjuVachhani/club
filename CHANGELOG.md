@@ -1,3 +1,11 @@
+## 0.8.2
+
+### Fixed
+
+- Site previews support clipboard copying while keeping clipboard reads blocked.
+- Runtime errors after a site loads no longer replace the preview with an error screen.
+- Sandboxed previews no longer emit spurious base-URI policy warnings.
+
 ## 0.8.1
 
 ### Changed

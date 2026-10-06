@@ -114,8 +114,11 @@ addEventListener('message', function install(event) {
       if((name==='src'&&(this instanceof HTMLScriptElement||this instanceof HTMLImageElement))||(name==='href'&&this instanceof HTMLLinkElement))value=elementResource(this,value);
       return setAttribute.call(this,name,value);
     };
-    window.addEventListener('error',event=>port.postMessage({error:event.message}));
-    window.addEventListener('unhandledrejection',event=>port.postMessage({error:String(event.reason)}));
+    // Only startup failures replace the preview. Once a page is showing, its own
+    // runtime errors stay in the console, as they would on a normally hosted site.
+    let started=false;
+    window.addEventListener('error',event=>{if(!started)port.postMessage({error:event.error?.message||event.message});});
+    window.addEventListener('unhandledrejection',event=>{if(!started)port.postMessage({error:String(event.reason)});});
     async function open(name) {
       const bytes=files.get(name);if(!bytes)throw Error('Missing page: '+name);
       base=new URL(name,root).href;
@@ -140,6 +143,7 @@ addEventListener('message', function install(event) {
         const loaded=(script.src||script.type==='module')?new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=()=>reject(Error('Script failed: '+script.src));}):Promise.resolve();
         document.body.append(script);await loaded;
       }
+      started=true;
       port.postMessage({loaded:name,opaque:self.origin==='null'});
     }
     document.addEventListener('click',event=>{

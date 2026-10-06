@@ -22,6 +22,8 @@ window.addEventListener('message', async event => {
     }));
     const frame=document.createElement('iframe');
     frame.sandbox='allow-scripts allow-forms';frame.referrerPolicy='no-referrer';
+    // Copy actions use the async Clipboard API. Reads stay blocked.
+    frame.allow='clipboard-write';
     const channel=new MessageChannel();
     channel.port1.onmessage=event=>{
       if(event.data?.loaded)report('visible');

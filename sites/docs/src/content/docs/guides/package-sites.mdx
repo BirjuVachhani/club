@@ -174,6 +174,14 @@ supported without custom bootstrap edits. Optional Service Worker checks see no
 registration, and registration rejects asynchronously so Flutter can continue
 without PWA support. This does not enable Service Workers inside the sandbox.
 
+Previews can write to the clipboard, so copy buttons and keyboard copy work,
+including Flutter text selection. Reading the clipboard is not allowed, so
+in-app paste actions that use the Clipboard API do not work in a preview.
+
+Errors thrown after a page has loaded stay in the browser console, as they would
+on a normally hosted site, and do not replace the preview. Errors during startup
+show Club's error screen instead.
+
 An uploaded site is a browser preview, not a general-purpose hosting service.
 Club downloads its archive and runs an in-memory loader inside a sandbox with
 an **opaque origin**. Site content is not served from Club's authenticated origin,

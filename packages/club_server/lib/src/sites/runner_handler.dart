@@ -37,7 +37,7 @@ Handler siteRunnerHandler(String root) => (request) async {
             "img-src data: blob: https: http:; font-src data: blob: https: http:; "
             "connect-src blob: https: http: wss: ws:; frame-src blob: https: http:; "
             "media-src data: blob: https: http:; "
-            "worker-src blob:; base-uri https: http:; form-action https: http:; "
+            "worker-src blob:; form-action https: http:; "
             "object-src 'none'",
     },
   );

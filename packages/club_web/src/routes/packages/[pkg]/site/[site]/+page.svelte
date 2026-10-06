@@ -88,7 +88,7 @@
       </div>
     </div>
   {/if}
-  {#if runnerUrl}<iframe bind:this={frame} src={runnerUrl} title={`${page.params.site} preview`} sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" class:shown={visible && !failure}></iframe>{/if}
+  {#if runnerUrl}<iframe bind:this={frame} src={runnerUrl} title={`${page.params.site} preview`} sandbox="allow-scripts allow-forms" allow="clipboard-write" referrerpolicy="no-referrer" class:shown={visible && !failure}></iframe>{/if}
 </section>
 <style>
   .preview{position:fixed;inset:0;z-index:40;background:var(--background);color:var(--foreground);display:flex;flex-direction:column}

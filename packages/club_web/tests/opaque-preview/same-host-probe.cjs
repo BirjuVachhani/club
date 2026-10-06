@@ -1,5 +1,7 @@
 // Start ./scripts/dev-server.sh --dummy after building club_web.
-// From repo root: node <this file> <playwright module> [archive.tar.gz]
+// From repo root: node <this file> <playwright module> [archive.tar.gz] [origin]
+// The optional archive must be an unmodified Flutter web build with a "Copy code"
+// button that calls Clipboard.setData (for example, thinking_orbs' example app).
 const { chromium } = require(process.argv[2] || 'playwright');
 const { readFileSync } = require('node:fs');
 const { createHash } = require('node:crypto');
@@ -10,7 +12,8 @@ const origin = process.argv[4] || 'http://localhost:8080';
   let settingsPage;
   let originalDisabled;
   try {
-    const context = await browser.newContext();
+    // Grants the browser permission only. Iframe Permissions Policy still applies.
+    const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
     for (const path of ['/site-runner%2Findex.html', '/site%2Drunner%2findex.html', '/other%2f..%2fsite-runner/index.html']) {
       const response = await context.request.get(origin + path);
       assert.equal(response.status(), 404, 'Encoded paths must not bypass the runner sandbox: ' + path);
@@ -77,21 +80,36 @@ const origin = process.argv[4] || 'http://localhost:8080';
     await content.locator('flt-semantics-placeholder').waitFor({ state: 'attached', timeout: 30000 });
     await content.locator('flt-semantics-placeholder').evaluate(e => e.click());
     if (process.argv[3]) {
-      await content.getByText('Thinking orbs', { exact: true }).waitFor();
-      await content.getByRole('button', { name: 'Install & Usage', exact: true }).focus();
-      await content.getByRole('button', { name: 'Install & Usage', exact: true }).press('Enter');
-      await content.getByText('flutter pub add', { exact: false }).first().waitFor();
+      // Flutter copies through navigator.clipboard.writeText inside the opaque frame.
+      await preview.evaluate(() => navigator.clipboard.writeText('clipboard sentinel'));
+      const copy = content.getByRole('button', { name: 'Copy code', exact: true }).first();
+      await copy.waitFor({ state: 'attached', timeout: 30000 });
+      await copy.focus();
+      await copy.press('Enter');
+      let copied = 'clipboard sentinel';
+      for (let attempt = 0; attempt < 20 && copied === 'clipboard sentinel'; attempt++) {
+        await preview.waitForTimeout(250);
+        copied = await preview.evaluate(() => navigator.clipboard.readText()).catch(() => 'clipboard sentinel');
+      }
+      assert.notEqual(copied, 'clipboard sentinel', 'Flutter copy must reach the system clipboard');
+      const read = await content.evaluate(() => navigator.clipboard.readText().then(() => 'allowed', error => error.name));
+      assert.equal(read, 'NotAllowedError', 'Previews may write but never read the clipboard');
     } else {
       await content.getByRole('button', { name: 'Increment counter' }).click();
       await content.getByText('Counter: 1', { exact: true }).waitFor();
     }
     assert.deepEqual(errors, [], 'Flutter startup must not produce uncaught errors');
+    // A loaded site's own runtime errors stay in the console, like a normal website.
+    await content.evaluate(() => { setTimeout(() => { throw new Error('late site failure'); }); Promise.reject(new Error('late rejection')); });
+    await preview.waitForTimeout(1000);
+    assert.equal(await preview.getByText('Unable to open preview').count(), 0, 'Errors after load must not replace a visible preview');
+    assert.equal(await preview.locator('iframe.shown').count(), 1, 'The loaded preview must remain visible');
     await preview.screenshot({ path: '/tmp/club-same-host-preview.png' });
     // HTTP sandbox must also protect direct visits, without any iframe attribute.
     const direct = await context.newPage();
     await direct.goto(origin + '/site-runner/index.html#' + new URLSearchParams({parent: origin, session: 'direct'}));
     assert.equal(await direct.evaluate(() => self.origin), 'null', 'Direct runner navigation must enforce CSP sandbox');
-    console.log('PASS: Enable sites checkbox, disabled access, persistence, sidebar new tab, no runner config, HTTP CSP, opaque frames, Flutter interaction, direct navigation');
+    console.log('PASS: clipboard copy, late errors keep preview, Enable sites checkbox, disabled access, persistence, sidebar new tab, no runner config, HTTP CSP, opaque frames, Flutter interaction, direct navigation');
   } finally {
     try {
       if (settingsPage && originalDisabled !== undefined) {
