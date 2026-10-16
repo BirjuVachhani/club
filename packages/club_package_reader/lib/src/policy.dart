@@ -64,6 +64,15 @@ class ReaderPolicy {
   /// scaffolding templates.
   final bool rejectKnownTemplateReadmes;
 
+  /// Restrict `hook/*.dart` files to the experimental allowlist
+  /// (`hook/build.dart` and `hook/link.dart`, each with a minimum SDK
+  /// constraint).
+  ///
+  /// pub.dev: true, as an experimental-feature gate. A private registry has
+  /// no reason to block helper files imported by the (allowed) entry points,
+  /// so club sets this to false.
+  final bool restrictHookFiles;
+
   /// Run the legacy mixed-case / collision check against pub.dev's hardcoded
   /// tables. Only meaningful for pub.dev itself.
   final bool checkMixedCasePackageNames;
@@ -82,6 +91,7 @@ class ReaderPolicy {
     this.rejectEmojiInDescription = true,
     this.rejectKnownTemplateDescriptions = true,
     this.rejectKnownTemplateReadmes = true,
+    this.restrictHookFiles = true,
     this.checkMixedCasePackageNames = false,
     this.applyPubSemverOverride = true,
   });
@@ -102,6 +112,7 @@ class ReaderPolicy {
     rejectEmojiInDescription: false,
     rejectKnownTemplateDescriptions: false,
     rejectKnownTemplateReadmes: false,
+    restrictHookFiles: false,
   );
 
   /// Returns true when [url] matches any entry in [allowedHostedUrls] after
@@ -125,6 +136,7 @@ class ReaderPolicy {
     bool? rejectEmojiInDescription,
     bool? rejectKnownTemplateDescriptions,
     bool? rejectKnownTemplateReadmes,
+    bool? restrictHookFiles,
     bool? checkMixedCasePackageNames,
     bool? applyPubSemverOverride,
   }) => ReaderPolicy(
@@ -142,6 +154,7 @@ class ReaderPolicy {
         rejectKnownTemplateDescriptions ?? this.rejectKnownTemplateDescriptions,
     rejectKnownTemplateReadmes:
         rejectKnownTemplateReadmes ?? this.rejectKnownTemplateReadmes,
+    restrictHookFiles: restrictHookFiles ?? this.restrictHookFiles,
     checkMixedCasePackageNames:
         checkMixedCasePackageNames ?? this.checkMixedCasePackageNames,
     applyPubSemverOverride:

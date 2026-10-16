@@ -2,10 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:io';
+
 import 'package:club_package_reader/club_package_reader.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:test/test.dart';
+
+import '_tar_writer.dart';
 
 // TODO: Test that messages contains some substring.
 void main() {
@@ -1046,6 +1050,45 @@ dev_dependencies:
           '`hook/build.dart` is allowed only with a minimum SDK constraint of',
         ),
       );
+    });
+
+    test('restrictHookFiles=false accepts helper files under hook/', () async {
+      final file = File(
+        '${Directory.systemTemp.path}/'
+        'hooks-${DateTime.now().millisecondsSinceEpoch}.tar.gz',
+      );
+      await writeTarGzFile(
+        file,
+        textFiles: {
+          'pubspec.yaml': '''
+name: example
+version: 1.0.0
+description: Package with hook helper files.
+environment:
+  sdk: ^3.9.0
+''',
+          'hook/build.dart': 'void main() {}',
+          'hook/prebuilt.dart': 'void helper() {}',
+        },
+      );
+      try {
+        final strict = await summarizePackageArchive(file.path);
+        expect(
+          strict.issues.map((i) => i.message),
+          contains(contains('`hook/prebuilt.dart` is not allowed')),
+        );
+
+        final relaxed = await summarizePackageArchive(
+          file.path,
+          policy: ReaderPolicy.club,
+        );
+        expect(
+          relaxed.issues.map((i) => i.message).join('\n'),
+          isNot(contains('hook/')),
+        );
+      } finally {
+        await file.delete();
+      }
     });
   });
 }

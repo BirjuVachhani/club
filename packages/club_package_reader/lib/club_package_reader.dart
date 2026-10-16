@@ -322,9 +322,11 @@ Future<PackageSummary> summarizePackageArchive(
   }
   issues.addAll(checkFunding(pubspecContent));
   issues.addAll(checkTopics(pubspecContent));
-  issues.addAll(
-    checkHooks(_minVersion(pubspec.environment['sdk']), tar.fileNames),
-  );
+  if (policy.restrictHookFiles) {
+    issues.addAll(
+      checkHooks(_minVersion(pubspec.environment['sdk']), tar.fileNames),
+    );
+  }
 
   return PackageSummary(
     issues: issues,
